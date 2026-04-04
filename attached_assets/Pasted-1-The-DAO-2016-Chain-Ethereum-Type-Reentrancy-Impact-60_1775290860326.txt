@@ -1,0 +1,151 @@
+1. The DAO (2016)
+
+Chain: Ethereum | Type: Reentrancy | Impact: ~$60M (then ~3.6M ETH)
+Short desc: The hack that launched Ethereum's hard fork debate — an attacker repeatedly drained the DAO's funds by exploiting a reentrancy vulnerability in the withdrawal logic.
+Detailed timeline:
+Attacker deploys a malicious contract designed to reenter the DAO.
+Calls the splitDAO or withdrawal function to request funds.
+Before the victim's balance is updated (state change), the malicious contract reenters the function.
+Repeats the call in the same transaction, draining far more ETH than deposited.
+Transfers stolen funds to attacker-controlled wallets.
+Community debate leads to the Ethereum hard fork (creating ETH vs. ETC).
+
+Main vulnerability: Reentrancy (external call before updating internal state — violated Checks-Effects-Interactions).
+Key mitigations: Implement ReentrancyGuard modifier; follow Checks-Effects-Interactions pattern; use formal verification tools like Certora or Mythril.
+Educational value: Foundational example of why state updates must precede external calls; great for simple reentrancy attack flow graphs and "what-if" defender simulations.
+
+2. Parity Multisig Wallet Library (2017)
+
+Chain: Ethereum | Type: Access Control / Library Self-Destruct | Impact: ~$300M+ worth of ETH frozen/lost (513K ETH)
+Short desc: A single transaction killed the shared library contract, rendering hundreds of multisig wallets unusable and freezing user funds permanently.
+Detailed timeline:
+Attacker calls initWallet on the library contract (unprotected).
+Sets their address as the owner of the library.
+Calls the kill function to self-destruct the library.
+All contracts relying on delegatecall to this library become bricked.
+Funds in dependent multisig wallets are permanently inaccessible.
+
+Main vulnerability: Unprotected delegatecall to a mutable library + missing access controls on critical functions.
+Key mitigations: Avoid delegatecall in upgradable/shared libraries; use immutable patterns or careful proxy upgrades; add ownership checks and pausable mechanisms.
+Educational value: Highlights risks of shared libraries and proxy patterns — excellent for access control node graphs.
+
+3. bZx Flash Loan Attack (February 2020)
+
+Chain: Ethereum | Type: Flash Loan + Price Manipulation | Impact: ~$350K (first major flash loan demo)
+Short desc: The first prominent flash loan exploit — attacker borrowed funds, manipulated an oracle price, borrowed against inflated collateral, and profited.
+Detailed timeline:
+Borrow large flash loan (e.g., from dYdX).
+Swap on Uniswap to artificially pump the price of the target asset.
+Use inflated price to borrow maximum collateral on bZx.
+Repay the flash loan in the same transaction.
+Pocket the difference as profit.
+
+Main vulnerability: Lack of manipulation-resistant oracles (no TWAP) and insufficient slippage checks.
+Key mitigations: Use Chainlink with TWAP oracles; add flash loan amount caps or time-weighted checks; implement strict slippage protection.
+Educational value: Classic introduction to flash loans as attack vectors — perfect for animated token flow diagrams showing borrow → manipulate → drain.
+
+4. Poly Network (August 2021)
+
+Chain: Multi-chain (ETH/BSC/Polygon) | Type: Cross-Chain Message Forgery | Impact: $611M (most returned by the hacker)
+Short desc: Attacker forged cross-chain transfer messages by exploiting a keeper role in the bridge contracts, draining assets across chains.
+Detailed timeline:
+Exploit relationship between EthCrossChainManager and data contracts.
+Call functions to reassign the "keeper" role to attacker address.
+Forge makeFromTransfer or similar cross-chain messages.
+Withdraw/mint assets on target chains without burning on source.
+Distribute stolen funds across multiple chains.
+
+Main vulnerability: Insufficient signature/validation on cross-chain calls; overly permissive role management.
+Key mitigations: Require multi-signature or threshold signatures for cross-chain actions; strict validation of messages and roles; audit all inter-contract calls.
+Educational value: Early bridge hack archetype — great for multi-chain attack flow visualizations.
+
+5. Wormhole Bridge (February 2022)
+
+Chain: Multi-chain (Solana/Ethereum primarily) | Type: Signature Verification Bypass | Impact: $325M
+Short desc: Attacker bypassed guardian signature checks to mint wrapped assets (e.g., wETH) without corresponding burns on the source chain.
+Detailed timeline:
+Identify deprecated/insecure verification function in guardian logic.
+Forge a guardian signature or action approval.
+Submit fake postMessage or transfer request.
+Mint large amounts of wrapped tokens on destination chain.
+Swap/bridge out the minted assets for profit.
+
+Main vulnerability: Flawed signature verification logic (deprecated function allowed bypass).
+Key mitigations: Use robust, up-to-date cryptographic verification; avoid deprecated functions; implement guardian threshold checks with replay protection.
+Educational value: Shows how tiny verification bugs in bridges lead to massive minting exploits — ideal for node-based attack graphs.
+
+6. Ronin Network Bridge (March 2022)
+
+Chain: Ronin (Axie Infinity sidechain) | Type: Validator Key Compromise / Access Control | Impact: $625M (173,600 ETH + 25.5M USDC)
+Short desc: North Korean-linked attackers (Lazarus) compromised 5 of 9 validator private keys via social engineering, forging bridge withdrawals.
+Detailed timeline:
+Spear-phishing and malware infection on Sky Mavis employees (late 2021).
+Gain access to internal systems and validator nodes (4 Sky Mavis + 1 unrevoked Axie DAO).
+Use compromised keys to sign fraudulent withdrawal requests.
+Bridge contract verifies 5/9 signatures and releases funds (two large txs).
+Launder via mixers and bridges.
+
+Main vulnerability: Centralized validator key management + failure to revoke temporary permissions.
+Key mitigations: Hardware security modules (HSMs) for keys; multi-party computation (MPC) or distributed key management; regular key rotation and permission audits; higher signature thresholds.
+Educational value: Bridge security isn't just code — it's key/opsec; excellent for real-world "non-code" attack flows and defender simulations.
+
+7. Beanstalk Farms (April 2022)
+
+Chain: Ethereum | Type: Flash Loan + Governance Manipulation | Impact: $182M
+Short desc: Attacker used a flash loan to buy enough governance votes, then proposed and executed a drain of the treasury.
+Detailed timeline:
+Borrow massive flash loan.
+Use funds to acquire governance tokens/voting power.
+Propose malicious governance action (no timelock delay).
+Vote with flash-loan-acquired power and execute drain.
+Repay flash loan + keep profits.
+
+Main vulnerability: No timelock on governance proposals + flash-loan-enabled vote buying.
+Key mitigations: Implement timelocks and quorum requirements; prevent flash-loan voting power; use snapshot voting or on-chain delays.
+Educational value: Demonstrates composability risks in DAOs — good for governance node diagrams.
+
+8. Nomad Bridge (August 2022)
+
+Chain: Multi-chain | Type: Initialization/Config Bug | Impact: ~$190M (chaotic "crowd looting")
+Short desc: A config error set the trusted root to zero, allowing anyone to submit fake messages and claim arbitrary funds.
+Detailed timeline:
+Deployer sets incorrect initialization value (zero hash for trusted root).
+Bug makes verification always pass for certain messages.
+Attacker (and copycats) submit fraudulent withdrawal claims.
+Bridge pays out without proper validation.
+Multiple actors drain funds in rapid succession.
+
+Main vulnerability: Critical initialization bug (zero-check failure) in message verification.
+Key mitigations: Rigorous config testing and deployment checks; immutable critical parameters where possible; multi-stage audits post-deployment.
+Educational value: Shows how one-line config errors enable mass exploitation — simple yet devastating for token flow animations.
+
+9. Euler Finance (March 2023)
+
+Chain: Ethereum | Type: Flash Loan + Accounting/Logic Flaw | Impact: $197M (most recovered)
+Short desc: Attacker used flash loans and the donateToReserves function (missing health check) to create bad debt and liquidate for profit.
+Detailed timeline:
+Borrow flash loan (e.g., DAI from Aave).
+Deposit into Euler, mint collateral (eTokens) and debt (dTokens).
+Use donateToReserves to donate collateral without health check.
+Trigger self-liquidation with inflated position.
+Liquidator (attacker-controlled) seizes excess collateral.
+Repay flash loan with massive profit.
+
+Main vulnerability: Missing liquidity/health check in donateToReserves after a code change.
+Key mitigations: Invariant testing (e.g., health score >1 always); comprehensive audits including all functions in context; pause mechanisms during anomalies.
+Educational value: Modern flash-loan + logic flaw hybrid — ideal for detailed attack flow graphs and "what-if" mitigation toggles.
+
+10. Mango Markets (October 2022)
+
+Chain: Solana | Type: Price Manipulation + Governance | Impact: $117M
+Short desc: Attacker manipulated oracle prices via large positions, then used governance to drain the protocol.
+Detailed timeline:
+Open massive leveraged positions to move market price.
+Exploit oracle to show inflated collateral value.
+Borrow against manipulated price.
+Influence governance or directly drain via the distorted accounting.
+Close positions and repay while keeping profits.
+
+Main vulnerability: Oracle manipulation combined with insufficient risk controls in perpetuals/lending.
+Key mitigations: Use multiple oracles with deviation checks; strict position size limits; time-weighted pricing.
+Educational value: Solana-specific mechanics + oracle risks — useful for contrasting with Ethereum patterns.

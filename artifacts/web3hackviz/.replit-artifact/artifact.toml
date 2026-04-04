@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Web3HackViz"
+version = "1.0.0"
+id = "artifacts/web3hackviz"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22659
+
+[services.development]
+run = "pnpm --filter @workspace/web3hackviz run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/web3hackviz", "run", "build" ]
+publicDir = "artifacts/web3hackviz/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22659"
+BASE_PATH = "/"

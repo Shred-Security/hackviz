@@ -1,0 +1,145 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-card-border: hsl(var(--card-border));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+
+  --color-sidebar: hsl(var(--sidebar));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+
+  --font-sans: var(--app-font-sans);
+  --font-mono: var(--app-font-mono);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --background: 222 47% 5%;
+  --foreground: 180 100% 90%;
+  --border: 185 40% 18%;
+  --card: 222 47% 8%;
+  --card-foreground: 180 100% 90%;
+  --card-border: 185 40% 18%;
+  --popover: 222 47% 8%;
+  --popover-foreground: 180 100% 90%;
+  --primary: 180 100% 50%;
+  --primary-foreground: 222 47% 5%;
+  --secondary: 222 30% 15%;
+  --secondary-foreground: 180 60% 80%;
+  --muted: 222 30% 12%;
+  --muted-foreground: 185 30% 55%;
+  --accent: 150 80% 45%;
+  --accent-foreground: 222 47% 5%;
+  --destructive: 0 85% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --input: 185 40% 18%;
+  --ring: 180 100% 50%;
+  --sidebar: 222 47% 6%;
+  --sidebar-foreground: 180 80% 80%;
+  --sidebar-border: 185 40% 14%;
+  --sidebar-primary: 180 100% 50%;
+  --sidebar-primary-foreground: 222 47% 5%;
+  --sidebar-accent: 222 30% 12%;
+  --sidebar-accent-foreground: 180 60% 75%;
+  --app-font-sans: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --app-font-mono: 'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace;
+  --radius: 0.5rem;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    background-image:
+      radial-gradient(ellipse at 20% 50%, rgba(0, 255, 255, 0.03) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 20%, rgba(0, 255, 128, 0.03) 0%, transparent 50%),
+      linear-gradient(rgba(0, 255, 255, 0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 255, 255, 0.015) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 60px 60px, 60px 60px;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track { background: hsl(222 47% 5%); }
+  ::-webkit-scrollbar-thumb { background: hsl(185 40% 25%); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(180 100% 35%); }
+}
+
+@layer utilities {
+  .glow-cyan {
+    text-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+    color: hsl(180 100% 60%);
+  }
+  .glow-green {
+    text-shadow: 0 0 20px rgba(0, 255, 128, 0.5);
+    color: hsl(150 80% 55%);
+  }
+  .card-glow {
+    box-shadow: 0 0 0 1px rgba(0, 255, 255, 0.1), 0 4px 24px rgba(0, 0, 0, 0.4);
+  }
+  .card-glow:hover {
+    box-shadow: 0 0 0 1px rgba(0, 255, 255, 0.25), 0 8px 32px rgba(0, 255, 255, 0.08);
+  }
+  .neon-border {
+    border-color: rgba(0, 255, 255, 0.3);
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.15), inset 0 0 10px rgba(0, 255, 255, 0.05);
+  }
+  .font-mono {
+    font-family: var(--app-font-mono);
+  }
+}
+
+/* React Flow overrides */
+.react-flow__node {
+  cursor: pointer;
+}
+.react-flow__edge-path {
+  stroke-width: 2;
+}
