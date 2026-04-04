@@ -1,6 +1,6 @@
 "use client";
 import { useState, useCallback } from "react";
-import { Web3Hack } from "@/data/hacks";
+import { Hack } from "@/data/hacks";
 import ReactFlow, {
   Background,
   Controls,
@@ -48,7 +48,7 @@ function CustomNode({ data }: NodeProps) {
 
 const nodeTypes = { custom: CustomNode };
 
-export function AttackFlowTab({ hack }: { hack: Web3Hack }) {
+export function AttackFlowTab({ hack }: { hack: Hack }) {
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
 
   const nodes: Node[] = hack.attackFlow.nodes.map((n) => ({

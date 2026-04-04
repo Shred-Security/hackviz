@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Web3Hack } from "@/data/hacks";
+import { Hack } from "@/data/hacks";
 import { CheckSquare, ChevronDown, ChevronUp, Shield, Code2, AlertTriangle } from "lucide-react";
 
 const GLOBAL_CHECKLIST = [
@@ -16,7 +16,7 @@ const GLOBAL_CHECKLIST = [
   { id: "supplychain", label: "Supply-Chain Hardening", desc: "Pin all front-end assets with SRI hashes. Audit NPM dependencies." },
 ];
 
-export function LessonsTab({ hack }: { hack: Web3Hack }) {
+export function LessonsTab({ hack }: { hack: Hack }) {
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [expandedMit, setExpandedMit] = useState<number | null>(0);
   const [whatIfEnabled, setWhatIfEnabled] = useState<Set<string>>(new Set());

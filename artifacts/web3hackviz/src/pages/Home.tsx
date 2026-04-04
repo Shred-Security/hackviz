@@ -73,14 +73,14 @@ export default function HomePage() {
           </span>
         </div>
         <h1 className="text-4xl md:text-5xl font-bold mb-3">
-          <span className="glow-cyan">Web3Hack</span>
+          <span className="glow-cyan">Hack</span>
           <span className="text-foreground/80">Viz</span>
         </h1>
         <p className="text-muted-foreground max-w-2xl text-sm md:text-base leading-relaxed">
-          Simulate and learn every Web3 exploit. Visualize smart contract
+          Simulate and learn every exploit. Visualize smart contract
           drains, bridge hacks, flash loans, oracle manipulations, and
           governance attacks. Learn how to hunt and secure the blockchain.
-          Powered By <span className="text-red-400 font-semibold">Shred Security</span>.
+          Powered By <a href="https://shredsec.xyz" target="_blank" rel="noopener noreferrer" className="text-red-400 font-semibold hover:text-red-300 transition-colors">Shred Security</a>.
         </p>
 
         {/* Year selector above stats */}
@@ -242,9 +242,9 @@ export default function HomePage() {
       {/* Footer */}
       <footer className="mt-16 pt-6 border-t border-border/50 text-center">
         <p className="text-xs text-muted-foreground">
-          Web3HackViz — Defensive learning only. All data sourced from public
+          HackViz — Defensive learning only. All data sourced from public
           post-mortems and block explorers. This platform does not encourage or
-          facilitate any malicious activity, developed by <span className="text-red-400 font-semibold">Shred Security</span>.
+          facilitate any malicious activity, developed by <a href="https://shredsec.xyz" target="_blank" rel="noopener noreferrer" className="text-red-400 font-semibold hover:text-red-300 transition-colors">Shred Security</a>.
         </p>
       </footer>
     </div>

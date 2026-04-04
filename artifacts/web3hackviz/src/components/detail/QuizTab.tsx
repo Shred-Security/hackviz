@@ -1,9 +1,9 @@
 "use client";
 import { useState } from "react";
-import { Web3Hack } from "@/data/hacks";
+import { Hack } from "@/data/hacks";
 import { CheckCircle, XCircle, Trophy, RotateCcw } from "lucide-react";
 
-export function QuizTab({ hack, onMastered }: { hack: Web3Hack; onMastered?: () => void }) {
+export function QuizTab({ hack, onMastered }: { hack: Hack; onMastered?: () => void }) {
   const [answers, setAnswers] = useState<Record<number, number | null>>({});
   const [submitted, setSubmitted] = useState<Record<number, boolean>>({});
   const [done, setDone] = useState(false);

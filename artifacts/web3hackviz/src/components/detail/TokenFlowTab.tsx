@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef } from "react";
-import { Web3Hack } from "@/data/hacks";
+import { Hack } from "@/data/hacks";
 import * as d3 from "d3";
 
 const NODE_COLORS: Record<string, string> = {
@@ -81,7 +81,7 @@ function buildLayout(
   return { posMap, numLayers };
 }
 
-export function TokenFlowTab({ hack }: { hack: Web3Hack }) {
+export function TokenFlowTab({ hack }: { hack: Hack }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const timerRef = useRef<d3.Timer | null>(null);
 

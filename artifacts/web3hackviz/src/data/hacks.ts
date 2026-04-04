@@ -9,7 +9,7 @@ export interface TimelineStep {
 
 export interface AttackFlowNode {
   id: string;
-  type: "attacker" | "contract" | "pool" | "bridge" | "oracle" | "result";
+  type: "attacker" | "contract" | "pool" | "bridge" | "oracle" | "vault" | "result";
   label: string;
   detail: string;
   x: number;
@@ -51,7 +51,7 @@ export interface QuizQuestion {
   explanation: string;
 }
 
-export interface Web3Hack {
+export interface Hack {
   id: string;
   slug: string;
   title: string;
@@ -73,7 +73,7 @@ export interface Web3Hack {
   quiz: QuizQuestion[];
 }
 
-export const hacks: Web3Hack[] = [
+export const hacks: Hack[] = [
   // 1. Bybit 2025
   {
     id: "bybit-2025",
@@ -1419,7 +1419,7 @@ export const hacks: Web3Hack[] = [
     technicalDesc:
       "bZx used Uniswap v1 spot price as its oracle — not TWAP. The attacker: (1) borrowed 10,000 ETH flash loan from dYdX; (2) shorted 5,500 ETH on bZx's Fulcrum; (3) used 1,300 ETH to dump WBTC price on Uniswap; (4) borrowed max WBTC on Compound (inflated price); (5) dumped WBTC back on Uniswap; (6) bZx's oracle read the manipulated price, believing the short was safe; (7) repaid flash loan with profit.",
     impact: "~$350K",
-    impactUSD: 0.35,
+    impactUSD: 350000,
     contracts: [
       {
         label: "bZx Fulcrum (Ethereum)",

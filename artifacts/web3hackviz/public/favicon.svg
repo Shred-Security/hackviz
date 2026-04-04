@@ -1,3 +1,11 @@
 <svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="180" height="180" rx="36" fill="#FF3C00"/>
+<rect width="180" height="180" rx="36" fill="#0F172A"/>
+<path d="M45 60H75V90H45V60Z" fill="#10B981"/>
+<path d="M105 60H135V90H105V60Z" fill="#10B981"/>
+<path d="M45 120H75V135H45V120Z" fill="#3B82F6"/>
+<path d="M105 120H135V135H105V120Z" fill="#3B82F6"/>
+<path d="M75 105H105V120H75V105Z" fill="#8B5CF6"/>
+<path d="M60 90H75V105H60V90Z" fill="#F59E0B"/>
+<path d="M105 90H120V105H105V90Z" fill="#F59E0B"/>
+<path d="M82.5 75H97.5V90H82.5V75Z" fill="#EF4444"/>
 </svg>

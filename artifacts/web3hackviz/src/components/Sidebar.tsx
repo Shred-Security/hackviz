@@ -47,7 +47,7 @@ export function Sidebar() {
             <ShieldAlert className="w-4 h-4 text-primary" />
           </div>
           <div className="min-w-0">
-            <div className="text-sm font-bold text-primary glow-cyan truncate">Web3HackViz</div>
+            <div className="text-sm font-bold text-primary glow-cyan truncate">HackViz</div>
             <div className="text-[10px] text-muted-foreground truncate">2025–2026 Exploits</div>
           </div>
           <button

@@ -1,9 +1,9 @@
 "use client";
 import { useState } from "react";
-import { Web3Hack } from "@/data/hacks";
+import { Hack } from "@/data/hacks";
 import { Play, Pause, SkipBack, SkipForward, ChevronRight, Code } from "lucide-react";
 
-export function TimelineTab({ hack }: { hack: Web3Hack }) {
+export function TimelineTab({ hack }: { hack: Hack }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [showCode, setShowCode] = useState(false);

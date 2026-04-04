@@ -1,12 +1,12 @@
 "use client";
 import { Link } from "wouter";
-import { Web3Hack, typeColors } from "@/data/hacks";
+import { Hack, typeColors } from "@/data/hacks";
 import { getProgress } from "@/lib/progress";
 import { useState, useEffect } from "react";
 import { Play, Trophy, BookOpen, ExternalLink, TrendingDown } from "lucide-react";
 
 interface Props {
-  hack: Web3Hack;
+  hack: Hack;
 }
 
 function formatImpact(usd: number): string {

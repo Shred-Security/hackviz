@@ -1,9 +1,9 @@
 "use client";
 import { useState } from "react";
-import { Web3Hack } from "@/data/hacks";
+import { Hack } from "@/data/hacks";
 import { ExternalLink, Code, FileText } from "lucide-react";
 
-export function OverviewTab({ hack }: { hack: Web3Hack }) {
+export function OverviewTab({ hack }: { hack: Hack }) {
   const [technical, setTechnical] = useState(false);
 
   return (
