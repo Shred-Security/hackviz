@@ -904,7 +904,7 @@ export const hacks: Hack[] = [
     tokenFlowNodes: [
       { id: "a", label: "Fake Deposit\nProof", type: "bridge" },
       { id: "b", label: "Kelp DAO\nVault", type: "vault" },
-      { id: "c", label: "rsETH\nTokens", type: "pool" },
+      { id: "c", label: "rsETH\nMinted", type: "pool" },
       { id: "d", label: "Uniswap\nPool", type: "pool" },
       { id: "e", label: "Curve\nPool", type: "pool" },
       { id: "f", label: "Attacker\nWallet", type: "attacker" }

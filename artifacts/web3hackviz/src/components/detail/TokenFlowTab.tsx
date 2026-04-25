@@ -45,8 +45,12 @@ function buildLayout(
   const nodeLayer: Record<string, number> = {};
   nodes.forEach((n) => { nodeLayer[n.id] = 0; });
 
+  // Add safety check to prevent infinite loops
+  let maxIterations = nodes.length * links.length + 10;
   let changed = true;
-  while (changed) {
+  let iterations = 0;
+  
+  while (changed && iterations < maxIterations) {
     changed = false;
     links.forEach((l) => {
       if ((nodeLayer[l.target] ?? 0) <= (nodeLayer[l.source] ?? 0)) {
@@ -54,6 +58,7 @@ function buildLayout(
         changed = true;
       }
     });
+    iterations++;
   }
 
   const numLayers = Math.max(...Object.values(nodeLayer), 0) + 1;
@@ -89,21 +94,33 @@ export function TokenFlowTab({ hack }: { hack: Hack }) {
     if (!svgRef.current) return;
     if (timerRef.current) timerRef.current.stop();
 
-    const svg = d3.select(svgRef.current);
-    svg.selectAll("*").remove();
+    try {
+      const svg = d3.select(svgRef.current);
+      svg.selectAll("*").remove();
 
-    const container = svgRef.current.parentElement;
-    const width = container ? Math.max(container.clientWidth - 4, 500) : 700;
-    const height = 420;
-    const NODE_W = 134;
-    const NODE_H = 54;
+      const container = svgRef.current.parentElement;
+      const width = container ? Math.max(container.clientWidth - 4, 500) : 700;
+      const height = 420;
+      const NODE_W = 134;
+      const NODE_H = 54;
 
-    svg.attr("width", width).attr("height", height);
+      svg.attr("width", width).attr("height", height);
 
-    const nodes = hack.tokenFlowNodes.map((n) => ({ ...n }));
-    const links = hack.tokenFlowLinks.map((l) => ({ ...l }));
+      const nodes = hack.tokenFlowNodes.map((n) => ({ ...n }));
+      const links = hack.tokenFlowLinks.map((l) => ({ ...l }));
 
-    const { posMap } = buildLayout(nodes, links, width, height, NODE_W);
+      // Validate data
+      if (!nodes.length || !links.length) {
+        svg.append("text")
+          .attr("x", width / 2)
+          .attr("y", height / 2)
+          .attr("text-anchor", "middle")
+          .attr("fill", "#666")
+          .text("No token flow data available");
+        return;
+      }
+
+      const { posMap } = buildLayout(nodes, links, width, height, NODE_W);
 
     const defs = svg.append("defs");
 
@@ -396,6 +413,19 @@ export function TokenFlowTab({ hack }: { hack: Hack }) {
     return () => {
       if (timerRef.current) timerRef.current.stop();
     };
+    } catch (error) {
+      console.error("TokenFlowTab error:", error);
+      if (svgRef.current) {
+        const svg = d3.select(svgRef.current);
+        svg.selectAll("*").remove();
+        svg.append("text")
+          .attr("x", 350)
+          .attr("y", 210)
+          .attr("text-anchor", "middle")
+          .attr("fill", "#666")
+          .text("Error loading token flow visualization");
+      }
+    }
   }, [hack]);
 
   return (
