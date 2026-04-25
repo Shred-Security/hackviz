@@ -24,7 +24,7 @@ const ALL_TYPES = [
   "Supply Chain",
 ];
 
-const ALL_CHAINS = ["Ethereum", "Arbitrum", "Solana", "Sui", "Multi-chain"];
+const ALL_CHAINS = ["Ethereum", "Solana", "BNB Chain", "Multi-chain", "Arbitrum", "Avalanche", "Optimism", "Fantom", "Sui", "NEAR"];
 
 function formatBig(n: number) {
   if (n >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
