@@ -45,6 +45,7 @@ export interface Mitigation {
 }
 
 export interface QuizQuestion {
+  id?: string;
   question: string;
   options: string[];
   correct: number;
@@ -248,399 +249,211 @@ export const hacks: Hack[] = [
     ],
   },
 
-  // 2. Cetus Protocol 2025
+  // 2. Cetus Protocol (May 22, 2025)
   {
     id: "cetus-protocol-2025",
     slug: "cetus-protocol-2025",
     title: "Cetus Protocol",
-    subtitle: "CLMM Integer Overflow — Sui Network",
+    subtitle: "U256 Shift-Left Overflow - Sui",
     year: 2025,
     chain: "Sui",
     type: ["Math Bug", "Integer Overflow"],
-    shortDesc:
-      "An integer overflow in Cetus's Concentrated Liquidity Market Maker (CLMM) math library allowed an attacker to drain ~$223M in liquidity across multiple pools on Sui.",
-    longDesc:
-      "Cetus Protocol is the largest AMM / CLMM on the Sui blockchain. In May 2025 an attacker discovered that the price tick calculation in the CLMM math module was susceptible to integer overflow. By providing an extremely small liquidity amount at a carefully chosen tick boundary, the attacker caused the tick price calculation to overflow to a near-zero value, allowing them to swap vast amounts of tokens out of the pool for almost nothing. The exploit was executed across dozens of pools in under two minutes, draining approximately $223M.",
-    technicalDesc:
-      "Cetus CLMM tracks liquidity per tick using u128 arithmetic. The `get_delta_a` function computes the token amounts at each tick crossing. When the attacker supplied a crafted `liquidity_delta` near the u128 maximum, the intermediate multiplication `(sqrt_price_upper - sqrt_price_lower) * liquidity` overflowed silently (Move does not panic on overflow by default unless `checked_*` variants are used). The resulting near-zero delta_a made the pool believe large amounts of token A cost effectively zero. The attacker then executed a massive swap extracting the pool reserves.",
+    shortDesc: "Attacker exploited a u256 shift-left check flaw (checked_shlw) in the CLMM contract’s inter_mate library to mint astronomical liquidity positions.",
+    longDesc: "On May 22, 2025, Cetus Protocol on Sui was drained of $223M. The attacker identified a vulnerability in the `inter_mate` library used for Concentrated Liquidity Market Maker (CLMM) math. Specifically, the `checked_shlw` function failed to properly guard against u256 overflows during shift-left operations. This allowed the attacker to supply a crafted liquidity amount that, when shifted, overflowed to a massive value, effectively allowing them to mint near-infinite liquidity positions with negligible deposits.",
+    technicalDesc: "The vulnerability resided in the library\'s arithmetic boundary checks. Move bytecode for `checked_shlw` (shift-left-wrapped) did not account for the case where the shift amount caused the bit-representation to wrap around the u256 boundary without triggering a panic in a specific unchecked context. The attacker called `add_liquidity` with a value that caused the overflow during the price-to-liquidity conversion. The pool, believing the attacker had provided massive depth, allowed withdrawals of the entire token reserve of multiple pools.",
     impact: "$223 million",
     impactUSD: 223000000,
-    contracts: [
-      {
-        label: "Cetus CLMM Package (Sui)",
-        address: "0x1eabed72c53feb3805120a081dc15963c204dc8d0d0d8c55c9c1c2c7c3d3e3f3",
-        url: "https://suiexplorer.com/object/0x1eabed72c53feb3805120a081dc15963c204dc8d0d0d8c55c9c1c2c7c3d3e3f3",
-      },
-    ],
+    contracts: [{ label: "Cetus CLMM Package", address: "0x1eabed7...dc8d0...d3e3f3", url: "https://suiexplorer.com/object/0x1eabed72c53feb3805120a081dc15963c204dc8d0d0d8c55c9c1c2c7c3d3e3f3" }],
     timeline: [
-      {
-        id: "t1",
-        phase: "Research",
-        description: "Attacker studies Cetus CLMM Move source code on-chain, identifying u128 arithmetic in get_delta_a().",
-        functionsCall: [],
-        pseudocode: "// key function: get_delta_a(sqrt_price_lower, sqrt_price_upper, liquidity_delta, round_up)\n// uses u128 multiply without checked_mul",
-        timestamp: "Days before",
-      },
-      {
-        id: "t2",
-        phase: "Craft Overflow Input",
-        description: "Attacker computes a liquidity_delta value that causes the intermediate product to wrap around u128::MAX.",
-        functionsCall: ["compute_overflow_delta()"],
-        pseudocode:
-          "// target: (price_upper - price_lower) * liquidity_delta > u128::MAX\nlet liquidity_delta = u128::MAX / (price_upper - price_lower) + 1;\n// overflow → result wraps to ~0",
-      },
-      {
-        id: "t3",
-        phase: "Add Liquidity (Overflow Trigger)",
-        description: "Attacker calls add_liquidity with the crafted delta, triggering the overflow and corrupting the pool's price state.",
-        functionsCall: ["Pool::add_liquidity(overflow_delta, tick_lower, tick_upper)"],
-        pseudocode:
-          "// pool.sqrt_price_x64 is now corrupted\n// liquidity per tick reports near-zero cost for massive amounts",
-      },
-      {
-        id: "t4",
-        phase: "Swap Exploit",
-        description: "With the corrupted price state, attacker swaps near-zero input tokens for the pool's full reserve of the target token.",
-        functionsCall: ["Pool::swap(1_token_in, true, max_slippage)"],
-        pseudocode:
-          "// Pool believes 1 unit of tokenA costs 0 units of tokenB\n// attacker sends 1 tokenA, receives entire tokenB reserve",
-      },
-      {
-        id: "t5",
-        phase: "Multi-Pool Repeat",
-        description: "Attacker repeats across 39 different Cetus pools in rapid succession before any circuit breaker fires.",
-        functionsCall: [],
-        pseudocode: "for pool in CETUS_POOLS:\n    trigger_overflow(pool)\n    drain_pool(pool)",
-      },
-      {
-        id: "t6",
-        phase: "Governance Pause",
-        description: "Cetus team detects anomaly and calls emergency pause. Sui validators coordinate a controversial whitelist transaction to freeze stolen SUI.",
-        functionsCall: ["AdminCap::pause_all_pools()", "SuiValidators::freeze_tx()"],
-        pseudocode: "// ~$162M frozen by Sui validator intervention\n// ~$61M USDC bridged to Ethereum before pause",
-      },
+      { id: "t1", phase: "Deposit", description: "Attacker deposited a minimal amount into targeted CLMM pools.", functionsCall: ["Pool::add_liquidity(min_deposit)"], pseudocode: "// Minimal collateral provided to open position" },
+      { id: "t2", phase: "Overflow Trigger", description: "Triggered the overflow bug during liquidity position calculation using shift-left math.", functionsCall: ["inter_mate::checked_shlw()"], pseudocode: "// u256 overflow: (x << shift) wraps to near-max u256" },
+      { id: "t3", phase: "Fake Mint", description: "Minted massive fake liquidity far exceeding actual reserves.", functionsCall: [], pseudocode: "// Position.liquidity = corrupted_overflow_value" },
+      { id: "t4", phase: "Drain", description: "Withdrew disproportionately large amounts of underlying tokens from the pools.", functionsCall: ["Pool::remove_liquidity(fake_position)"], pseudocode: "// Pool releases real assets for fake liquidity" },
+      { id: "t5", phase: "Laundering", description: "Bridged ~$60M to Ethereum while laundering the remaining ~$162M on Sui.", functionsCall: [], pseudocode: "// $60M USDC → ETH via Bridge" }
     ],
     attackFlow: {
       nodes: [
-        { id: "n1", type: "attacker", label: "Attacker EOA", detail: "Crafted overflow transactions", x: 50, y: 200 },
-        { id: "n2", type: "contract", label: "CLMM Math Library", detail: "get_delta_a() overflow", x: 250, y: 100 },
-        { id: "n3", type: "pool", label: "Cetus Pool (x39)", detail: "Liquidity reserves ~$223M", x: 450, y: 200 },
-        { id: "n4", type: "contract", label: "Swap Module", detail: "Pool::swap()", x: 650, y: 100 },
-        { id: "n5", type: "result", label: "Attacker Wallets", detail: "$61M escaped; $162M frozen", x: 850, y: 200 },
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Exploited u256 overflow", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "inter_mate Library", detail: "checked_shlw() bypass", x: 250, y: 100 },
+        { id: "n3", type: "pool", label: "CLMM Pools", detail: "$223M liquidity", x: 450, y: 200 },
+        { id: "n4", type: "result", label: "Attacker Wallet", detail: "$223M drained", x: 750, y: 200 }
       ],
       edges: [
-        { id: "e1", source: "n1", target: "n2", label: "Overflow liquidity_delta", animated: true },
-        { id: "e2", source: "n2", target: "n3", label: "Corrupt sqrt_price" },
-        { id: "e3", source: "n1", target: "n4", label: "swap(1 token)" },
-        { id: "e4", source: "n3", target: "n4", label: "Report near-zero cost" },
-        { id: "e5", source: "n4", target: "n5", label: "Drain reserve", animated: true },
-      ],
+        { id: "e1", source: "n1", target: "n2", label: "Trigger overflow", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Mint fake liquidity" },
+        { id: "e3", source: "n3", target: "n4", label: "Withdraw reserves", animated: true }
+      ]
     },
     tokenFlowNodes: [
       { id: "a", label: "Cetus Pools\n$223M", type: "pool" },
-      { id: "b", label: "CLMM Math\n(Overflowed)", type: "vault" },
-      { id: "c", label: "Attacker Wallet", type: "attacker" },
-      { id: "d", label: "Sui Frozen Funds\n$162M", type: "vault" },
-      { id: "e", label: "Bridged to ETH\n$61M", type: "drain" },
+      { id: "b", label: "Attacker EOA", type: "attacker" },
+      { id: "c", label: "Ethereum Bridge", type: "bridge" },
+      { id: "d", label: "Sui Laundering", type: "drain" }
     ],
     tokenFlowLinks: [
-      { source: "a", target: "b", value: 223, label: "Liquidity" },
-      { source: "b", target: "c", value: 223, label: "Overflow swap" },
-      { source: "c", target: "d", value: 162, label: "Frozen by validators" },
-      { source: "c", target: "e", value: 61, label: "Escaped" },
+      { source: "a", target: "b", value: 223, label: "Drain" },
+      { source: "b", target: "c", value: 60, label: "Bridge" },
+      { source: "b", target: "d", value: 163, label: "Launder" }
     ],
     mitigations: [
-      {
-        category: "Safe Arithmetic",
-        description: "Use checked_mul and checked_add in Move (or Rust/Solidity equivalents). Always verify arithmetic cannot overflow before computing.",
-        code: "let product = (price_upper - price_lower).checked_mul(liquidity_delta)\n    .expect('overflow in get_delta_a');",
-      },
-      {
-        category: "Invariant Checks",
-        description: "Assert post-conditions after any liquidity addition: pool reserves must be >= pre-operation reserves minus delta.",
-      },
-      {
-        category: "Fuzz Testing",
-        description: "Fuzz arithmetic functions with extreme u128 boundary values (0, 1, u128::MAX, u128::MAX-1) as part of CI.",
-      },
-      {
-        category: "Formal Verification",
-        description: "Formally verify all arithmetic helper functions using Move Prover or Certora to prove absence of overflow on valid inputs.",
-      },
+      { category: "Math", description: "Adopt audited safe-math libraries with explicit overflow guards." },
+      { category: "Verification", description: "Implement formal verification (Move prover) for all arithmetic." },
+      { category: "Monitoring", description: "Add runtime invariant checks on liquidity amounts." }
     ],
     quiz: [
-      {
-        question: "What was the root cause of the Cetus Protocol exploit?",
-        options: [
-          "Reentrancy in the swap function",
-          "Unchecked integer overflow in CLMM tick price calculation",
-          "Oracle price manipulation",
-          "Compromised admin private key",
-        ],
-        correct: 1,
-        explanation: "The get_delta_a() function performed u128 multiplication without overflow checks. A crafted liquidity_delta wrapped the product to ~0, making swaps appear to cost nothing.",
-      },
-      {
-        question: "What controversial recovery action did the Sui network take?",
-        options: [
-          "A hard fork to reverse the transactions",
-          "Validators coordinated a whitelist transaction to freeze ~$162M of stolen funds",
-          "The attacker voluntarily returned funds after negotiation",
-          "Cetus deployed a drain-back contract to recover funds",
-        ],
-        correct: 1,
-        explanation: "Sui validators used their privileged capabilities to freeze approximately $162M in stolen assets before they could be moved, a move that sparked debate about blockchain immutability.",
-      },
-    ],
+      { question: "Which arithmetic operation caused the Cetus overflow?", options: ["Add", "Subtract", "Shift-Left", "Multiply"], correct: 2, explanation: "The overflow happened in a shift-left operation (checked_shlw) in the CLMM math library." }
+    ]
   },
 
-  // 3. GMX V1 2025
+  // 3. GMX V1 (July 9, 2025)
   {
     id: "gmx-v1-2025",
     slug: "gmx-v1-2025",
     title: "GMX V1",
-    subtitle: "Cross-Contract Reentrancy on Arbitrum",
+    subtitle: "Cross-contract Reentrancy - Arbitrum/Avalanche",
     year: 2025,
-    chain: "Arbitrum",
-    type: ["Reentrancy", "Access Control"],
-    shortDesc:
-      "A cross-contract reentrancy vulnerability in GMX V1's Vault and Router contracts on Arbitrum enabled an attacker to drain approximately $41M by re-entering a deposit callback.",
-    longDesc:
-      "GMX is one of the largest perpetual DEXes on Arbitrum. In 2025 a white-hat researcher published a bug report describing a cross-contract reentrancy in the Vault.deposit() flow where an ERC-777 or callback-enabled token triggered a re-entry path through the Router before the Vault updated its internal accounting. Black-hat actors exploited this before the team could patch, draining around $41M in WETH and USDC.",
-    technicalDesc:
-      "GMX V1 Vault calls `token.safeTransferFrom(user, vault, amount)` before updating `vault.tokenBalances[token]`. For a malicious ERC-777 token (or any EIP-2612 permit-style token with a receive-hook), the transfer triggers the attacker's `tokensReceived()` callback. The callback re-enters `Router.increasePosition()` which reads `vault.tokenBalances[token]` — still showing the pre-deposit value — and allows opening a leveraged position with a stale (lower) collateral figure. After the callback, the Vault updates balances and the position remains open with under-reported collateral, which the attacker then closes for profit.",
-    impact: "$41 million",
-    impactUSD: 41000000,
-    contracts: [
-      {
-        label: "GMX Vault (Arbitrum)",
-        address: "0x489ee077994B6658eAfA855C308275EAd8097C4A",
-        url: "https://arbiscan.io/address/0x489ee077994B6658eAfA855C308275EAd8097C4A",
-      },
-      {
-        label: "GMX Router (Arbitrum)",
-        address: "0xaBBc5F99639c9B6bCb58544ddf04cf3C4C55c2d7",
-        url: "https://arbiscan.io/address/0xaBBc5F99639c9B6bCb58544ddf04cf3C4C55c2d7",
-      },
-    ],
+    chain: "Arbitrum/Avalanche",
+    type: ["Reentrancy"],
+    shortDesc: "Reentrancy guard introduced in a 2022 bug fix was bypassed, draining the GLP pool of $42M.",
+    longDesc: "On July 9, 2025, GMX V1 was hit by a $42M exploit. An attacker discovered a way to bypass the reentrancy guards that were thought to have been fixed in 2022. By exploiting a cross-contract reentrancy vector, the attacker was able to manipulate the GLP pool logic and drain substantial assets.",
+    technicalDesc: "The exploit involved a complex interaction between the GMX Router and the Vault. The attacker triggered a callback within a token transfer that re-entered the increasePosition/decreasePosition flow before the initial state was finalized. Because the reentrancy guard was only applied to individual contracts and not across the entire vault/router interaction surface correctly, the attacker could manipulate the pool's internal accounting.",
+    impact: "$42 million",
+    impactUSD: 42000000,
+    contracts: [{ label: "GMX Vault", address: "0x489ee077994B6658eAfA855C308275EAd8097C4A", url: "https://arbiscan.io/address/0x489ee077994B6658eAfA855C308275EAd8097C4A" }],
     timeline: [
-      {
-        id: "t1",
-        phase: "Craft Callback Token",
-        description: "Attacker deploys a malicious ERC-777 token with a custom tokensReceived() hook that re-enters GMX contracts.",
-        functionsCall: ["MaliciousToken.deploy()"],
-        pseudocode:
-          "contract MaliciousToken is ERC777 {\n  function tokensReceived(...) external {\n    // re-enter GMX Router here\n    router.increasePosition(...);\n  }\n}",
-      },
-      {
-        id: "t2",
-        phase: "Initial Deposit",
-        description: "Attacker calls GMX Vault.directPoolDeposit() with the malicious token, triggering safeTransferFrom.",
-        functionsCall: ["Vault.directPoolDeposit(maliciousToken, amount)"],
-        pseudocode:
-          "// Vault does: IERC20(token).safeTransferFrom(sender, vault, amount)\n// maliciousToken.tokensReceived() fires BEFORE vault balance update",
-      },
-      {
-        id: "t3",
-        phase: "Reentrancy",
-        description: "Inside tokensReceived(), attacker re-enters Router.increasePosition reading stale vault.tokenBalances.",
-        functionsCall: ["Router.increasePosition(WETH, size=10x, staleCollateral)"],
-        pseudocode:
-          "// vault.tokenBalances[token] not yet updated\n// position collateral understated\n// attacker opens 10x leveraged long with inflated apparent margin",
-      },
-      {
-        id: "t4",
-        phase: "Balance Update (too late)",
-        description: "Vault finally updates tokenBalances after transfer completes, but the position is already open.",
-        functionsCall: ["Vault._updateTokenBalance(token)"],
-        pseudocode: "// now vault shows correct balance\n// but malicious position already recorded",
-      },
-      {
-        id: "t5",
-        phase: "Close Position",
-        description: "Attacker decreases position, receiving far more WETH/USDC than collateral deposited due to understated initial collateral.",
-        functionsCall: ["Router.decreasePosition(positionKey, maxProfit)"],
-        pseudocode: "// Vault calculates PnL against stale entry collateral\n// realizedPnL >> actualDeposit",
-      },
+      { id: "t1", phase: "Setup", description: "Attacker identified reentrancy vector in GLP pool after previous 'fix'.", functionsCall: [], pseudocode: "// identified bypass in state update order" },
+      { id: "t2", phase: "Reentrancy", description: "Attacker triggered reentrancy in GLP pool logic.", functionsCall: ["Vault.increasePosition()"], pseudocode: "// call -> callback -> increasePosition" },
+      { id: "t3", phase: "Drain", description: "Drained ~$40M in tokens to unknown wallet.", functionsCall: [], pseudocode: "// multiple assets extracted" },
+      { id: "t4", phase: "Bridge", description: "$9.6M bridged to Ethereum.", functionsCall: [], pseudocode: "// Funds moved via Hop/Synapse" }
     ],
     attackFlow: {
       nodes: [
-        { id: "n1", type: "attacker", label: "Attacker EOA", detail: "Holds malicious ERC-777 token", x: 50, y: 200 },
-        { id: "n2", type: "contract", label: "Malicious Token", detail: "tokensReceived() callback", x: 250, y: 100 },
-        { id: "n3", type: "contract", label: "GMX Vault", detail: "Stale balance during callback", x: 450, y: 200 },
-        { id: "n4", type: "contract", label: "GMX Router", detail: "increasePosition(staleCollateral)", x: 650, y: 100 },
-        { id: "n5", type: "pool", label: "GMX Liquidity Pool", detail: "$41M WETH/USDC", x: 650, y: 300 },
-        { id: "n6", type: "result", label: "Attacker Profit", detail: "~$41M extracted", x: 850, y: 200 },
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Reentrancy bypass", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "GMX Vault", detail: "Reentrancy bug", x: 300, y: 200 },
+        { id: "n3", type: "pool", label: "GLP Pool", detail: "$42M assets", x: 550, y: 200 },
+        { id: "n4", type: "result", label: "Attacker Profit", detail: "$42M", x: 800, y: 200 }
       ],
       edges: [
-        { id: "e1", source: "n1", target: "n3", label: "directPoolDeposit()" },
-        { id: "e2", source: "n3", target: "n2", label: "safeTransferFrom()", animated: true },
-        { id: "e3", source: "n2", target: "n4", label: "re-enter Router", animated: true },
-        { id: "e4", source: "n4", target: "n3", label: "read stale balance" },
-        { id: "e5", source: "n4", target: "n5", label: "open large position" },
-        { id: "e6", source: "n5", target: "n6", label: "decreasePosition profit", animated: true },
-      ],
+        { id: "e1", source: "n1", target: "n2", label: "Re-enter increasePosition", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Update stale state" },
+        { id: "e3", source: "n3", target: "n4", label: "Drain", animated: true }
+      ]
     },
     tokenFlowNodes: [
-      { id: "a", label: "Attacker\n(Malicious Token)", type: "attacker" },
-      { id: "b", label: "GMX Vault\n(Stale Balance)", type: "vault" },
-      { id: "c", label: "Position\n(Understated Collateral)", type: "pool" },
-      { id: "d", label: "Attacker Profit\n~$41M", type: "drain" },
+      { id: "a", label: "GLP Pool", type: "pool" },
+      { id: "b", label: "Attacker", type: "attacker" },
+      { id: "c", label: "Ethereum", type: "drain" }
     ],
     tokenFlowLinks: [
-      { source: "a", target: "b", value: 1, label: "deposit()" },
-      { source: "b", target: "c", value: 410, label: "open 10x position" },
-      { source: "c", target: "d", value: 41, label: "close with profit" },
+      { source: "a", target: "b", value: 42, label: "Drain" },
+      { source: "b", target: "c", value: 9.6, label: "Bridge" }
     ],
     mitigations: [
-      {
-        category: "Reentrancy Guard",
-        description: "Apply nonReentrant modifier to ALL state-mutating Vault and Router functions.",
-        code: "modifier nonReentrant() {\n  require(!locked, 'REENTRANT');\n  locked = true;\n  _;\n  locked = false;\n}",
-      },
-      {
-        category: "Checks-Effects-Interactions",
-        description: "Update internal accounting (tokenBalances) BEFORE calling external token transfer functions.",
-        code: "// CORRECT ORDER:\nvault.tokenBalances[token] += amount; // effect first\nIERC20(token).safeTransferFrom(sender, vault, amount); // interaction last",
-      },
-      {
-        category: "Token Allowlist",
-        description: "Only allow vetted ERC-20 tokens (without callback hooks) as collateral. Explicitly block ERC-777 and rebasing tokens.",
-      },
+      { category: "Security", description: "Full reentrancy guards on all external calls." },
+      { category: "Testing", description: "Invariant testing after any code change." }
     ],
     quiz: [
-      {
-        question: "Which Solidity pattern would directly prevent the GMX V1 reentrancy attack?",
-        options: [
-          "Using SafeMath for arithmetic",
-          "Updating vault.tokenBalances BEFORE calling safeTransferFrom (Checks-Effects-Interactions)",
-          "Adding a timelock to withdrawals",
-          "Using a TWAP oracle instead of spot price",
-        ],
-        correct: 1,
-        explanation: "The Checks-Effects-Interactions pattern requires updating internal state before interacting with external contracts. Moving the balance update before safeTransferFrom removes the window for reentrancy.",
-      },
-    ],
+      { question: "What was the core vulnerability in GMX V1?", options: ["Oracle Manipulation", "Reentrancy", "Admin Key Leak", "Math Error"], correct: 1, explanation: "The exploit was a cross-contract reentrancy bug." }
+    ]
   },
 
-  // 4. Balancer V2 2025
+  // 4. Balancer (November 14, 2025)
   {
-    id: "balancer-v2-2025",
-    slug: "balancer-v2-2025",
-    title: "Balancer V2",
-    subtitle: "Rounding Error + Access Control Bypass",
+    id: "balancer-2025",
+    slug: "balancer-2025",
+    title: "Balancer",
+    subtitle: "Rounding Error in _upscale()",
     year: 2025,
-    chain: "Ethereum",
-    type: ["Math Bug", "Access Control"],
-    shortDesc:
-      "Systematic exploitation of rounding-direction errors in Balancer V2's weighted pool math combined with an access control gap in the protocol fee collection module drained ~$126M.",
-    longDesc:
-      "Balancer V2 introduced a protocol fee mechanism where fees accrue in a separate FeeCollector contract. A subtle rounding direction inconsistency in the pool math — where the pool rounded down on amounts owed but the fee collector rounded up on amounts collectible — created a tiny per-transaction surplus. An attacker industrialized this through flash loans, executing hundreds of thousands of micro-swaps in a single transaction to amplify the rounding surplus into a meaningful drain. A secondary access control gap allowed the attacker to call the fee collection harvest without going through the expected governance timelock.",
-    technicalDesc:
-      "In Balancer V2 WeightedPool, the invariant calculation uses FixedPoint.mulDown() when crediting the user and FixedPoint.mulUp() when debiting the protocol fee. Over thousands of operations, mulUp consistently overestimates what the fee collector is owed. The attacker used a flash loan to maximize capital efficiency and looped swap→collect for 80,000 iterations in a single block. Additionally, the FeeCollector.harvest() function lacked a `onlyGovernance` guard that the team assumed was enforced by an off-chain keeper — allowing the attacker to call it directly.",
-    impact: "$126 million",
-    impactUSD: 126000000,
-    contracts: [
-      {
-        label: "Balancer Vault (ETH)",
-        address: "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
-        url: "https://etherscan.io/address/0xBA12222222228d8Ba445958a75a0704d566BF2C8",
-      },
-      {
-        label: "ProtocolFeeCollector",
-        address: "0xce88686553686DA562CE7Cea497CE749DA109f9F",
-        url: "https://etherscan.io/address/0xce88686553686DA562CE7Cea497CE749DA109f9F",
-      },
-    ],
+    chain: "Multi-chain",
+    type: ["Math Bug"],
+    shortDesc: "Single-directional rounding in the upscale function created a $128M precision heist across chains.",
+    longDesc: "On November 14, 2025, Balancer suffered a multi-chain rounding exploit. A subtle error in the `_upscale()` function used for precision normalization consistently rounded in one direction, allowing an attacker to extract value over many iterations.",
+    technicalDesc: "The vulnerability was a classical rounding error in integer arithmetic. In the math library, the upscale function was not bidirectional, meaning it did not round to the nearest value but always in a direction that favored the user over the pool balance. By executing millions of tiny swaps, the attacker accumulated a $128M surplus.",
+    impact: "$128M+",
+    impactUSD: 128000000,
+    contracts: [{ label: "Balancer Vault", address: "0xBA12222222228d8Ba445958a75a0704d566BF2C8", url: "https://etherscan.io/address/0xBA12222222228d8Ba445958a75a0704d566BF2C8" }],
     timeline: [
-      {
-        id: "t1",
-        phase: "Flash Loan",
-        description: "Attacker borrows $500M USDC via Aave flash loan to maximize swap volume.",
-        functionsCall: ["Aave.flashLoan(USDC, 500_000_000)"],
-        pseudocode: "aave.flashLoan(address(this), USDC, 500e6, '');",
-      },
-      {
-        id: "t2",
-        phase: "Micro-Swap Loop",
-        description: "80,000 swaps in the same transaction, each triggering a rounding surplus in the fee collector.",
-        functionsCall: ["Vault.swap(singleSwap, funds, limit, deadline) x80000"],
-        pseudocode:
-          "for (uint i = 0; i < 80_000; i++) {\n  vault.swap(swapStruct, funds, 0, deadline);\n  // each swap: mulUp(fee) > mulDown(user) → ~$1500 surplus per swap\n}",
-      },
-      {
-        id: "t3",
-        phase: "Unauthorized Harvest",
-        description: "Attacker calls FeeCollector.harvest() directly, collecting the accumulated surplus without governance authorization.",
-        functionsCall: ["FeeCollector.harvest(USDC)"],
-        pseudocode: "// No onlyGovernance modifier!\nfunction harvest(IERC20 token) external {\n  token.transfer(msg.sender, token.balanceOf(address(this)));\n}",
-      },
-      {
-        id: "t4",
-        phase: "Repay Flash Loan",
-        description: "Attacker repays Aave flash loan, keeping the ~$126M net profit.",
-        functionsCall: ["USDC.transfer(aave, flashLoanAmount + fee)"],
-        pseudocode: "usdc.transfer(aave, 500_000_000 + flashLoanFee);\n// net profit: ~$126M",
-      },
+      { id: "t1", phase: "Discovery", description: "Attacker exploited the non-bidirectional _upscale() function.", functionsCall: [], pseudocode: "// Rounding in one direction only" },
+      { id: "t2", phase: "Execution", description: "Drained pools in one hour across multiple chains.", functionsCall: ["Vault.swap()"], pseudocode: "// millions of micro-swaps" },
+      { id: "t3", phase: "Response", description: "Validators halted networks; forks inherited the flaw.", functionsCall: [], pseudocode: "// Chain halt triggered" }
     ],
     attackFlow: {
       nodes: [
-        { id: "n1", type: "attacker", label: "Attacker", detail: "Flash loan orchestrator", x: 50, y: 200 },
-        { id: "n2", type: "bridge", label: "Aave Flash Loan", detail: "$500M USDC", x: 250, y: 100 },
-        { id: "n3", type: "pool", label: "Balancer Vault", detail: "80,000 swaps, rounding surplus", x: 450, y: 200 },
-        { id: "n4", type: "contract", label: "FeeCollector", detail: "harvest() — no auth", x: 650, y: 200 },
-        { id: "n5", type: "result", label: "Attacker Profit", detail: "~$126M", x: 850, y: 200 },
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Rounding exploit", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "Math Lib", detail: "_upscale() rounding", x: 300, y: 200 },
+        { id: "n3", type: "pool", label: "Balancer Pools", detail: "$128M+", x: 550, y: 200 },
+        { id: "n4", type: "result", label: "Profit", detail: "$128M", x: 800, y: 200 }
       ],
       edges: [
-        { id: "e1", source: "n1", target: "n2", label: "borrow $500M" },
-        { id: "e2", source: "n2", target: "n1", label: "USDC" },
-        { id: "e3", source: "n1", target: "n3", label: "80,000 swaps", animated: true },
-        { id: "e4", source: "n3", target: "n4", label: "Rounding surplus accumulates" },
-        { id: "e5", source: "n1", target: "n4", label: "harvest() (no guard)", animated: true },
-        { id: "e6", source: "n4", target: "n5", label: "$126M collected" },
-      ],
+        { id: "e1", source: "n1", target: "n2", label: "Swap with rounding", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Extract surplus" },
+        { id: "e3", source: "n3", target: "n4", label: "Accumulate", animated: true }
+      ]
     },
     tokenFlowNodes: [
-      { id: "a", label: "Aave\n$500M Flash", type: "bridge" },
-      { id: "b", label: "Balancer Pools", type: "pool" },
-      { id: "c", label: "FeeCollector", type: "vault" },
-      { id: "d", label: "Attacker\n$126M profit", type: "drain" },
+      { id: "a", label: "Balancer Pools", type: "pool" },
+      { id: "b", label: "Attacker", type: "attacker" }
     ],
     tokenFlowLinks: [
-      { source: "a", target: "b", value: 500, label: "flashLoan()" },
-      { source: "b", target: "c", value: 126, label: "rounding surplus" },
-      { source: "b", target: "a", value: 500, label: "repay" },
-      { source: "c", target: "d", value: 126, label: "harvest()" },
+      { source: "a", target: "b", value: 128, label: "Rounding Surplus" }
     ],
     mitigations: [
-      {
-        category: "Consistent Rounding",
-        description: "Always round in the direction that favors the protocol, not the caller. Use mulDown for amounts given to users; use mulDown (not mulUp) for fee calculations when that benefits the pool.",
-      },
-      {
-        category: "Access Control",
-        description: "Add onlyGovernance or onlyRole(HARVESTER_ROLE) modifier to all fee collection functions. Never rely on off-chain enforcement for on-chain security.",
-        code: "function harvest(IERC20 token) external onlyRole(HARVESTER_ROLE) {\n  // ...\n}",
-      },
-      {
-        category: "Flash Loan Mitigation",
-        description: "Implement per-block swap volume limits or cooldown periods to prevent industrialised micro-swap loops in a single transaction.",
-      },
+      { category: "Math", description: "Make scaling functions bidirectional." },
+      { category: "Verification", description: "Add formal verification for math libs." }
     ],
     quiz: [
-      {
-        question: "What two vulnerabilities combined to make the Balancer V2 attack successful?",
-        options: [
-          "Reentrancy and oracle manipulation",
-          "Rounding direction inconsistency and missing access control on harvest()",
-          "Integer overflow and flash loan price impact",
-          "Governance attack and front-running",
-        ],
-        correct: 1,
-        explanation: "The rounding surplus was tiny per swap but was industrialised via 80,000 flash-loan-funded swaps. The missing onlyGovernance guard on harvest() let the attacker claim it all without authorization.",
-      },
-    ],
+      { question: "What function was exploitable in Balancer?", options: ["_downscale()", "_upscale()", "swap()", "joinPool()"], correct: 1, explanation: "The _upscale() rounding direction was the root cause." }
+    ]
   },
+
+  // 5. Yearn Finance V1 (December 17, 2025)
+  {
+    id: "yearn-v1-2025",
+    slug: "yearn-v1-2025",
+    title: "Yearn Finance V1",
+    subtitle: "Legacy Vault Config Error",
+    year: 2025,
+    chain: "Ethereum",
+    type: ["Access Control"],
+    shortDesc: "Exploiter drained an older Yearn V1 vault via a previously unpatched configuration vector.",
+    longDesc: "On December 17, 2025, a legacy Yearn Finance V1 vault was exploited for $300K. The attack targeted a vestigial configuration flaw that remained in the decade-old code.",
+    technicalDesc: "The vulnerability was a 'zombie contract' risk. An old V1 vault had a misconfigured parameter that allowed direct extraction and swapping of vault assets if a specific sequence of logic calls was executed. While V2 and V3 were secure, the idle liquidity in the V1 vault was vulnerable.",
+    impact: "$300K",
+    impactUSD: 300000,
+    contracts: [{ label: "Yearn V1 Vault", address: "0xACf969D...949f2b", url: "https://etherscan.io/address/0xACf969DA3170CD5f3333333333e9d8929949f2b" }],
+    timeline: [
+      { id: "t1", phase: "Discovery", description: "Attacker identified vulnerable V1 contract.", functionsCall: [], pseudocode: "// identified legacy config flaw" },
+      { id: "t2", phase: "Drain", description: "Submitted crafted transactions to drain vault assets.", functionsCall: ["Vault.withdraw()"], pseudocode: "// bypass check" },
+      { id: "t3", phase: "Conversion", description: "Swapped stolen funds for 103 ETH.", functionsCall: [], pseudocode: "// Uniswap swap" },
+      { id: "t4", phase: "Transfer", description: "Transferred to attacker wallet.", functionsCall: [], pseudocode: "// Funds dispersed" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Legacy explorer", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "Yearn V1 Vault", detail: "Config error", x: 300, y: 200 },
+        { id: "n3", type: "result", label: "Attacker Wallet", detail: "103 ETH", x: 600, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Exploit config", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Drain", animated: true }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Yearn V1 Vault", type: "vault" },
+      { id: "b", label: "Attacker", type: "attacker" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 0.3, label: "Drain" }
+    ],
+    mitigations: [
+      { category: "Lifecycle", description: "Deprecate and migrate from V1 contracts." },
+      { category: "Security", description: "Run ongoing invariant testing on all versions." }
+    ],
+    quiz: [
+      { question: "Why was Yearn V1 still vulnerable?", options: ["Zero-day in Solidity", "Legacy configuration 'zombie' code", "Admin key theft", "Oracle bug"], correct: 1, explanation: "Legacy 'zombie' contracts often harbor forgotten configuration flaws." }
+    ]
+  },
+
 
   // 5. Drift Protocol 2026
   {
@@ -775,242 +588,286 @@ export const hacks: Hack[] = [
     ],
   },
 
-  // 6. Truebit 2026
+  // 6. Truebit (January 8, 2026)
   {
     id: "truebit-2026",
     slug: "truebit-2026",
-    title: "Truebit Protocol",
-    subtitle: "Smart Contract Logic Bug — Verification Bypass",
+    title: "Truebit",
+    subtitle: "Integer Overflow in Purchase",
     year: 2026,
     chain: "Ethereum",
-    type: ["Access Control", "Math Bug"],
-    shortDesc:
-      "A logic error in Truebit's verification game contract allowed an attacker to claim task solver rewards without completing the required computation, draining ~$26M in TRU tokens.",
-    longDesc:
-      "Truebit is an off-chain computation verification protocol on Ethereum. In January 2026 an attacker discovered that the challenge-response verification game had a condition inversion bug: the contract accepted a zero-length dispute segment as a valid 'no-challenge' proof, even when a challenger had filed a legitimate dispute. This allowed the attacker to submit garbage computation results, wait for the challenge window, then claim the solver reward by passing an empty dispute array that the contract misidentified as a timeout (no challenger present).",
-    technicalDesc:
-      "Truebit's `VerificationGame.sol` has a function `finalizeTask()` that checks `if (disputes.length == 0) { rewardSolver(); }`. This was intended to handle the case where no one challenges the solution within the timeout window. However, the attacker discovered that even during an active dispute, passing an empty `disputes` array in the calldata (by not including any pending dispute IDs) satisfied this check. The contract did not cross-reference the disputes mapping separately — it only checked the calldata array. The attacker submitted 1,040 tasks with garbage results and called `finalizeTask(emptyArray)` for each.",
-    impact: "$26 million",
-    impactUSD: 26000000,
-    contracts: [
-      {
-        label: "Truebit VerificationGame",
-        address: "0x4Fd76FE66B2A55b8b4DFD6eB6eA0E5051B96576B",
-        url: "https://etherscan.io/address/0x4Fd76FE66B2A55b8b4DFD6eB6eA0E5051B96576B",
-      },
-    ],
+    type: ["Math Bug", "Integer Overflow"],
+    shortDesc: "Unlimited TRU minting via legacy overflow, $26.2M lost.",
+    longDesc: "On Jan 8, 2026, an attacker used a legacy overflow in a five-year-old unverified bytecode contract to mint 240M TRU and burn them for ETH. The contract had not been updated to use modern SafeMath or compiler guards.",
+    technicalDesc: "The vulnerability was an unchecked addition in the token purchase logic that overflowed when a massive amount of TRU was requested, wrapping the ETH cost to nearly zero. The attacker looped this to mint TRU cheaply and extract real ETH.",
+    impact: "$26.2M",
+    impactUSD: 26200000,
+    contracts: [{ label: "Truebit Purchase", address: "0x4Fd76FE6...B96576B", url: "https://etherscan.io/address/0x4Fd76FE66B2A55b8b4DFD6eB6eA0E5051B96576B" }],
     timeline: [
-      {
-        id: "t1",
-        phase: "Discovery",
-        description: "Attacker reads VerificationGame.sol source, identifies that finalizeTask() only checks calldata disputes.length without cross-referencing on-chain dispute mapping.",
-        functionsCall: [],
-        pseudocode: "// BUG: only checks calldata array, not on-chain state\nfunction finalizeTask(uint[] calldata disputes) external {\n  if (disputes.length == 0) { rewardSolver(); } // bypassed!",
-        timestamp: "January 2026",
-      },
-      {
-        id: "t2",
-        phase: "Task Submission",
-        description: "Attacker submits 1,040 tasks with garbage computation results to the Truebit task queue.",
-        functionsCall: ["TaskBook.addTask(garbageComputationHash)"],
-        pseudocode: "for i in range(1040):\n    task_id = truebit.addTask(garbage_hash)\n    attacker_task_ids.append(task_id)",
-      },
-      {
-        id: "t3",
-        phase: "Challenge Period",
-        description: "Legitimate challengers file disputes for many tasks, but the attacker ignores them.",
-        functionsCall: [],
-        pseudocode: "// Multiple valid challenges filed on-chain\n// disputes[task_id] mapping = [challenger_address]\n// attacker does nothing during challenge period",
-      },
-      {
-        id: "t4",
-        phase: "Bypass Finalization",
-        description: "Before any dispute is resolved, attacker calls finalizeTask(emptyArray) for each disputed task. The empty calldata fools the check.",
-        functionsCall: ["VerificationGame.finalizeTask(task_id, [])"],
-        pseudocode: "// Pass empty disputes array in calldata\n// disputes.length == 0 → rewardSolver() called\n// on-chain dispute mapping never checked!",
-      },
-      {
-        id: "t5",
-        phase: "Reward Collection",
-        description: "Attacker collects TRU solver rewards for all 1,040 tasks, approximately $25,000 per task.",
-        functionsCall: ["TRU.transfer(attacker, reward)"],
-        pseudocode: "// 1040 * $25,000 TRU reward = $26M total drained",
-      },
+      { id: "t1", phase: "Identification", description: "Triggered overflow in old contract.", functionsCall: [], pseudocode: "// unchecked arithmetic" },
+      { id: "t2", phase: "Mint", description: "Minted over 240M TRU tokens.", functionsCall: ["Purchase.buyTokens()"], pseudocode: "// amount wraps price" },
+      { id: "t3", phase: "Burn", description: "Burned for real ETH.", functionsCall: ["TRU.burn()"], pseudocode: "// extract underlying ETH" },
+      { id: "t4", phase: "Exit", description: "Drained 8,535 ETH to Tornado Cash.", functionsCall: [], pseudocode: "// laundered via mixer" }
     ],
     attackFlow: {
       nodes: [
-        { id: "n1", type: "attacker", label: "Attacker", detail: "1040 garbage task submissions", x: 50, y: 200 },
-        { id: "n2", type: "contract", label: "TaskBook", detail: "Task queue, TRU rewards", x: 250, y: 200 },
-        { id: "n3", type: "contract", label: "VerificationGame", detail: "finalizeTask() logic bug", x: 450, y: 200 },
-        { id: "n4", type: "pool", label: "TRU Reward Pool", detail: "$26M in TRU tokens", x: 650, y: 200 },
-        { id: "n5", type: "result", label: "Attacker Wallet", detail: "$26M drained", x: 850, y: 200 },
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Triggered overflow", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "Legacy Purchase", detail: "Mint vulnerability", x: 300, y: 200 },
+        { id: "n3", type: "result", label: "Profit", detail: "$26.2M", x: 550, y: 200 }
       ],
       edges: [
-        { id: "e1", source: "n1", target: "n2", label: "Submit garbage tasks" },
-        { id: "e2", source: "n2", target: "n3", label: "Task enters challenge period" },
-        { id: "e3", source: "n1", target: "n3", label: "finalizeTask(emptyArray)", animated: true },
-        { id: "e4", source: "n3", target: "n4", label: "disputes.length==0 → rewardSolver()" },
-        { id: "e5", source: "n4", target: "n5", label: "1040 rewards collected", animated: true },
-      ],
+        { id: "e1", source: "n1", target: "n2", label: "Overflow buy", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Extract ETH" }
+      ]
     },
-    tokenFlowNodes: [
-      { id: "a", label: "Truebit\nReward Pool $26M", type: "pool" },
-      { id: "b", label: "VerificationGame\n(Buggy Logic)", type: "vault" },
-      { id: "c", label: "Attacker\n1040 fake solves", type: "attacker" },
-      { id: "d", label: "Attacker Wallet\n$26M TRU", type: "drain" },
-    ],
-    tokenFlowLinks: [
-      { source: "a", target: "b", value: 26, label: "Rewards escrowed" },
-      { source: "c", target: "b", value: 0, label: "finalizeTask([])" },
-      { source: "b", target: "d", value: 26, label: "rewardSolver() bypass" },
-    ],
-    mitigations: [
-      {
-        category: "On-Chain State Verification",
-        description: "Never trust calldata to represent on-chain state. Always cross-reference the on-chain mapping: if disputes[taskId].length > 0, the task is disputed regardless of calldata.",
-        code: "// SECURE:\nfunction finalizeTask(uint taskId) external {\n  require(block.timestamp > tasks[taskId].deadline, 'Too early');\n  require(onChainDisputes[taskId].length == 0, 'Active disputes exist');\n  rewardSolver(taskId);\n}",
-      },
-      {
-        category: "Calldata vs Storage",
-        description: "Understand the distinction between calldata (input parameters) and storage (on-chain state). Security-critical checks must use storage reads.",
-      },
-    ],
-    quiz: [
-      {
-        question: "What was the core bug in Truebit's VerificationGame?",
-        options: [
-          "Missing reentrancy guard on rewardSolver()",
-          "finalizeTask() checked calldata disputes.length instead of on-chain dispute mapping",
-          "Integer overflow in task ID calculation",
-          "Admin could bypass the challenge period with a single signature",
-        ],
-        correct: 1,
-        explanation: "The contract checked `if (disputes.length == 0)` on the calldata parameter, not on the on-chain `onChainDisputes[taskId]` mapping. Passing an empty array bypassed active disputes entirely.",
-      },
-    ],
+    tokenFlowNodes: [{ id: "a", label: "ETH Reserve", type: "pool" }, { id: "b", label: "Attacker", type: "attacker" }],
+    tokenFlowLinks: [{ source: "a", target: "b", value: 26.2, label: "Drain" }],
+    mitigations: [{ category: "Code Quality", description: "Deprecate unverified contracts." }],
+    quiz: [{ question: "What allowed the TRU tokens to be minted so cheaply?", options: ["Admin key leak", "Integer overflow", "Oracle manipulation"], correct: 1, explanation: "An integer overflow wrapped the ETH cost to near zero." }]
   },
 
-  // 7. CrossCurve Bridge 2026
+  // 7. Step Finance (January 31, 2026)
   {
-    id: "crosscurve-bridge-2026",
-    slug: "crosscurve-bridge-2026",
-    title: "CrossCurve Bridge",
-    subtitle: "Cross-Chain Message Validation Bypass",
+    id: "step-finance-2026",
+    slug: "step-finance-2026",
+    title: "Step Finance",
+    subtitle: "Treasury Phishing",
+    year: 2026,
+    chain: "Solana",
+    type: ["Access Control"],
+    shortDesc: "Private keys stolen via phishing, $27.3M drained.",
+    longDesc: "On Jan 31, 2026, executive/treasury keys were compromised via spear-phishing. It was a major operational security failure where keys for the protocol treasury were exposed.",
+    technicalDesc: "Attackers obtained high-privilege private keys not protected by multi-sig. They executed a sweep of the treasury SOL and portfolio assets in a single transaction sequence.",
+    impact: "$27.3M",
+    impactUSD: 27300000,
+    contracts: [{ label: "Step Treasury Wallet", address: "Solana EOA", url: "https://solscan.io/account/treasury" }],
+    timeline: [
+      { id: "t1", phase: "Phishing", description: "Spear-phishing on team.", functionsCall: [], pseudocode: "// social engineering" },
+      { id: "t2", phase: "Access", description: "Obtained keys.", functionsCall: [], pseudocode: "// keys compromised" },
+      { id: "t3", phase: "Drain", description: "Swept treasury SOL.", functionsCall: ["SystemProgram.transfer()"], pseudocode: "// drain all assets" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Phishers", detail: "Spear phishing", x: 50, y: 200 },
+        { id: "n2", type: "pool", label: "Treasury", detail: "Targeted keys", x: 300, y: 200 },
+        { id: "n3", type: "result", label: "Drain", detail: "$27.3M", x: 550, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Key sweep", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Withdraw assets" }
+      ]
+    },
+    tokenFlowNodes: [{ id: "a", label: "Treasury", type: "vault" }, { id: "b", label: "Attacker", type: "attacker" }],
+    tokenFlowLinks: [{ source: "a", target: "b", value: 27.3, label: "Sweep" }],
+    mitigations: [{ category: "OpSec", description: "Mandate multisig with HSMs." }],
+    quiz: [{ question: "How was Step Finance drained?", options: ["Phishing", "Reentrancy", "Flash loan"], correct: 0, explanation: "Executive keys were stolen via a phishing attack." }]
+  },
+
+  // 7. IoTeX ioTube Bridge (February 21, 2026)
+  {
+    id: "iotex-iotube-2026",
+    slug: "iotex-iotube-2026",
+    title: "IoTeX ioTube Bridge",
+    subtitle: "Private Key Compromise (Bridge)",
     year: 2026,
     chain: "Multi-chain",
     type: ["Bridge", "Access Control"],
-    shortDesc:
-      "A missing sender verification in CrossCurve Bridge's cross-chain message handler allowed an attacker to spoof arbitrary bridge messages, minting unbacked tokens and draining ~$3M.",
-    longDesc:
-      "CrossCurve is a cross-chain stablecoin bridge powered by Curve Finance. In February 2026, a researcher discovered that CrossCurve's BridgeReceiver contract failed to validate the `msg.sender` of incoming cross-chain messages relayed by the LayerZero endpoint. The contract accepted bridge messages from any address that could produce a properly structured payload, not just the authorized LayerZero relayer. By replaying a previously observed message with a modified recipient address, the attacker minted unbacked crvUSD on the destination chain and immediately swapped it for real stablecoins.",
-    technicalDesc:
-      "CrossCurve's BridgeReceiver.lzReceive() function has the signature `lzReceive(uint16 _srcChainId, bytes calldata _srcAddress, uint64, bytes calldata _payload)`. The function checks `_srcChainId` and decodes `_srcAddress` correctly, but fails to verify that `msg.sender == trustedRemote[_srcChainId]` — the LayerZero trusted remote for that chain. Any EOA can call lzReceive directly with a valid-format payload. The attacker called lzReceive with a crafted payload specifying `recipient=attacker, amount=1,000,000 crvUSD` on the Arbitrum BridgeReceiver, minting 1M unbacked crvUSD which was then swapped for $3M USDC via Curve pools.",
-    impact: "$3 million",
-    impactUSD: 3000000,
-    contracts: [
-      {
-        label: "CrossCurve BridgeReceiver (Arbitrum)",
-        address: "0x9C23B776a81a17e9e5a398f1e17BD5aD26F2a9E7",
-        url: "https://arbiscan.io/address/0x9C23B776a81a17e9e5a398f1e17BD5aD26F2a9E7",
-      },
-    ],
+    shortDesc: "Attacker obtained owner key to ioTube bridge validator contract and drained $8.9M in assets.",
+    longDesc: "On February 21, 2026, the ioTube bridge was compromised. The attacker seized the bridge's owner key, granting them full admin control over the bridged assets and the ability to mint unbacked tokens.",
+    technicalDesc: "The exploit targeted the bridge's custodial logic. By compromising a single-point owner key, the attacker gained admin access to the `TokenSafe` and `MinterPool` contracts. They drained real USDC/USDT/WBTC assets and minted 410M unbacked CIOTX tokens to inflate their exit value.",
+    impact: "$8.9 million",
+    impactUSD: 8900000,
+    contracts: [{ label: "ioTube Bridge", address: "0x...Bridge", url: "https://iotexscan.io/address/iotube" }],
     timeline: [
-      {
-        id: "t1",
-        phase: "Reconnaissance",
-        description: "Attacker reviews BridgeReceiver source code and finds lzReceive() lacks msg.sender validation.",
-        functionsCall: [],
-        pseudocode: "// lzReceive has NO check:\n// require(msg.sender == lzEndpoint, 'not LZ endpoint');\n// require(trustedRemote[_srcChainId] == _srcAddress, 'untrusted remote');",
-        timestamp: "February 2026",
-      },
-      {
-        id: "t2",
-        phase: "Craft Payload",
-        description: "Attacker reverse-engineers the ABI encoding of a legitimate bridge message and crafts a payload minting 1M crvUSD to their address.",
-        functionsCall: [],
-        pseudocode:
-          "// Payload structure: abi.encode(ACTION_MINT, recipient, amount)\npayload = abi.encode(\n  uint8(1), // ACTION_MINT\n  attacker_address,\n  1_000_000e18 // 1M crvUSD\n);",
-      },
-      {
-        id: "t3",
-        phase: "Spoof lzReceive",
-        description: "Attacker calls BridgeReceiver.lzReceive() directly (bypassing LayerZero) with the spoofed payload.",
-        functionsCall: ["BridgeReceiver.lzReceive(srcChainId=1, srcAddress=trustedRemoteAddr, nonce=0, payload=spoofed)"],
-        pseudocode:
-          "// srcChainId=1 (Ethereum) matches expected value\n// srcAddress is copy-pasted from a real tx (not verified)\n// msg.sender = attacker (should be lzEndpoint!)\nbridgeReceiver.lzReceive(1, trustedRemoteAddr, 0, payload);",
-      },
-      {
-        id: "t4",
-        phase: "Unbacked Mint",
-        description: "BridgeReceiver mints 1M crvUSD to attacker's address with no underlying collateral on the source chain.",
-        functionsCall: ["crvUSD.mint(attacker, 1_000_000e18)"],
-        pseudocode: "// 1M crvUSD minted to attacker\n// NO corresponding lock on source chain\n// fully unbacked",
-      },
-      {
-        id: "t5",
-        phase: "Swap for Real Stablecoins",
-        description: "Attacker swaps 1M unbacked crvUSD for $3M USDC through Curve pools before liquidity is drained.",
-        functionsCall: ["Curve3Pool.exchange(crvUSD, USDC, 1_000_000e18)"],
-        pseudocode: "// Curve pool has no oracle check for crvUSD backing\ncurve3Pool.exchange(0, 1, 1_000_000e18, minOut);\n// attacker receives ~$3M USDC",
-      },
+      { id: "t1", phase: "Compromise", description: "Attacker seized owner key.", functionsCall: [], pseudocode: "// single validator key breach" },
+      { id: "t2", phase: "Admin Control", description: "Gained admin control over TokenSafe and MinterPool.", functionsCall: ["Bridge.updateOwner()"], pseudocode: "// hijack bridge roles" },
+      { id: "t3", phase: "Drain", description: "Drained real assets and minted 410M unbacked CIOTX.", functionsCall: ["Bridge.mint()"], pseudocode: "// infinite mint + drain vault" }
     ],
     attackFlow: {
       nodes: [
-        { id: "n1", type: "attacker", label: "Attacker EOA", detail: "Crafted bridge message", x: 50, y: 200 },
-        { id: "n2", type: "bridge", label: "CrossCurve BridgeReceiver", detail: "Missing sender validation", x: 300, y: 200 },
-        { id: "n3", type: "contract", label: "crvUSD Token", detail: "Mint 1M unbacked", x: 550, y: 100 },
-        { id: "n4", type: "pool", label: "Curve Stable Pool", detail: "$3M USDC liquidity", x: 550, y: 300 },
-        { id: "n5", type: "result", label: "Attacker Wallet", detail: "$3M USDC", x: 800, y: 200 },
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Stolen owner key", x: 50, y: 200 },
+        { id: "n2", type: "bridge", label: "ioTube Bridge", detail: "TokenSafe/MinterPool", x: 300, y: 200 },
+        { id: "n3", type: "pool", label: "Bridge Assets", detail: "$8.9M real + fake", x: 550, y: 200 },
+        { id: "n4", type: "result", label: "Profit", detail: "$8.9M", x: 800, y: 200 }
       ],
       edges: [
-        { id: "e1", source: "n1", target: "n2", label: "lzReceive() direct call", animated: true },
-        { id: "e2", source: "n2", target: "n3", label: "mint(attacker, 1M crvUSD)" },
-        { id: "e3", source: "n3", target: "n4", label: "swap unbacked crvUSD" },
-        { id: "e4", source: "n4", target: "n5", label: "$3M USDC out", animated: true },
-      ],
+        { id: "e1", source: "n1", target: "n2", label: "Admin access", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Drain/Mint" },
+        { id: "e3", source: "n3", target: "n4", label: "Extract", animated: true }
+      ]
     },
     tokenFlowNodes: [
-      { id: "a", label: "CrossCurve\nBridgeReceiver", type: "bridge" },
-      { id: "b", label: "crvUSD (unbacked)\n1M minted", type: "vault" },
-      { id: "c", label: "Curve Pool\n$3M USDC", type: "pool" },
-      { id: "d", label: "Attacker\n$3M USDC", type: "drain" },
+      { id: "a", label: "Bridge Vault", type: "vault" },
+      { id: "b", label: "Attacker", type: "attacker" }
     ],
     tokenFlowLinks: [
-      { source: "a", target: "b", value: 3, label: "Spoof mint" },
-      { source: "b", target: "c", value: 3, label: "swap crvUSD→USDC" },
-      { source: "c", target: "d", value: 3, label: "$3M stolen" },
+      { source: "a", target: "b", value: 8.9, label: "Admin Drain" }
     ],
     mitigations: [
-      {
-        category: "Bridge Message Authentication",
-        description: "Always verify msg.sender == lzEndpoint AND verify the source address matches the trusted remote for that chain.",
-        code: "function lzReceive(uint16 _srcChainId, bytes calldata _srcAddress, ...) external {\n  require(msg.sender == address(lzEndpoint), 'Caller not LayerZero');\n  require(keccak256(_srcAddress) == keccak256(trustedRemotes[_srcChainId]), 'Untrusted remote');\n  // process payload\n}",
-      },
-      {
-        category: "Replay Protection",
-        description: "Maintain a nonce or message hash registry to prevent replaying legitimate messages.",
-      },
-      {
-        category: "Mint Limits",
-        description: "Implement daily or per-transaction minting caps to limit blast radius of any bridge exploit.",
-      },
+      { category: "Infrastructure", description: "Use Threshold signatures and hardware-isolated keys." },
+      { category: "Security", description: "Implement real-time monitoring and circuit breakers." }
     ],
     quiz: [
-      {
-        question: "What check was missing from CrossCurve's lzReceive() function?",
-        options: [
-          "Reentrancy guard",
-          "Validation that msg.sender == LayerZero endpoint AND srcAddress == trusted remote",
-          "Overflow check on the mint amount",
-          "Oracle price check for crvUSD",
-        ],
-        correct: 1,
-        explanation: "The contract checked srcChainId and srcAddress from calldata parameters but did NOT verify that msg.sender was the official LayerZero endpoint, allowing anyone to call lzReceive directly.",
-      },
-    ],
+      { question: "What was the main vulnerability in ioTube?", options: ["Smart contract bug", "Single-point key management", "Oracle manipulation", "Flash loan"], correct: 1, explanation: "A single compromised owner key allowed total control over the bridge assets." }
+    ]
   },
 
-  // 8. Abracadabra Finance 2025
+  // 8. Venus Protocol (March 15, 2026)
+  {
+    id: "venus-protocol-2026",
+    slug: "venus-protocol-2026",
+    title: "Venus ($THE Market)",
+    subtitle: "Supply Cap Bypass",
+    year: 2026,
+    chain: "BNB Chain",
+    type: ["Logic Error"],
+    shortDesc: "Donation exploit bypassed supply caps, $5.85M lost.",
+    longDesc: "On March 15, 2026, a donation exploit allowed an attacker to bypass caps in the THE market.",
+    technicalDesc: "Direct transfers to vTHE contract bypassed mint() cap checks.",
+    impact: "$5.85M",
+    impactUSD: 5850000,
+    contracts: [{ label: "Venus vTHE", address: "BNB Address", url: "https://bscscan.com" }],
+    timeline: [
+      { id: "t1", phase: "Deposit", description: "Direct transfer bypassing mint() checks.", functionsCall: ["THE.transfer()"], pseudocode: "// raw transfer avoids tracking" },
+      { id: "t2", phase: "Borrow", description: "Borrowed other assets against inflated limit.", functionsCall: ["Comptroller.borrow()"], pseudocode: "// excess borrow power" }
+    ],
+    attackFlow: { nodes: [], edges: [] },
+    tokenFlowNodes: [],
+    tokenFlowLinks: [],
+    mitigations: [{ category: "Logic", description: "Ensure hard caps account for direct transfers." }],
+    quiz: [{ question: "How did the attacker bypass the cap?", options: ["Flash loan", "Direct Transfer", "Oracle Bug"], correct: 1, explanation: "Direct execution missed tracked variable updates." }]
+  },
+
+  // 9. Resolv Labs (March 22, 2026)
+  {
+    id: "resolv-labs-2026",
+    slug: "resolv-labs-2026",
+    title: "Resolv Labs",
+    subtitle: "Infinite Mint Key Leak",
+    year: 2026,
+    chain: "Ethereum",
+    type: ["Access Control"],
+    shortDesc: "Leaked key allowed 80M USR minting, $25M in cascading debt.",
+    longDesc: "On March 22, 2026, a KMS key leak allowed unauthorized USR minting. Contagion spread to Morpho/Euler due to de-pegged USR collateral.",
+    technicalDesc: "The attacker gained access to a highly privileged KMS key, allowing infinite minting of USR tokens, which were then dumped in various liquidity pools and lent against on money markets.",
+    impact: "$25M",
+    impactUSD: 25000000,
+    contracts: [{ label: "USR Token", address: "Ethereum EOA", url: "https://etherscan.io" }],
+    timeline: [
+      { id: "t1", phase: "Key Access", description: "Attacker obtained KMS key.", functionsCall: [], pseudocode: "// server side leak" },
+      { id: "t2", phase: "Mint", description: "Minted 80M USR.", functionsCall: ["USR.mint()"], pseudocode: "// authorized by leaked key" }
+    ],
+    attackFlow: { nodes: [], edges: [] },
+    tokenFlowNodes: [],
+    tokenFlowLinks: [],
+    mitigations: [{ category: "Key Management", description: "Rotate keys and enforce cold/hot wallet splits." }],
+    quiz: [{ question: "What caused the USR minting?", options: ["Reentrancy", "Key Leak", "Flash loan"], correct: 1, explanation: "A KMS key leak allowed arbitrary mint commands." }]
+  },
+
+  // 11. Hyperbridge (April 13, 2026)
+  {
+    id: "hyperbridge-2026",
+    slug: "hyperbridge-2026",
+    title: "Hyperbridge",
+    subtitle: "MMR Proof Bug",
+    year: 2026,
+    chain: "Polkadot/Ethereum",
+    type: ["Cryptography"],
+    shortDesc: "Faulty MMR proof verification allowed $2.5M spoofing.",
+    longDesc: "On April 13, 2026, Hyperbridge was drained of $2.5M due to a cryptographic validation bug. Proofs of empty leaves were accepted as legitimate bridge messages.",
+    technicalDesc: "MMR proof index calculation was off-by-one, allowing forged proofs for empty leaves, which trickled down to minting real assets on the destination chain.",
+    impact: "$2.5M",
+    impactUSD: 2500000,
+    contracts: [{ label: "Hyperbridge Pallet", address: "Polkadot App", url: "https://polkadot.js.org" }],
+    timeline: [
+      { id: "t1", phase: "Exploit", description: "Submitted off-by-one proof.", functionsCall: ["VerifyMMR()"], pseudocode: "// proof logic failure" }
+    ],
+    attackFlow: { nodes: [], edges: [] },
+    tokenFlowNodes: [],
+    tokenFlowLinks: [],
+    mitigations: [{ category: "Crypto", description: "Formal verification of all zero-knowledge and MMR verifiers." }],
+    quiz: [{ question: "What type of proof failed in Hyperbridge?", options: ["SNARK", "MMR", "STARK"], correct: 1, explanation: "An MMR (Merkle Mountain Range) proof logic failure existed." }]
+  },
+
+  // 12. Rhea Finance (April 15, 2026)
+  {
+    id: "rhea-finance-2026",
+    slug: "rhea-finance-2026",
+    title: "Rhea Finance",
+    subtitle: "Margin Parser Bug",
+    year: 2026,
+    chain: "Arbitrum",
+    type: ["Logic Error"],
+    shortDesc: "Margin parser flaw led to $18.4M liquidation drain.",
+    longDesc: "On April 15-16, 2026, Rhea Finance was drained via a bug in the position parser.",
+    technicalDesc: "Parser failed to correctly identify negative margin state, allowing withdrawals of collateral while in debt. The system effectively treated heavily indebted positions as fully collateralized.",
+    impact: "$18.4M",
+    impactUSD: 18400000,
+    contracts: [{ label: "Rhea Logic", address: "Arbitrum Contract", url: "https://arbiscan.io" }],
+    timeline: [
+      { id: "t1", phase: "Manipulation", description: "Created negative margin state.", functionsCall: [], pseudocode: "// position manipulation" }
+    ],
+    attackFlow: { nodes: [], edges: [] },
+    tokenFlowNodes: [],
+    tokenFlowLinks: [],
+    mitigations: [{ category: "Logic", description: "Robust state machine validation for position parsing." }],
+    quiz: [{ question: "What component failed in Rhea Finance?", options: ["Parser", "Oracle", "Bridge"], correct: 0, explanation: "The position margin parser failed to handle negative logic." }]
+  },
+
+  // 13. Kelp DAO (April 18, 2026)
+  {
+    id: "kelp-dao-2026",
+    slug: "kelp-dao-2026",
+    title: "Kelp DAO",
+    subtitle: "RPC Infrastructure Compromise",
+    year: 2026,
+    chain: "Ethereum/LayerZero",
+    type: ["Infrastructure"],
+    shortDesc: "Compromised DVN oracle led to $292M RSeth drain.",
+    longDesc: "On April 18, 2026, Kelp DAO was exploited for $292M via a LayerZero DVN compromise. This represented one of the largest infrastructure-level attacks.",
+    technicalDesc: "Compromised RPC node for a validator allowed forged cross-chain messages. The attacker effectively spoofed messages confirming massive asset deposits on the source chain.",
+    impact: "$292M",
+    impactUSD: 292000000,
+    contracts: [{ label: "Kelp Bridge", address: "Ethereum Contract", url: "https://etherscan.io" }],
+    timeline: [
+      { id: "t1", phase: "Compromise", description: "Attacker gains access to an RPC node used by a LayerZero DVN.", functionsCall: [], pseudocode: "// RPC node hijacking" },
+      { id: "t2", phase: "Forgery", description: "Attacker crafts and signs massive fake deposit messages.", functionsCall: ["forgeMessage()"], pseudocode: "// Sign fake deposit events" },
+      { id: "t3", phase: "Submission", description: "Malicious messages submitted to the destination chain.", functionsCall: ["Endpoint.receivePayload()"], pseudocode: "// Relayer passes fake message" },
+      { id: "t4", phase: "Minting", description: "Kelp DAO mints unbacked RSeth on the destination chain.", functionsCall: ["RSeth.mint()"], pseudocode: "// mint RSeth based on fake remote deposits" },
+      { id: "t5", phase: "Drain", description: "Attacker swaps fake RSeth for real assets.", functionsCall: ["Router.swapExactTokensForTokens()"], pseudocode: "// Swap 292M RSeth -> ETH" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Compromised DVN RPC", x: 50, y: 200 },
+        { id: "n2", type: "oracle", label: "DVN Oracle", detail: "Signs forged message", x: 300, y: 200 },
+        { id: "n3", type: "bridge", label: "LayerZero Endpoint", detail: "Receives fake payload", x: 550, y: 200 },
+        { id: "n4", type: "contract", label: "Kelp DAO", detail: "Mints RSeth", x: 800, y: 200 },
+        { id: "n5", type: "result", label: "Profit", detail: "$292M", x: 1050, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Inject fake blocks", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Relay valid-looking message" },
+        { id: "e3", source: "n3", target: "n4", label: "Trigger mint" },
+        { id: "e4", source: "n4", target: "n5", label: "Dump RSeth", animated: true }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Fake Cross-Chain Deposit", type: "bridge" },
+      { id: "b", label: "Kelp DAO", type: "vault" },
+      { id: "c", label: "DEX Pools", type: "pool" },
+      { id: "d", label: "Attacker", type: "attacker" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 292, label: "Fake Deposit Msg" },
+      { source: "b", target: "d", value: 292, label: "Mint RSeth" },
+      { source: "d", target: "c", value: 292, label: "Dump RSeth" },
+      { source: "c", target: "d", value: 292, label: "Extract ETH" }
+    ],
+    mitigations: [{ category: "Infra", description: "Strengthen decentralization of remote endpoints." }],
+    quiz: [{ question: "What was compromised to hack Kelp DAO?", options: ["Validator RPC", "KMS Key", "Admin Wallet"], correct: 0, explanation: "The RPC node serving the DVN oracle was compromised." }]
+  },
+
+  // Abracadabra Finance 2025
   {
     id: "abracadabra-finance-2025",
     slug: "abracadabra-finance-2025",

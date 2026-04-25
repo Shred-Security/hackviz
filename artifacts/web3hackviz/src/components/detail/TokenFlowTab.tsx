@@ -123,6 +123,14 @@ export function TokenFlowTab({ hack }: { hack: Hack }) {
     feMerge.append("feMergeNode").attr("in", "blur");
     feMerge.append("feMergeNode").attr("in", "SourceGraphic");
 
+    const mainG = svg.append("g").attr("class", "zoom-layer");
+    const zoom = d3.zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.1, 4])
+      .on("zoom", (event) => {
+        mainG.attr("transform", event.transform);
+      });
+    svg.call(zoom);
+
     const maxVal = Math.max(...links.map((l) => l.value), 1);
 
     type BezierEntry = {
@@ -161,10 +169,72 @@ export function TokenFlowTab({ hack }: { hack: Hack }) {
       })
       .filter(Boolean) as BezierEntry[];
 
+    let hoveredId: string | null = null;
+    let hoveredType: "node" | "edge" | null = null;
+    let hoveredSrc: string | null = null;
+    let hoveredTgt: string | null = null;
+
+    const updateHighlighting = () => {
+      if (!hoveredType) {
+        svg.selectAll(".flow-node").transition().duration(200).attr("opacity", 1);
+        svg.selectAll(".flow-edge").transition().duration(200).attr("opacity", 1);
+        svg.selectAll(".flow-particle").transition().duration(200).attr("opacity", 0.95);
+        return;
+      }
+
+      svg.selectAll(".flow-node").transition().duration(200).attr("opacity", 0.3);
+      svg.selectAll(".flow-edge").transition().duration(200).attr("opacity", 0.15);
+      svg.selectAll(".flow-particle").transition().duration(200).attr("opacity", 0);
+
+      if (hoveredType === "node" && hoveredId) {
+        // Highlight hovered node
+        svg.select(`.node-${hoveredId}`).transition().duration(200).attr("opacity", 1);
+        // Highlight connected edges and their opposite nodes
+        svg.selectAll(`.edge-src-${hoveredId}, .edge-tgt-${hoveredId}`)
+          .transition().duration(200).attr("opacity", 1)
+          .each(function() {
+            const classList = Array.from((this as Element).classList);
+            classList.forEach(c => {
+              if (c.startsWith("edge-src-")) svg.select(`.node-${c.replace("edge-src-", "")}`).transition().duration(200).attr("opacity", 1);
+              if (c.startsWith("edge-tgt-")) svg.select(`.node-${c.replace("edge-tgt-", "")}`).transition().duration(200).attr("opacity", 1);
+            });
+          });
+        svg.selectAll(`.particle-src-${hoveredId}, .particle-tgt-${hoveredId}`).transition().duration(200).attr("opacity", 0.95);
+      } else if (hoveredType === "edge" && hoveredSrc && hoveredTgt) {
+        svg.select(`.edge-src-${hoveredSrc}.edge-tgt-${hoveredTgt}`).transition().duration(200).attr("opacity", 1);
+        svg.select(`.node-${hoveredSrc}`).transition().duration(200).attr("opacity", 1);
+        svg.select(`.node-${hoveredTgt}`).transition().duration(200).attr("opacity", 1);
+        svg.selectAll(`.particle-src-${hoveredSrc}.particle-tgt-${hoveredTgt}`).transition().duration(200).attr("opacity", 0.95);
+      }
+    };
+
     bezierData.forEach((b, i) => {
       const pathD = `M ${b.sx} ${b.sy} C ${b.cx1} ${b.cy1}, ${b.cx2} ${b.cy2}, ${b.tx} ${b.ty}`;
 
-      svg
+      const edgeG = mainG.append("g")
+        .attr("class", `flow-edge edge-src-${b.link.source} edge-tgt-${b.link.target}`)
+        .style("cursor", "pointer")
+        .on("mouseenter", () => {
+          hoveredType = "edge";
+          hoveredSrc = b.link.source;
+          hoveredTgt = b.link.target;
+          updateHighlighting();
+        })
+        .on("mouseleave", () => {
+          hoveredType = null;
+          hoveredSrc = null;
+          hoveredTgt = null;
+          updateHighlighting();
+        });
+
+      // Hit area
+      edgeG.append("path")
+        .attr("d", pathD)
+        .attr("fill", "none")
+        .attr("stroke", "transparent")
+        .attr("stroke-width", b.strokeW + 20);
+
+      edgeG
         .append("path")
         .attr("d", pathD)
         .attr("fill", "none")
@@ -183,7 +253,7 @@ export function TokenFlowTab({ hack }: { hack: Hack }) {
         .attr("orient", "auto");
       marker.append("polygon").attr("points", "0 0, 10 4, 0 8").attr("fill", b.color);
 
-      svg
+      edgeG
         .append("path")
         .attr("d", pathD)
         .attr("fill", "none")
@@ -199,7 +269,7 @@ export function TokenFlowTab({ hack }: { hack: Hack }) {
           ? `$${(b.link.value / 1000).toFixed(2)}B`
           : `$${b.link.value}M`;
 
-      const labelG = svg.append("g");
+      const labelG = edgeG.append("g");
       labelG
         .append("rect")
         .attr("x", midP.x - 42)
@@ -230,8 +300,9 @@ export function TokenFlowTab({ hack }: { hack: Hack }) {
     });
 
     const particles = bezierData.map((b) =>
-      svg
+      mainG
         .append("circle")
+        .attr("class", `flow-particle particle-src-${b.link.source} particle-tgt-${b.link.target}`)
         .attr("r", Math.max(4, b.strokeW * 0.55))
         .attr("fill", b.color)
         .attr("opacity", 0.95)
@@ -258,9 +329,21 @@ export function TokenFlowTab({ hack }: { hack: Hack }) {
       const color = NODE_COLORS[node.type] ?? "#06b6d4";
       const icon = NODE_ICONS[node.type] ?? "●";
 
-      const g = svg
+      const g = mainG
         .append("g")
-        .attr("transform", `translate(${pos.x - NODE_W / 2}, ${pos.y - NODE_H / 2})`);
+        .attr("class", `flow-node node-${node.id}`)
+        .style("cursor", "pointer")
+        .attr("transform", `translate(${pos.x - NODE_W / 2}, ${pos.y - NODE_H / 2})`)
+        .on("mouseenter", () => {
+          hoveredType = "node";
+          hoveredId = node.id;
+          updateHighlighting();
+        })
+        .on("mouseleave", () => {
+          hoveredType = null;
+          hoveredId = null;
+          updateHighlighting();
+        });
 
       g.append("rect")
         .attr("x", -4).attr("y", -4)
