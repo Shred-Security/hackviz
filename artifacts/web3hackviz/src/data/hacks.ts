@@ -717,25 +717,61 @@ export const hacks: Hack[] = [
     id: "venus-protocol-2026",
     slug: "venus-protocol-2026",
     title: "Venus ($THE Market)",
-    subtitle: "Supply Cap Bypass",
+    subtitle: "Supply Cap Bypass via Donation Attack",
     year: 2026,
     chain: "BNB Chain",
-    type: ["Logic Error"],
-    shortDesc: "Donation exploit bypassed supply caps, $5.85M lost.",
-    longDesc: "On March 15, 2026, a donation exploit allowed an attacker to bypass caps in the THE market.",
-    technicalDesc: "Direct transfers to vTHE contract bypassed mint() cap checks.",
-    impact: "$5.85M",
-    impactUSD: 5850000,
-    contracts: [{ label: "Venus vTHE", address: "BNB Address", url: "https://bscscan.com" }],
+    type: ["Logic Error", "Oracle Manipulation"],
+    shortDesc: "Donation attack bypassed supply caps by direct transfers, inflating collateral 3.67x for $14.9M drain.",
+    longDesc: "On March 15, 2026, Venus Protocol's THE (Thena) market was exploited via a donation attack. The attacker spent 9 months accumulating 84% of the 14.5M THE supply cap, then executed a sophisticated bypass: direct ERC-20 transfers to the vTHE contract inflated the exchange rate 3.81x without triggering mint-path supply cap checks. Combined with oracle price manipulation ($0.26 → $0.51), borrowing power increased ~7x. The attacker borrowed $14.9M before liquidation bots collapsed the position.",
+    technicalDesc: "Compound forks enforce supply caps only on the mint() path. Direct transfers to the vToken contract bypass these checks, inflating exchangeRate (vTokens represent claim on more underlying). The attacker: (1) accumulated 12.2M THE over 9 months via Tornado-funded wallets; (2) transferred 36M THE directly to vTHE contract, inflating exchangeRate 3.81x; (3) recursively leveraged: borrow → swap to THE → donate → repeat; (4) manipulated THE price to $0.51 via thin liquidity buying; (5) borrowed against 7x inflated collateral before liquidation cascade.",
+    impact: "$14.9M (protocol loss: $2.15M bad debt)",
+    impactUSD: 14900000,
+    contracts: [{ label: "vTHE Contract", address: "BNB Chain Address", url: "https://bscscan.com" }],
     timeline: [
-      { id: "t1", phase: "Deposit", description: "Direct transfer bypassing mint() checks.", functionsCall: ["THE.transfer()"], pseudocode: "// raw transfer avoids tracking" },
-      { id: "t2", phase: "Borrow", description: "Borrowed other assets against inflated limit.", functionsCall: ["Comptroller.borrow()"], pseudocode: "// excess borrow power" }
+      { id: "t1", phase: "Accumulation", description: "Attacker accumulated 12.2M THE over 9 months via Tornado-funded wallets.", functionsCall: ["THE.transfer(multiple_wallets)"], pseudocode: "// 84% of supply cap gathered\n// Tornado funding → Aave borrow → THE purchases" },
+      { id: "t2", phase: "Donation Bypass", description: "36M THE transferred directly to vTHE contract, inflating exchangeRate 3.81x.", functionsCall: ["THE.transfer(vTHE_contract, 36M)"], pseudocode: "// Direct transfer bypasses mint() cap check\n// exchangeRate inflates: vTHE now represents 3.81x more underlying" },
+      { id: "t3", phase: "Recursive Leverage", description: "Borrow assets, swap to THE, donate again in recursive loop.", functionsCall: ["Venus.borrow(CAKE, BNB, BTCB)", "DEX.swap(THE)", "THE.transfer(vTHE)"], pseudocode: "// Borrow → swap to THE → donate → repeat\n// Each iteration increases borrowing power" },
+      { id: "t4", phase: "Oracle Manipulation", description: "Pumped THE price from $0.26 to $0.51 via thin liquidity buying.", functionsCall: ["DEX.buy(THE)"], pseudocode: "// Thin liquidity = high price impact\n// Resilient Oracle eventually accepted manipulated price" },
+      { id: "t5", phase: "Max Borrow", description: "Borrowed $14.9M against 7x inflated collateral before liquidation cascade.", functionsCall: ["Venus.borrow(max_assets)"], pseudocode: "// Combined effect: 3.81x exchangeRate + 2x price = ~7x borrowing power\n// 53.2M THE peak position" },
+      { id: "t6", phase: "Collapse", description: "Liquidation bots collapsed THE price to $0.22, triggering cascade liquidations.", functionsCall: ["Venus.liquidate(attacker)"], pseudocode: "// Price collapsed → health factor < 1\n// 254 bots competed → 8,048 liquidation txs\n// Protocol left with $2.15M bad debt" }
     ],
-    attackFlow: { nodes: [], edges: [] },
-    tokenFlowNodes: [],
-    tokenFlowLinks: [],
-    mitigations: [{ category: "Logic", description: "Ensure hard caps account for direct transfers." }],
-    quiz: [{ question: "How did the attacker bypass the cap?", options: ["Flash loan", "Direct Transfer", "Oracle Bug"], correct: 1, explanation: "Direct execution missed tracked variable updates." }]
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "9-month accumulation", x: 50, y: 200 },
+        { id: "n2", type: "pool", label: "THE Token", detail: "12.2M accumulated", x: 250, y: 200 },
+        { id: "n3", type: "contract", label: "vTHE Contract", detail: "Direct transfer bypass", x: 450, y: 200 },
+        { id: "n4", type: "oracle", label: "THE Oracle", detail: "$0.26 → $0.51", x: 650, y: 100 },
+        { id: "n5", type: "pool", label: "Venus Treasury", detail: "$14.9M borrowed", x: 650, y: 300 },
+        { id: "n6", type: "result", label: "Attacker Profit", detail: "~$5.2M retained", x: 850, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Accumulate 9 months" },
+        { id: "e2", source: "n2", target: "n3", label: "Donate 36M THE", animated: true },
+        { id: "e3", source: "n3", target: "n4", label: "3.81x exchangeRate" },
+        { id: "e4", source: "n1", target: "n4", label: "Pump price" },
+        { id: "e5", source: "n4", target: "n5", label: "Borrow at inflated value" },
+        { id: "e6", source: "n5", target: "n6", label: "Extract profit", animated: true }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Attacker\nFunds", type: "attacker" },
+      { id: "b", label: "THE\nAccumulated", type: "pool" },
+      { id: "c", label: "vTHE\n(3.81x rate)", type: "vault" },
+      { id: "d", label: "Venus\nBorrowed Assets", type: "pool" },
+      { id: "e", label: "Attacker\nProfit", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 9.9, label: "Initial investment" },
+      { source: "b", target: "c", value: 36, label: "Donation bypass" },
+      { source: "c", target: "d", value: 14.9, label: "Borrow at 7x value" },
+      { source: "d", target: "e", value: 5.2, label: "Net profit" }
+    ],
+    mitigations: [
+      { category: "Supply Cap Enforcement", description: "Enforce caps on ALL balance changes, not just mint(). Check total supply after transfers." },
+      { category: "Donation Protection", description: "Reject direct transfers to vToken contracts or cap their impact on exchange rate." },
+      { category: "Oracle Circuit Breakers", description: "Implement price deviation checks and pause borrowing during extreme volatility." }
+    ],
+    quiz: [{ question: "How did the attacker bypass Venus's supply cap?", options: ["Flash loan", "Direct transfer donation", "Oracle bug", "Reentrancy"], correct: 1, explanation: "Direct transfers to vTHE bypassed mint() cap checks, inflating exchange rate." }]
   },
 
   // 9. Resolv Labs (March 22, 2026)
@@ -743,75 +779,187 @@ export const hacks: Hack[] = [
     id: "resolv-labs-2026",
     slug: "resolv-labs-2026",
     title: "Resolv Labs",
-    subtitle: "Infinite Mint Key Leak",
+    subtitle: "AWS KMS Key Leak - 80M USR Minted",
     year: 2026,
     chain: "Ethereum",
     type: ["Access Control"],
-    shortDesc: "Leaked key allowed 80M USR minting, $25M in cascading debt.",
-    longDesc: "On March 22, 2026, a KMS key leak allowed unauthorized USR minting. Contagion spread to Morpho/Euler due to de-pegged USR collateral.",
-    technicalDesc: "The attacker gained access to a highly privileged KMS key, allowing infinite minting of USR tokens, which were then dumped in various liquidity pools and lent against on money markets.",
-    impact: "$25M",
+    shortDesc: "Compromised AWS KMS key allowed 80M USR minting, causing $25M drain and 80% depeg.",
+    longDesc: "On March 22, 2026, Resolv Labs suffered a catastrophic exploit when attackers compromised their AWS KMS environment. The attacker gained access to the protocol's privileged SERVICE_ROLE signing key, enabling unlimited USR minting. Using just $100K-$200K in USDC deposits, the attacker authorized two massive mint operations (50M and 30M USR) by calling completeSwap with inflated output amounts. The 80M unbacked USR tokens flooded DEX liquidity, causing an 80% price collapse from $1 to $0.20. The attacker converted USR to wstUSR, then swapped to ETH, extracting ~$24M before protocol pause.",
+    technicalDesc: "The exploit targeted Resolv's two-step swap mechanism where users deposit tokens on-chain but the USR output amount is passed as an unchecked parameter. The attacker: (1) compromised AWS KMS to obtain SERVICE_ROLE signing key; (2) made two swap requests with modest USDC deposits (~$100K-$200K total); (3) used the compromised key to call completeSwap with inflated output amounts, authorizing 80M USR; (4) converted USR to wstUSR to avoid immediate market impact; (5) swapped wstUSR to stablecoins then ETH via multiple DEX pools; (6) laundered proceeds through Railgun shielded pools.",
+    impact: "$25M (80M USR minted, 80% depeg)",
     impactUSD: 25000000,
-    contracts: [{ label: "USR Token", address: "Ethereum EOA", url: "https://etherscan.io" }],
+    contracts: [{ label: "USR Token", address: "Ethereum Contract", url: "https://etherscan.io" }],
     timeline: [
-      { id: "t1", phase: "Key Access", description: "Attacker obtained KMS key.", functionsCall: [], pseudocode: "// server side leak" },
-      { id: "t2", phase: "Mint", description: "Minted 80M USR.", functionsCall: ["USR.mint()"], pseudocode: "// authorized by leaked key" }
+      { id: "t1", phase: "KMS Compromise", description: "Attacker compromised Resolv's AWS KMS environment to obtain SERVICE_ROLE signing key.", functionsCall: ["AWS_KMS.get_signing_key()"], pseudocode: "// Cloud infrastructure breach\n// Gained access to privileged minting key" },
+      { id: "t2", phase: "Swap Requests", description: "Attacker made two swap requests funded with $100K-$200K USDC deposits.", functionsCall: ["Resolv.swap_request(USDC_deposit)"], pseudocode: "// Legitimate-looking deposits\n// Preparing for inflated authorization" },
+      { id: "t3", phase: "Unauthorized Mint", description: "Used SERVICE_ROLE key to call completeSwap with inflated output amounts: 50M + 30M USR.", functionsCall: ["Resolv.completeSwap(inflated_output, SERVICE_ROLE_key)"], pseudocode: "// Bypassed output amount validation\n// Authorized 80M USR minting with $100K collateral" },
+      { id: "t4", phase: "wstUSR Conversion", description: "Converted USR to wstUSR (wrapped staked USR) to avoid immediate market crash.", functionsCall: ["USR.stake(wstUSR)"], pseudocode: "// Moved to less liquid derivative\n// Avoided immediate price impact" },
+      { id: "t5", phase: "DEX Swapping", description: "Swapped wstUSR to stablecoins then ETH through multiple DEX pools.", functionsCall: ["Uniswap.swap(wstUSR)", "Curve.exchange(ETH)"], pseudocode: "// Rotated through multiple pools\n// Maximized extraction efficiency" },
+      { id: "t6", phase: "Market Collapse", description: "80M unbacked USR hit DEXs, causing 80% depeg from $1 to $0.20.", functionsCall: [], pseudocode: "// Supply flooded liquidity pools\n// Price collapsed to $0.20\n// Protocol paused after discovery" }
     ],
-    attackFlow: { nodes: [], edges: [] },
-    tokenFlowNodes: [],
-    tokenFlowLinks: [],
-    mitigations: [{ category: "Key Management", description: "Rotate keys and enforce cold/hot wallet splits." }],
-    quiz: [{ question: "What caused the USR minting?", options: ["Reentrancy", "Key Leak", "Flash loan"], correct: 1, explanation: "A KMS key leak allowed arbitrary mint commands." }]
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "KMS compromise", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "AWS KMS", detail: "SERVICE_ROLE key", x: 250, y: 100 },
+        { id: "n3", type: "contract", label: "Resolv Swap", detail: "Unchecked parameter", x: 450, y: 200 },
+        { id: "n4", type: "pool", label: "USR Token", detail: "80M minted", x: 650, y: 200 },
+        { id: "n5", type: "pool", label: "wstUSR", detail: "Staked derivative", x: 850, y: 200 },
+        { id: "n6", type: "result", label: "Attacker", detail: "~$24M ETH", x: 1050, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Compromise KMS", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Use signing key" },
+        { id: "e3", source: "n3", target: "n4", label: "Mint 80M USR", animated: true },
+        { id: "e4", source: "n4", target: "n5", label: "Convert to wstUSR" },
+        { id: "e5", source: "n5", target: "n6", label: "Swap to ETH", animated: true }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Attacker\nUSDC", type: "attacker" },
+      { id: "b", label: "Resolv\nSwap", type: "vault" },
+      { id: "c", label: "USR\n80M Minted", type: "pool" },
+      { id: "d", label: "wstUSR\nDerivative", type: "pool" },
+      { id: "e", label: "DEX Pools", type: "bridge" },
+      { id: "f", label: "Attacker\nETH", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 0.15, label: "USDC deposit" },
+      { source: "b", target: "c", value: 80, label: "Inflated mint" },
+      { source: "c", target: "d", value: 80, label: "Stake to wstUSR" },
+      { source: "d", target: "e", value: 24, label: "DEX swaps" },
+      { source: "e", target: "f", value: 24, label: "ETH extraction" }
+    ],
+    mitigations: [
+      { category: "Key Management", description: "Use hardware security modules (HSMs) or multi-party computation (MPC) for critical signing keys. Never store privileged keys in cloud KMS without additional safeguards." },
+      { category: "Parameter Validation", description: "Validate all input parameters, especially output amounts in swap functions. Never trust unchecked parameters from privileged calls." },
+      { category: "Real-time Monitoring", description: "Implement monitoring for anomalous minting events. Alert on sudden large mints or output amount spikes." },
+      { category: "Circuit Breakers", description: "Add mint rate limits and automatic pause on suspicious activity patterns." }
+    ],
+    quiz: [{ question: "How was the Resolv Labs exploit possible?", options: ["Reentrancy", "KMS key leak", "Flash loan", "Oracle manipulation"], correct: 1, explanation: "AWS KMS key compromise allowed unlimited USR minting via unchecked output parameter." }]
   },
 
-  // 11. Hyperbridge (April 13, 2026)
+  // 10. Hyperbridge (April 13, 2026)
   {
     id: "hyperbridge-2026",
     slug: "hyperbridge-2026",
     title: "Hyperbridge",
-    subtitle: "MMR Proof Bug",
+    subtitle: "MMR Proof Bug - 1B Fake DOT Minted",
     year: 2026,
     chain: "Polkadot/Ethereum",
-    type: ["Cryptography"],
-    shortDesc: "Faulty MMR proof verification allowed $2.5M spoofing.",
-    longDesc: "On April 13, 2026, Hyperbridge was drained of $2.5M due to a cryptographic validation bug. Proofs of empty leaves were accepted as legitimate bridge messages.",
-    technicalDesc: "MMR proof index calculation was off-by-one, allowing forged proofs for empty leaves, which trickled down to minting real assets on the destination chain.",
-    impact: "$2.5M",
+    type: ["Cryptography", "Bridge"],
+    shortDesc: "MMR proof validation flaw allowed 1B fake DOT minting via leafCount=1 edge case, draining $2.5M.",
+    longDesc: "On April 13, 2026, Hyperbridge's ISMP Token Gateway on Ethereum was exploited via a Merkle Mountain Range (MMR) proof validation bug. The attacker deployed orchestration contracts and exploited the HandlerV1.verifyPostRequests() function where leafCount=1 edge case caused the library to discard forged leaves and substitute legitimate stored roots. Combined with weak governance (challengePeriod=0) and insufficient request-proof binding, the attacker gained MINTER_ROLE and minted 1,000,000,000 fake DOT tokens, swapping them for 108.2 ETH before the gateway was frozen.",
+    technicalDesc: "The exploit targeted three vulnerabilities: (1) MMR library boundary validation failed when leafCount=1, allowing leaf_index >= leafCount; (2) proof-to-request binding was missing - commitment hash didn't cover both proof and request payload; (3) TokenGateway had challengePeriod=0 with shallow source checks. The attacker: (1) funded via Railgun/Synapse for obfuscation; (2) deployed helper contract as new token admin; (3) crafted PostRequest with MMR proof triggering leafCount=1 edge case; (4) called handleChangeAssetAdmin() bypassing shallow checks; (5) minted 1B DOT and swapped via Uniswap V4 PoolManager.",
+    impact: "$2.5M (1B fake DOT minted)",
     impactUSD: 2500000,
-    contracts: [{ label: "Hyperbridge Pallet", address: "Polkadot App", url: "https://polkadot.js.org" }],
+    contracts: [{ label: "Hyperbridge HandlerV1", address: "Ethereum Contract", url: "https://etherscan.io" }],
     timeline: [
-      { id: "t1", phase: "Exploit", description: "Submitted off-by-one proof.", functionsCall: ["VerifyMMR()"], pseudocode: "// proof logic failure" }
+      { id: "t1", phase: "Preparation", description: "Attacker funded via Railgun shielded pools and Synapse Bridge for obfuscation.", functionsCall: ["Railgun.withdraw()", "Synapse.bridge()"], pseudocode: "// Privacy-focused funding\n// Multiple test contract deployments" },
+      { id: "t2", phase: "Contract Deployment", description: "Deployed master orchestration contract and helper contract as new token admin.", functionsCall: ["deploy(orchestration_contract)", "deploy(helper_contract)"], pseudocode: "// Helper contract designed to become token admin\n// Master contract coordinated the attack" },
+      { id: "t3", phase: "Forged Proof", description: "Called HandlerV1.handlePostRequests() with crafted PostRequest triggering leafCount=1 edge case.", functionsCall: ["HandlerV1.handlePostRequests(forged_proof)"], pseudocode: "// MMR proof designed for leafCount=1 edge case\n// Library discarded forged leaf, substituted legitimate root" },
+      { id: "t4", phase: "Privilege Escalation", description: "Forged request with action byte 0x04 (ChangeAssetAdmin) forwarded to TokenGateway.", functionsCall: ["TokenGateway.handleChangeAssetAdmin(helper_contract)"], pseudocode: "// challengePeriod=0 = no delay\n// Shallow source check passed\n// Helper set as new admin, gained MINTER_ROLE" },
+      { id: "t5", phase: "Mass Mint", description: "Minted 1,000,000,000 fake DOT tokens and swapped for 108.2 ETH.", functionsCall: ["DOT.mint(1B)", "OdosRouterV3.swap(1B DOT)", "UniswapV4.swap(ETH)"], pseudocode: "// 1B DOT minted via MINTER_ROLE\n// Swapped through Uniswap V4 PoolManager\n// 108.2 ETH sent to attacker EOA" },
+      { id: "t6", phase: "Secondary Exploits", description: "Same vulnerability used against MANTA and CERE tokens before gateway frozen.", functionsCall: [], pseudocode: "// TokenGateway governs all parachain assets\n// Attacker exploited same vector on other tokens\n// EthereumHost frozen pending upgrade" }
     ],
-    attackFlow: { nodes: [], edges: [] },
-    tokenFlowNodes: [],
-    tokenFlowLinks: [],
-    mitigations: [{ category: "Crypto", description: "Formal verification of all zero-knowledge and MMR verifiers." }],
-    quiz: [{ question: "What type of proof failed in Hyperbridge?", options: ["SNARK", "MMR", "STARK"], correct: 1, explanation: "An MMR (Merkle Mountain Range) proof logic failure existed." }]
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Railgun-funded", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "Helper Contract", detail: "New token admin", x: 250, y: 200 },
+        { id: "n3", type: "contract", label: "MMR Library", detail: "leafCount=1 bug", x: 450, y: 100 },
+        { id: "n4", type: "bridge", label: "TokenGateway", detail: "challengePeriod=0", x: 450, y: 300 },
+        { id: "n5", type: "pool", label: "DOT Token", detail: "1B fake minted", x: 650, y: 200 },
+        { id: "n6", type: "result", label: "Attacker", detail: "108.2 ETH", x: 850, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Deploy contracts" },
+        { id: "e2", source: "n2", target: "n3", label: "Trigger edge case", animated: true },
+        { id: "e3", source: "n3", target: "n4", label: "Bypass proof validation" },
+        { id: "e4", source: "n2", target: "n4", label: "ChangeAssetAdmin" },
+        { id: "e5", source: "n4", target: "n5", label: "Mint 1B DOT", animated: true },
+        { id: "e6", source: "n5", target: "n6", label: "Swap to ETH" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Attacker\nFunded", type: "attacker" },
+      { id: "b", label: "Helper\nContract", type: "pool" },
+      { id: "c", label: "MMR\nProof Bug", type: "vault" },
+      { id: "d", label: "TokenGateway\n(Admin)", type: "bridge" },
+      { id: "e", label: "1B Fake\nDOT", type: "pool" },
+      { id: "f", label: "108.2 ETH\nExtracted", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 0.1, label: "Initial funding" },
+      { source: "b", target: "c", value: 0.1, label: "Exploit edge case" },
+      { source: "c", target: "d", value: 0.1, label: "Bypass validation" },
+      { source: "d", target: "e", value: 2500, label: "Mint 1B DOT" },
+      { source: "e", target: "f", value: 0.11, label: "Swap to ETH" }
+    ],
+    mitigations: [
+      { category: "MMR Validation", description: "Enforce strict boundary validation: leaf_index must always be < leafCount. Add unit tests for edge cases where leafCount equals 1 or 0." },
+      { category: "Proof Binding", description: "Ensure commitment hash covers both proof and full request payload. Reject mismatches between proven leaf and submitted request." },
+      { category: "Governance Security", description: "Apply full authenticate(request) modifier to all governance actions. Restore non-zero challengePeriod (minimum 1 hour recommended)." },
+      { category: "Admin Safeguards", description: "Introduce time-lock or multi-signature approval for changeAdmin(). Separate MINTER_ROLE assignment from admin status." }
+    ],
+    quiz: [{ question: "What MMR edge case did Hyperbridge exploit?", options: ["leafCount=0", "leafCount=1", "leafCount=2", "leafIndex overflow"], correct: 1, explanation: "The leafCount=1 edge case caused the library to discard forged leaves and substitute legitimate stored roots." }]
   },
 
-  // 12. Rhea Finance (April 15, 2026)
+  // 11. Rhea Finance (April 16, 2026)
   {
     id: "rhea-finance-2026",
     slug: "rhea-finance-2026",
     title: "Rhea Finance",
-    subtitle: "Margin Parser Bug",
+    subtitle: "Slippage Protection Logic Flaw",
     year: 2026,
-    chain: "Arbitrum",
+    chain: "NEAR",
     type: ["Logic Error"],
-    shortDesc: "Margin parser flaw led to $18.4M liquidation drain.",
-    longDesc: "On April 15-16, 2026, Rhea Finance was drained via a bug in the position parser.",
-    technicalDesc: "Parser failed to correctly identify negative margin state, allowing withdrawals of collateral while in debt. The system effectively treated heavily indebted positions as fully collateralized.",
+    shortDesc: "Slippage protection failed to account for reused intermediate tokens in multi-step swaps, causing $18.4M drain.",
+    longDesc: "On April 16, 2026, Rhea Finance (formerly Burrow Finance) on NEAR protocol suffered an $18.4M exploit targeting its margin trading functionality. The attacker spent days preparing by creating multiple fake token pools on Ref Finance and injecting liquidity, constructing malicious swap routes. The vulnerability was in the protocol's slippage protection mechanism, which failed to account for scenarios where intermediate tokens were reused during multi-step swaps. This allowed borrowed debt tokens to be routed into fake pools under attacker control, triggering widespread forced liquidations and draining the reserve pool.",
+    technicalDesc: "Rhea's margin trading includes slippage protection that sums expected outputs across swap steps. The flaw: when intermediate tokens were reused in multi-step swaps, the slippage calculation didn't properly account for token reuse, allowing manipulated swap routes to pass validation. The attacker: (1) created fake token pools on Ref Finance with injected liquidity; (2) constructed swap routes reusing intermediate tokens to bypass slippage checks; (3) borrowed debt tokens and routed them through fake pools; (4) triggered forced liquidations by draining reserve pool; (5) deleted 55 intermediary accounts to obfuscate trail.",
     impact: "$18.4M",
     impactUSD: 18400000,
-    contracts: [{ label: "Rhea Logic", address: "Arbitrum Contract", url: "https://arbiscan.io" }],
+    contracts: [{ label: "Rhea Margin Contract", address: "NEAR Contract", url: "https://nearblocks.io" }],
     timeline: [
-      { id: "t1", phase: "Manipulation", description: "Created negative margin state.", functionsCall: [], pseudocode: "// position manipulation" }
+      { id: "t1", phase: "Pool Creation", description: "Attacker created multiple fake token pools on Ref Finance and injected liquidity.", functionsCall: ["Ref.create_pool(fake_token)", "Ref.add_liquidity()"], pseudocode: "// Fake pools with controlled liquidity\n// Constructed malicious swap routes" },
+      { id: "t2", phase: "Route Construction", description: "Built swap routes reusing intermediate tokens to bypass slippage protection.", functionsCall: ["Route.construct(reused_tokens)"], pseudocode: "// Slippage protection didn't account for\n// intermediate token reuse in multi-step swaps" },
+      { id: "t3", phase: "Borrow & Route", description: "Borrowed debt tokens and routed them through fake pools under attacker control.", functionsCall: ["Rhea.borrow(debt_tokens)", "DEX.swap(fake_pools)"], pseudocode: "// Debt tokens routed to attacker-controlled pools\n// Bypassed slippage validation logic" },
+      { id: "t4", phase: "Liquidation Trigger", description: "Malicious routing triggered widespread forced liquidations across the protocol.", functionsCall: ["Rhea.liquidate(multiple_positions)"], pseudocode: "// Reserve pool drained\n// Cascading liquidations triggered" },
+      { id: "t5", phase: "Reserve Drain", description: "Protocol's reserve pool was completely drained of $18.4M in assets.", functionsCall: ["Reserve.withdraw(all_assets)"], pseudocode: "// All reserves extracted\n// Protocol left insolvent" },
+      { id: "t6", phase: "Obfuscation", description: "Attacker deleted 55 intermediary accounts to obscure on-chain trail.", functionsCall: ["NEAR.delete_account(55_accounts)"], pseudocode: "// Account deletion for obfuscation\n// Partial repayment: $3.36M USDC + $1.56M NEAR returned" }
     ],
-    attackFlow: { nodes: [], edges: [] },
-    tokenFlowNodes: [],
-    tokenFlowLinks: [],
-    mitigations: [{ category: "Logic", description: "Robust state machine validation for position parsing." }],
-    quiz: [{ question: "What component failed in Rhea Finance?", options: ["Parser", "Oracle", "Bridge"], correct: 0, explanation: "The position margin parser failed to handle negative logic." }]
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Fake pool creator", x: 50, y: 200 },
+        { id: "n2", type: "pool", label: "Ref Finance", detail: "Fake pools", x: 250, y: 100 },
+        { id: "n3", type: "contract", label: "Slippage Protection", detail: "Token reuse flaw", x: 450, y: 200 },
+        { id: "n4", type: "pool", label: "Rhea Reserves", detail: "$18.4M", x: 650, y: 200 },
+        { id: "n5", type: "result", label: "Attacker", detail: "Drained reserves", x: 850, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Create fake pools" },
+        { id: "e2", source: "n2", target: "n3", label: "Reuse intermediate tokens", animated: true },
+        { id: "e3", source: "n3", target: "n4", label: "Bypass validation" },
+        { id: "e4", source: "n4", target: "n5", label: "Drain reserves", animated: true }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Attacker\nFunds", type: "attacker" },
+      { id: "b", label: "Fake\nPools", type: "pool" },
+      { id: "c", label: "Slippage\nBypass", type: "vault" },
+      { id: "d", label: "Rhea\nReserves", type: "pool" },
+      { id: "e", label: "Attacker\nProfit", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 5, label: "Liquidity injection" },
+      { source: "b", target: "c", value: 18.4, label: "Route construction" },
+      { source: "c", target: "d", value: 18.4, label: "Borrow & route" },
+      { source: "d", target: "e", value: 18.4, label: "Reserve drain" }
+    ],
+    mitigations: [
+      { category: "Slippage Validation", description: "Account for intermediate token reuse in multi-step swap calculations. Track token state across entire swap path." },
+      { category: "Pool Verification", description: "Validate token pools used in margin trading routes. Implement whitelisting for approved pools." },
+      { category: "Liquidation Guards", description: "Add circuit breakers to prevent cascading liquidations from single malicious routes." }
+    ],
+    quiz: [{ question: "What flaw did Rhea Finance's slippage protection have?", options: ["Oracle manipulation", "Token reuse in multi-step swaps", "Reentrancy", "Integer overflow"], correct: 1, explanation: "Slippage protection failed to account for reused intermediate tokens in multi-step swaps." }]
   },
 
   // 13. Kelp DAO (April 18, 2026)
