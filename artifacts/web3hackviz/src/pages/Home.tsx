@@ -9,6 +9,7 @@ import {
   Zap,
   DollarSign,
   Calendar,
+  ArrowDownUp,
 } from "lucide-react";
 
 const ALL_TYPES = [
@@ -36,9 +37,10 @@ export default function HomePage() {
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [selectedChain, setSelectedChain] = useState<string | null>(null);
+  const [sortOrder, setSortOrder] = useState<"newest" | "oldest" | "highest" | "lowest" | "default">("newest");
 
   const filtered = useMemo(() => {
-    return hacks.filter((h) => {
+    let result = hacks.filter((h) => {
       const q = search.toLowerCase();
       const matchSearch =
         !q ||
@@ -51,7 +53,20 @@ export default function HomePage() {
       const matchChain = !selectedChain || h.chain === selectedChain;
       return matchSearch && matchYear && matchType && matchChain;
     });
-  }, [search, selectedYear, selectedType, selectedChain]);
+
+    // Apply sorting
+    if (sortOrder === "newest") {
+      result = [...result].sort((a, b) => b.year - a.year);
+    } else if (sortOrder === "oldest") {
+      result = [...result].sort((a, b) => a.year - b.year);
+    } else if (sortOrder === "highest") {
+      result = [...result].sort((a, b) => b.impactUSD - a.impactUSD);
+    } else if (sortOrder === "lowest") {
+      result = [...result].sort((a, b) => a.impactUSD - b.impactUSD);
+    }
+
+    return result;
+  }, [search, selectedYear, selectedType, selectedChain, sortOrder]);
 
   const yearHacks = useMemo(
     () => (selectedYear ? hacks.filter((h) => h.year === selectedYear) : hacks),
@@ -172,6 +187,58 @@ export default function HomePage() {
               {c ?? "All Chains"}
             </button>
           ))}
+        </div>
+
+        {/* Sort filter */}
+        <div className="flex gap-1.5 flex-wrap">
+          <button
+            onClick={() => setSortOrder(sortOrder === "newest" ? "default" : "newest")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border transition-all
+              ${
+                sortOrder === "newest"
+                  ? "bg-primary/20 border-primary/50 text-primary shadow-[0_0_8px_rgba(0,255,255,0.2)]"
+                  : "border-border bg-muted/30 text-muted-foreground hover:border-border/80 hover:text-foreground"
+              }`}
+          >
+            <ArrowDownUp className="w-3 h-3" />
+            Newest
+          </button>
+          <button
+            onClick={() => setSortOrder(sortOrder === "oldest" ? "default" : "oldest")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border transition-all
+              ${
+                sortOrder === "oldest"
+                  ? "bg-primary/20 border-primary/50 text-primary shadow-[0_0_8px_rgba(0,255,255,0.2)]"
+                  : "border-border bg-muted/30 text-muted-foreground hover:border-border/80 hover:text-foreground"
+              }`}
+          >
+            <ArrowDownUp className="w-3 h-3 rotate-180" />
+            Oldest
+          </button>
+          <button
+            onClick={() => setSortOrder(sortOrder === "highest" ? "default" : "highest")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border transition-all
+              ${
+                sortOrder === "highest"
+                  ? "bg-red-500/20 border-red-500/50 text-red-400 shadow-[0_0_8px_rgba(239,68,68,0.2)]"
+                  : "border-border bg-muted/30 text-muted-foreground hover:border-border/80 hover:text-foreground"
+              }`}
+          >
+            <DollarSign className="w-3 h-3" />
+            Most Drained
+          </button>
+          <button
+            onClick={() => setSortOrder(sortOrder === "lowest" ? "default" : "lowest")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border transition-all
+              ${
+                sortOrder === "lowest"
+                  ? "bg-green-500/20 border-green-500/50 text-green-400 shadow-[0_0_8px_rgba(34,197,94,0.2)]"
+                  : "border-border bg-muted/30 text-muted-foreground hover:border-border/80 hover:text-foreground"
+              }`}
+          >
+            <DollarSign className="w-3 h-3 rotate-180" />
+            Least Drained
+          </button>
         </div>
       </div>
 
