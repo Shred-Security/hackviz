@@ -32,7 +32,6 @@ minimumReleaseAgeExclude:
   # These are published by Replit and trusted — the supply-chain attack vector
   # this setting guards against does not apply to our own packages.
   - '@replit/*'
-  - '@radix-ui/*'
   - stripe-replit-sync
 
 packages:

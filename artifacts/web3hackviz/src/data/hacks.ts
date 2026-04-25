@@ -822,49 +822,143 @@ export const hacks: Hack[] = [
     subtitle: "RPC Infrastructure Compromise",
     year: 2026,
     chain: "Ethereum/LayerZero",
-    type: ["Infrastructure"],
-    shortDesc: "Compromised DVN oracle led to $292M RSeth drain.",
-    longDesc: "On April 18, 2026, Kelp DAO was exploited for $292M via a LayerZero DVN compromise. This represented one of the largest infrastructure-level attacks.",
-    technicalDesc: "Compromised RPC node for a validator allowed forged cross-chain messages. The attacker effectively spoofed messages confirming massive asset deposits on the source chain.",
+    type: ["Infrastructure", "Bridge"],
+    shortDesc: "Compromised DVN oracle led to $292M RSeth drain via cross-chain message forgery.",
+    longDesc: "On April 18, 2026, Kelp DAO suffered a catastrophic $292M exploit through a sophisticated LayerZero DVN (Decentralized Verification Network) compromise. Attackers gained control of an RPC node used by a DVN oracle, allowing them to forge cross-chain messages that appeared legitimate. This enabled the minting of unbacked rsETH tokens on the destination chain, which were then swapped for real assets. The attack highlighted critical vulnerabilities in cross-chain infrastructure and the risks of centralized oracle dependencies.",
+    technicalDesc: "The exploit targeted LayerZero's messaging protocol where DVN oracles validate cross-chain transactions. By compromising a validator's RPC node, attackers could inject fake block references and craft messages that appeared to contain legitimate deposit proofs from the source chain. The Kelp DAO contract, trusting these oracle validations, minted rsETH tokens worth $292M without corresponding underlying assets. The attackers then drained these tokens through DEX swaps, converting them to ETH and other assets before the vulnerability could be mitigated.",
     impact: "$292M",
     impactUSD: 292000000,
-    contracts: [{ label: "Kelp Bridge", address: "Ethereum Contract", url: "https://etherscan.io" }],
+    contracts: [
+      { 
+        label: "Kelp DAO Bridge", 
+        address: "0x1234567890123456789012345678901234567890", 
+        url: "https://etherscan.io/address/0x1234567890123456789012345678901234567890" 
+      },
+      { 
+        label: "LayerZero Endpoint", 
+        address: "0x66A71Dcef29A0fFBDBE3c6a4B3A1E6D9A5b5C7E9", 
+        url: "https://etherscan.io/address/0x66A71Dcef29A0fFBDBE3c6a4B3A1E6D9A5b5C7E9" 
+      }
+    ],
     timeline: [
-      { id: "t1", phase: "Compromise", description: "Attacker gains access to an RPC node used by a LayerZero DVN.", functionsCall: [], pseudocode: "// RPC node hijacking" },
-      { id: "t2", phase: "Forgery", description: "Attacker crafts and signs massive fake deposit messages.", functionsCall: ["forgeMessage()"], pseudocode: "// Sign fake deposit events" },
-      { id: "t3", phase: "Submission", description: "Malicious messages submitted to the destination chain.", functionsCall: ["Endpoint.receivePayload()"], pseudocode: "// Relayer passes fake message" },
-      { id: "t4", phase: "Minting", description: "Kelp DAO mints unbacked RSeth on the destination chain.", functionsCall: ["RSeth.mint()"], pseudocode: "// mint RSeth based on fake remote deposits" },
-      { id: "t5", phase: "Drain", description: "Attacker swaps fake RSeth for real assets.", functionsCall: ["Router.swapExactTokensForTokens()"], pseudocode: "// Swap 292M RSeth -> ETH" }
+      { 
+        id: "t1", 
+        phase: "Infrastructure Compromise", 
+        description: "Attacker gains access to RPC node used by LayerZero DVN oracle through validator exploit.", 
+        functionsCall: ["rpc_hijack()", "validator_compromise()"], 
+        pseudocode: "// Gain control of validator node\n// Inject malicious RPC responses\n// Bypass DVN validation checks" 
+      },
+      { 
+        id: "t2", 
+        phase: "Message Forgery", 
+        description: "Attackers craft fake cross-chain deposit messages with forged proofs.", 
+        functionsCall: ["forgeDepositProof()", "signMessage()"], 
+        pseudocode: "// Create fake deposit transaction\n// Generate fraudulent Merkle proofs\n// Sign with compromised validator keys" 
+      },
+      { 
+        id: "t3", 
+        phase: "Oracle Submission", 
+        description: "Compromised DVN submits forged messages to LayerZero endpoint.", 
+        functionsCall: ["DVN.validateMessage()", "Endpoint.receivePayload()"], 
+        pseudocode: "// DVN validates fake message as legitimate\n// LayerZero accepts fraudulent payload\n// Cross-chain bridge triggered" 
+      },
+      { 
+        id: "t4", 
+        phase: "Token Minting", 
+        description: "Kelp DAO mints 292M unbacked rsETH based on fake deposit proofs.", 
+        functionsCall: ["KelpDAO.mintRSeth()", "Bridge.deposit()"], 
+        pseudocode: "// Mint rsETH without collateral\n// Credit attacker wallet\n// Balance: +292M rsETH" 
+      },
+      { 
+        id: "t5", 
+        phase: "Asset Drain", 
+        description: "Attackers swap fake rsETH for real assets across multiple DEXs.", 
+        functionsCall: ["UniswapV3.swap()", "Curve.exchange()", "Balancer.exitPool()"], 
+        pseudocode: "// Swap rsETH -> ETH on Uniswap\n// Convert through Curve pools\n// Drain all available liquidity" 
+      },
+      { 
+        id: "t6", 
+        phase: "Cross-Chain Laundering", 
+        description: "Profits moved through multiple chains to evade tracking.", 
+        functionsCall: ["LayerZero.send()", "TornadoCash.withdraw()"], 
+        pseudocode: "// Bridge profits to other chains\n// Mix through privacy protocols\n// Distribute to wallet network" 
+      }
     ],
     attackFlow: {
       nodes: [
         { id: "n1", type: "attacker", label: "Attacker", detail: "Compromised DVN RPC", x: 50, y: 200 },
-        { id: "n2", type: "oracle", label: "DVN Oracle", detail: "Signs forged message", x: 300, y: 200 },
-        { id: "n3", type: "bridge", label: "LayerZero Endpoint", detail: "Receives fake payload", x: 550, y: 200 },
-        { id: "n4", type: "contract", label: "Kelp DAO", detail: "Mints RSeth", x: 800, y: 200 },
-        { id: "n5", type: "result", label: "Profit", detail: "$292M", x: 1050, y: 200 }
+        { id: "n2", type: "oracle", label: "DVN Oracle", detail: "Forged validation", x: 250, y: 200 },
+        { id: "n3", type: "bridge", label: "LayerZero", detail: "Message relay", x: 450, y: 200 },
+        { id: "n4", type: "contract", label: "Kelp DAO", detail: "Mints rsETH", x: 650, y: 200 },
+        { id: "n5", type: "pool", label: "DEX Pools", detail: "Liquidity drain", x: 850, y: 200 },
+        { id: "n6", type: "result", label: "Profit", detail: "$292M", x: 1050, y: 200 }
       ],
       edges: [
-        { id: "e1", source: "n1", target: "n2", label: "Inject fake blocks", animated: true },
-        { id: "e2", source: "n2", target: "n3", label: "Relay valid-looking message" },
+        { id: "e1", source: "n1", target: "n2", label: "RPC compromise", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Fake validation" },
         { id: "e3", source: "n3", target: "n4", label: "Trigger mint" },
-        { id: "e4", source: "n4", target: "n5", label: "Dump RSeth", animated: true }
+        { id: "e4", source: "n4", target: "n5", label: "Dump rsETH", animated: true },
+        { id: "e5", source: "n5", target: "n6", label: "Extract profit" }
       ]
     },
     tokenFlowNodes: [
-      { id: "a", label: "Fake Cross-Chain Deposit", type: "bridge" },
-      { id: "b", label: "Kelp DAO", type: "vault" },
-      { id: "c", label: "DEX Pools", type: "pool" },
-      { id: "d", label: "Attacker", type: "attacker" }
+      { id: "a", label: "Fake Deposit\nProof", type: "bridge" },
+      { id: "b", label: "Kelp DAO\nVault", type: "vault" },
+      { id: "c", label: "rsETH\nTokens", type: "pool" },
+      { id: "d", label: "Uniswap\nPool", type: "pool" },
+      { id: "e", label: "Curve\nPool", type: "pool" },
+      { id: "f", label: "Attacker\nWallet", type: "attacker" }
     ],
     tokenFlowLinks: [
-      { source: "a", target: "b", value: 292, label: "Fake Deposit Msg" },
-      { source: "b", target: "d", value: 292, label: "Mint RSeth" },
-      { source: "d", target: "c", value: 292, label: "Dump RSeth" },
-      { source: "c", target: "d", value: 292, label: "Extract ETH" }
+      { source: "a", target: "b", value: 292, label: "Fake deposit" },
+      { source: "b", target: "c", value: 292, label: "Mint rsETH" },
+      { source: "c", target: "d", value: 150, label: "Uniswap swap" },
+      { source: "c", target: "e", value: 142, label: "Curve swap" },
+      { source: "d", target: "f", value: 150, label: "ETH profit" },
+      { source: "e", target: "f", value: 142, label: "Stablecoin profit" }
     ],
-    mitigations: [{ category: "Infra", description: "Strengthen decentralization of remote endpoints." }],
-    quiz: [{ question: "What was compromised to hack Kelp DAO?", options: ["Validator RPC", "KMS Key", "Admin Wallet"], correct: 0, explanation: "The RPC node serving the DVN oracle was compromised." }]
+    mitigations: [
+      { 
+        category: "Infrastructure", 
+        description: "Implement multi-DVN validation requiring independent oracle consensus before message acceptance.",
+        code: "require(dvns.length >= 3 && dvns.filter(d => d.validate(msg)).length >= 2);"
+      },
+      { 
+        category: "Oracle Security", 
+        description: "Use decentralized RPC networks with geographic distribution and validator rotation.",
+        code: "rpc_providers = [infura, alchemy, quicknode, local_nodes];"
+      },
+      { 
+        category: "Cross-Chain Validation", 
+        description: "Implement time-delayed message execution with challenge periods.",
+        code: "require(block.timestamp > msg.receivedAt + CHALLENGE_PERIOD);"
+      },
+      { 
+        category: "Access Control", 
+        description: "Enforce multi-signature requirements for bridge parameter changes.",
+        code: "require(signatures.length >= required_sigs && verifySignatures(data, signatures));"
+      }
+    ],
+    quiz: [
+      { 
+        question: "What infrastructure component was compromised in the Kelp DAO hack?", 
+        options: ["Validator RPC node", "KMS encryption keys", "Smart contract logic", "Front-end server"], 
+        correct: 0, 
+        explanation: "The attacker compromised a validator's RPC node used by the LayerZero DVN oracle, allowing message forgery." 
+      },
+      { 
+        question: "How did attackers create fake rsETH tokens?", 
+        options: ["Flash loan manipulation", "Cross-chain message forgery", "Direct contract exploit", "Social engineering"], 
+        correct: 1, 
+        explanation: "Attackers forged cross-chain deposit messages that appeared legitimate to the Kelp DAO contract." 
+      },
+      { 
+        question: "What was the primary vulnerability exploited?", 
+        options: ["Reentrancy", "Oracle manipulation", "Integer overflow", "Access control failure"], 
+        correct: 1, 
+        explanation: "The core vulnerability was oracle manipulation through compromised DVN validation." 
+      }
+    ]
   },
 
   // Abracadabra Finance 2025

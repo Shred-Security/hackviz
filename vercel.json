@@ -2,5 +2,11 @@
   "buildCommand": "pnpm run build:vercel",
   "outputDirectory": "artifacts/web3hackviz/dist/public",
   "installCommand": "pnpm install",
-  "framework": "vite"
+  "framework": "vite",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
 }
