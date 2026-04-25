@@ -56,9 +56,15 @@ export default function HomePage() {
 
     // Apply sorting
     if (sortOrder === "newest") {
-      result = [...result].sort((a, b) => b.year - a.year);
+      result = [...result].sort((a, b) => {
+        if (b.year !== a.year) return b.year - a.year;
+        return b.impactUSD - a.impactUSD; // Sort by impact within same year
+      });
     } else if (sortOrder === "oldest") {
-      result = [...result].sort((a, b) => a.year - b.year);
+      result = [...result].sort((a, b) => {
+        if (a.year !== b.year) return a.year - b.year;
+        return a.impactUSD - b.impactUSD; // Sort by impact within same year
+      });
     } else if (sortOrder === "highest") {
       result = [...result].sort((a, b) => b.impactUSD - a.impactUSD);
     } else if (sortOrder === "lowest") {
@@ -188,8 +194,36 @@ export default function HomePage() {
             </button>
           ))}
         </div>
+      </div>
 
-        {/* Sort filter */}
+      {/* Type pills */}
+      <div className="flex flex-wrap gap-1.5 mb-8">
+        <button
+          onClick={() => setSelectedType(null)}
+          className={`px-2.5 py-1 rounded text-[11px] font-medium border transition-all
+            ${!selectedType ? "bg-muted border-border text-foreground" : "border-border/50 text-muted-foreground hover:text-foreground"}`}
+        >
+          All Types
+        </button>
+        {ALL_TYPES.map((t) => (
+          <button
+            key={t}
+            onClick={() => setSelectedType(selectedType === t ? null : t)}
+            className={`px-2.5 py-1 rounded text-[11px] font-medium border transition-all
+              ${
+                selectedType === t
+                  ? typeColors[t] + " opacity-100"
+                  : "border-border/40 text-muted-foreground hover:text-foreground opacity-70 hover:opacity-100"
+              }`}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {/* Sort filter */}
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-xs text-muted-foreground">Sort by:</span>
         <div className="flex gap-1.5 flex-wrap">
           <button
             onClick={() => setSortOrder(sortOrder === "newest" ? "default" : "newest")}
@@ -240,31 +274,6 @@ export default function HomePage() {
             Least Drained
           </button>
         </div>
-      </div>
-
-      {/* Type pills */}
-      <div className="flex flex-wrap gap-1.5 mb-8">
-        <button
-          onClick={() => setSelectedType(null)}
-          className={`px-2.5 py-1 rounded text-[11px] font-medium border transition-all
-            ${!selectedType ? "bg-muted border-border text-foreground" : "border-border/50 text-muted-foreground hover:text-foreground"}`}
-        >
-          All Types
-        </button>
-        {ALL_TYPES.map((t) => (
-          <button
-            key={t}
-            onClick={() => setSelectedType(selectedType === t ? null : t)}
-            className={`px-2.5 py-1 rounded text-[11px] font-medium border transition-all
-              ${
-                selectedType === t
-                  ? typeColors[t] + " opacity-100"
-                  : "border-border/40 text-muted-foreground hover:text-foreground opacity-70 hover:opacity-100"
-              }`}
-          >
-            {t}
-          </button>
-        ))}
       </div>
 
       {/* Results count */}
