@@ -25,6 +25,14 @@ export function Sidebar() {
   const masteredCount = Object.values(progress).filter((v) => v === "mastered").length;
   const auditedCount = Object.values(progress).filter((v) => v === "audited").length;
 
+  // Calculate actual year range from data
+  const yearRange = (() => {
+    const years = hacks.map((h) => h.year);
+    const minYear = Math.min(...years);
+    const maxYear = Math.max(...years);
+    return `${minYear}–${maxYear}`;
+  })();
+
   return (
     <aside
       className={`${collapsed ? "w-14" : "w-64"} shrink-0 flex flex-col border-r border-sidebar-border bg-sidebar transition-all duration-200 h-screen sticky top-0 overflow-hidden`}
@@ -48,7 +56,7 @@ export function Sidebar() {
           </div>
           <div className="min-w-0">
             <div className="text-sm font-bold text-primary glow-cyan truncate">HackViz</div>
-            <div className="text-[10px] text-muted-foreground truncate">2025–2026 Exploits</div>
+            <div className="text-[10px] text-muted-foreground truncate">{yearRange} Exploits</div>
           </div>
           <button
             onClick={() => setCollapsed(true)}
@@ -89,7 +97,7 @@ export function Sidebar() {
         {!collapsed && (
           <div className="px-3 pt-3 pb-1">
             <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">
-              2025–2026 Hacks
+              {yearRange} Hacks
             </span>
           </div>
         )}

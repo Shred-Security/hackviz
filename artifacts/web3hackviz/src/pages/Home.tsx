@@ -62,6 +62,14 @@ export default function HomePage() {
     ? yearHacks.reduce((a, b) => (a.impactUSD > b.impactUSD ? a : b))
     : null;
 
+  // Calculate actual year range from data
+  const yearRange = useMemo(() => {
+    const years = hacks.map((h) => h.year);
+    const minYear = Math.min(...years);
+    const maxYear = Math.max(...years);
+    return `${minYear}–${maxYear}`;
+  }, []);
+
   return (
     <div className="min-h-screen px-6 py-8 max-w-7xl mx-auto">
       {/* Hero */}
@@ -110,13 +118,13 @@ export default function HomePage() {
             icon={<AlertTriangle className="w-4 h-4 text-red-400" />}
             label="Total Exploits"
             value={`${yearHacks.length}`}
-            sub={selectedYear ? `in ${selectedYear}` : "2025–2026"}
+            sub={selectedYear ? `in ${selectedYear}` : yearRange}
           />
           <StatCard
             icon={<DollarSign className="w-4 h-4 text-red-400" />}
             label="Total Drained"
             value={formatBig(totalImpact)}
-            sub={selectedYear ? `in ${selectedYear}` : "2025–2026"}
+            sub={selectedYear ? `in ${selectedYear}` : yearRange}
             highlight
           />
           <StatCard
@@ -128,7 +136,7 @@ export default function HomePage() {
           <StatCard
             icon={<Calendar className="w-4 h-4 text-cyan-400" />}
             label="Coverage"
-            value={selectedYear ? String(selectedYear) : "2025–2026"}
+            value={selectedYear ? String(selectedYear) : yearRange}
             sub={selectedYear ? "selected year" : "all exploits"}
           />
         </div>

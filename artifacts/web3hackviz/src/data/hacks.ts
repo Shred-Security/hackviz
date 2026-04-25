@@ -1241,7 +1241,7 @@ export const hacks: Hack[] = [
     id: "the-dao-2016",
     slug: "the-dao-2016",
     title: "The DAO",
-    subtitle: "The Reentrancy Attack That Split Ethereum",
+    subtitle: "Reentrancy in splitDAO() - Historic Ethereum Hard Fork",
     year: 2016,
     chain: "Ethereum",
     type: ["Reentrancy"],
@@ -2373,6 +2373,628 @@ export const hacks: Hack[] = [
     ],
   },
 
+  // Harvest Finance (2020)
+  {
+    id: "harvest-finance-2020",
+    slug: "harvest-finance-2020",
+    title: "Harvest Finance",
+    subtitle: "Flash Loan Reentrancy on Curve",
+    year: 2020,
+    chain: "Ethereum",
+    type: ["Flash Loan", "Reentrancy"],
+    shortDesc: "Flash loan reentrancy exploited price discrepancies between USDC and USDT pools, draining $24M.",
+    longDesc: "On October 26, 2020, Harvest Finance, a DeFi yield aggregator, suffered a $24M exploit via flash loan reentrancy. The attacker exploited price discrepancies between Curve's USDC and USDT pools. By borrowing massive amounts via flash loans, manipulating prices, and re-entering the protocol before state updates completed, the attacker drained $13M USDC and $11M USDT. The attacker later returned $2.5M and Harvest offered a $100K bounty for the rest.",
+    technicalDesc: "The exploit leveraged reentrancy in Harvest's vault contracts. The attacker: (1) borrowed 50M USDC via Aave flash loan; (2) deposited into Harvest's USDC vault; (3) swapped to fUSDT (wrapped USDT); (4) withdrew from fUSDT vault - this triggered a reentrancy window where the contract hadn't updated internal state; (5) re-entered to deposit back and manipulate the share price; (6) withdrew at inflated share prices; (7) repaid flash loan with profit.",
+    impact: "$24M",
+    impactUSD: 24000000,
+    contracts: [{ label: "Harvest Vaults", address: "Ethereum Contracts", url: "https://etherscan.io" }],
+    timeline: [
+      { id: "t1", phase: "Flash Loan", description: "Borrowed 50M USDC via Aave flash loan.", functionsCall: ["Aave.flashLoan(50M USDC)"], pseudocode: "// Atomic borrowing - must repay in same tx" },
+      { id: "t2", phase: "Deposit", description: "Deposited into Harvest's USDC vault.", functionsCall: ["VaultUSDC.deposit(50M)"], pseudocode: "// Received fUSDC tokens representing share" },
+      { id: "t3", phase: "Swap", description: "Swapped fUSDC to fUSDT on Curve.", functionsCall: ["Curve.swap(fUSDC, fUSDT)"], pseudocode: "// Cross-vault arbitrage opportunity" },
+      { id: "t4", phase: "Reentrancy", description: "Withdrew from fUSDT vault, triggering reentrancy before state update.", functionsCall: ["VaultUSDT.withdraw()"], pseudocode: "// Reentrancy window opened\n// Internal state not yet updated" },
+      { id: "t5", phase: "Manipulation", description: "Re-entered to manipulate share prices and drain value.", functionsCall: ["VaultUSDC.deposit()", "VaultUSDC.withdraw()"], pseudocode: "// Exploited stale state\n// Extracted at inflated prices" },
+      { id: "t6", phase: "Exit", description: "Repaid flash loan, kept ~$24M profit.", functionsCall: ["Aave.repay(50M USDC)"], pseudocode: "// $2.5M later returned\n// $100K bounty offered" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Flash loan exploit", x: 50, y: 200 },
+        { id: "n2", type: "pool", label: "Aave Flash Loan", detail: "50M USDC", x: 200, y: 100 },
+        { id: "n3", type: "contract", label: "Harvest Vaults", detail: "Reentrancy bug", x: 400, y: 200 },
+        { id: "n4", type: "pool", label: "Curve Pools", detail: "USDC/USDT", x: 600, y: 200 },
+        { id: "n5", type: "result", label: "Attacker", detail: "$24M profit", x: 800, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Flash loan", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Deposit" },
+        { id: "e3", source: "n3", target: "n4", label: "Swap" },
+        { id: "e4", source: "n4", target: "n3", label: "Reenter", animated: true },
+        { id: "e5", source: "n3", target: "n5", label: "Drain", animated: true }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Aave\n50M USDC", type: "pool" },
+      { id: "b", label: "Harvest\nVaults", type: "vault" },
+      { id: "c", label: "Curve\nSwap", type: "bridge" },
+      { id: "d", label: "Attacker\n$24M", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 50, label: "Flash loan" },
+      { source: "b", target: "c", value: 50, label: "Swap" },
+      { source: "c", target: "b", value: 50, label: "Reenter" },
+      { source: "b", target: "d", value: 24, label: "Profit" }
+    ],
+    mitigations: [
+      { category: "ReentrancyGuard", description: "Use OpenZeppelin ReentrancyGuard on all vault withdraw/deposit functions." },
+      { category: "State Update Order", description: "Update all state variables before making external calls (Checks-Effects-Interactions)." },
+      { category: "Flash Loan Protection", description: "Add delays or limits on rapid deposit/withdraw cycles." }
+    ],
+    quiz: [{ question: "What vulnerability did Harvest Finance have?", options: ["Oracle bug", "Reentrancy", "Access control", "Integer overflow"], correct: 1, explanation: "Reentrancy in vault withdraw functions allowed state manipulation before updates completed." }]
+  },
+
+  // PancakeBunny (2021)
+  {
+    id: "pancakebunny-2021",
+    slug: "pancakebunny-2021",
+    title: "PancakeBunny",
+    subtitle: "Flash Loan Price Manipulation on BSC",
+    year: 2021,
+    chain: "BNB Chain",
+    type: ["Flash Loan", "Oracle Manipulation"],
+    shortDesc: "Flash loan attacker manipulated PancakeSwap LP prices to mint 7M BUNNY tokens from nothing, draining $45M.",
+    longDesc: "On May 19, 2021, PancakeBunny, a BSC yield aggregator, suffered a $45M exploit. The attacker used a $200M flash loan from PancakeSwap to manipulate the price of the BUNNY-BNB LP token. By abusing incorrect price computation in Bunny's PriceCalculatorBSC contract, the attacker minted 6.97M BUNNY tokens from nothing, which were then sold for ~114,631 WBNB (~$45M). Three forked projects (AutoShark, Merlin Labs, PancakeHunny) were also attacked similarly.",
+    technicalDesc: "The exploit targeted PriceCalculatorBSC which used PancakeSwap's getAmountsOut to compute LP token prices. The attacker: (1) borrowed 200M BUSD via PancakeSwap flash loan; (2) swapped 180M BUSD to BNB, causing massive price impact; (3) used BNB to add liquidity to BUNNY-BNB pool, inflating LP price; (4) called Bunny's mint() which read inflated LP price from PriceCalculator; (5) minted 6.97M BUNNY tokens at calculated reward rate; (6) sold BUNNY for WBNB; (7) repaid flash loan.",
+    impact: "$45M",
+    impactUSD: 45000000,
+    contracts: [{ label: "PancakeBunny Contracts", address: "BSC Addresses", url: "https://bscscan.com" }],
+    timeline: [
+      { id: "t1", phase: "Flash Loan", description: "Borrowed 200M BUSD via PancakeSwap flash loan.", functionsCall: ["PancakeSwap.flashLoan(200M BUSD)"], pseudocode: "// Massive borrowing for price manipulation" },
+      { id: "t2", phase: "Price Pump", description: "Swapped 180M BUSD to BNB, pumping BNB price significantly.", functionsCall: ["PancakeSwap.swap(180M BUSD → BNB)"], pseudocode: "// Created artificial BNB scarcity\n// Pumped price for LP manipulation" },
+      { id: "t3", phase: "LP Injection", description: "Added BNB to BUNNY-BNB pool, inflating LP token price.", functionsCall: ["PancakeSwap.addLiquidity(BUNNY-BNB)"], pseudocode: "// Inflated LP token value\n// Used for reward calculation" },
+      { id: "t4", phase: "Mint Exploit", description: "Called Bunny mint() which read inflated LP price from PriceCalculatorBSC.", functionsCall: ["Bunny.mint()"], pseudocode: "// PriceCalculatorBSC.getLpTokenPrice()\n// Returned inflated value\n// Minted 6.97M BUNNY from nothing" },
+      { id: "t5", phase: "Dump", description: "Sold minted BUNNY tokens for WBNB.", functionsCall: ["PancakeSwap.sell(6.97M BUNNY)"], pseudocode: "// 114,631 WBNB obtained (~$45M)" },
+      { id: "t6", phase: "Repay", description: "Repaid flash loan, kept profit.", functionsCall: ["PancakeSwap.repay(200M BUSD)"], pseudocode: "// ~$45M net profit\n// Forked projects also hit" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Flash loan exploit", x: 50, y: 200 },
+        { id: "n2", type: "pool", label: "PancakeSwap", detail: "$200M flash loan", x: 200, y: 100 },
+        { id: "n3", type: "contract", label: "PriceCalculatorBSC", detail: "Wrong LP price", x: 400, y: 200 },
+        { id: "n4", type: "pool", label: "BUNNY-BNB Pool", detail: "Inflated LP", x: 600, y: 200 },
+        { id: "n5", type: "result", label: "Attacker", detail: "$45M WBNB", x: 800, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Flash loan", animated: true },
+        { id: "e2", source: "n2", target: "n4", label: "Pump price" },
+        { id: "e3", source: "n4", target: "n3", label: "Inflated price read" },
+        { id: "e4", source: "n3", target: "n5", label: "Mint BUNNY", animated: true },
+        { id: "e5", source: "n2", target: "n1", label: "Repay" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "PancakeSwap\n$200M", type: "pool" },
+      { id: "b", label: "Price\nCalculator", type: "vault" },
+      { id: "c", label: "BUNNY\nMinted", type: "pool" },
+      { id: "d", label: "Attacker\n$45M", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 200, label: "Flash loan" },
+      { source: "b", target: "c", value: 45, label: "Mint exploit" },
+      { source: "c", target: "d", value: 45, label: "Sell for profit" },
+      { source: "d", target: "a", value: 200, label: "Repay" }
+    ],
+    mitigations: [
+      { category: "Oracle Security", description: "Use TWAP oracles instead of spot prices. Don't trust single DEX prices for critical calculations." },
+      { category: "Price Validation", description: "Add sanity checks on price inputs. Reject extreme deviations from expected ranges." },
+      { category: "Rate Limiting", description: "Implement mint rate limits to prevent massive token creation in single transactions." }
+    ],
+    quiz: [{ question: "How did PancakeBunny's PriceCalculator fail?", options: ["Reentrancy", "Used spot LP price from manipulated DEX", "Key leak", "Overflow"], correct: 1, explanation: "It used PancakeSwap's getAmountsOut which reflected manipulated spot prices, allowing inflated reward calculations." }]
+  },
+
+  // Cashio (2022)
+  {
+    id: "cashio-2022",
+    slug: "cashio-2022",
+    title: "Cashio",
+    subtitle: "Infinite Mint Bridge Exploit on Solana",
+    year: 2022,
+    chain: "Solana",
+    type: ["Bridge", "Access Control"],
+    shortDesc: "Missing validation allowed infinite minting of CASH stablecoin, draining $48M.",
+    longDesc: "On March 23, 2022, Cashio, a Solana algorithmic stablecoin backed by USDT-USDC LP tokens, suffered an 'infinite mint glitch.' An attacker exploited missing validation code to mint unlimited CASH tokens without proper collateral. The protocol's TVL plummeted from $28.8M to near zero as the attacker minted and sold unbacked CASH. The hack was possible because the bridge contract didn't verify that minted CASH had corresponding collateral deposits.",
+    technicalDesc: "Cashio's bridge/minting contract lacked proper validation of collateral backing for CASH minting. The attacker: (1) identified the missing validation in the mint function; (2) crafted transactions to mint CASH tokens without depositing equivalent USDT-USDC LP collateral; (3) repeated this to mint large amounts of unbacked CASH; (4) sold CASH on DEXs for other tokens; (5) bridged profits off Solana. The root cause was unaudited code with insufficient checks on the relationship between minted tokens and collateral.",
+    impact: "$48M",
+    impactUSD: 48000000,
+    contracts: [{ label: "Cashio Bridge", address: "Solana Program", url: "https://solscan.io" }],
+    timeline: [
+      { id: "t1", phase: "Discovery", description: "Attacker identified missing validation in CASH minting function.", functionsCall: [], pseudocode: "// Found infinite mint vulnerability\n// No collateral check on mint()" },
+      { id: "t2", phase: "Infinite Mint", description: "Minted unbacked CASH tokens without depositing LP collateral.", functionsCall: ["CashioBridge.mint(unlimited_CASH)"], pseudocode: "// Bypassed collateral requirement\n// Minted CASH from nothing" },
+      { id: "t3", phase: "Sell", description: "Sold unbacked CASH on DEXs for other tokens.", functionsCall: ["DEX.sell(CASH)"], pseudocode: "// CASH price collapsed\n// Converted to other assets" },
+      { id: "t4", phase: "Bridge", description: "Bridged profits off Solana to other chains.", functionsCall: ["Bridge.transfer(profits)"], pseudocode: "// Moved funds to evade tracking\n// TVL dropped from $28.8M to $579K" },
+      { id: "t5", phase: "Collapse", description: "CASH stablecoin depegged to zero as unbacked supply flooded market.", functionsCall: [], pseudocode: "// Stablecoin collapsed\n// Protocol paused" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Infinite mint", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "Cashio Bridge", detail: "No validation", x: 250, y: 200 },
+        { id: "n3", type: "pool", label: "CASH Token", detail: "Unbacked minted", x: 450, y: 200 },
+        { id: "n4", type: "pool", label: "DEX Pools", detail: "Sell pressure", x: 650, y: 200 },
+        { id: "n5", type: "result", label: "Attacker", detail: "$48M drained", x: 850, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Exploit", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Mint unbacked" },
+        { id: "e3", source: "n3", target: "n4", label: "Sell" },
+        { id: "e4", source: "n4", target: "n5", label: "Profit", animated: true }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Cashio\nBridge", type: "vault" },
+      { id: "b", label: "CASH\nMinted", type: "pool" },
+      { id: "c", label: "DEX\nSell", type: "bridge" },
+      { id: "d", label: "Attacker\n$48M", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 48, label: "Infinite mint" },
+      { source: "b", target: "c", value: 48, label: "Sell CASH" },
+      { source: "c", target: "d", value: 48, label: "Extract" }
+    ],
+    mitigations: [
+      { category: "Collateral Validation", description: "Always verify that minted tokens have corresponding 1:1 collateral backing." },
+      { category: "Audit", description: "Conduct thorough audits before mainnet launch, especially for bridge/minting contracts." },
+      { category: "Circuit Breakers", description: "Implement mint rate limits and automatic pause on unusual minting patterns." }
+    ],
+    quiz: [{ question: "What allowed Cashio's infinite mint?", options: ["Reentrancy", "Missing collateral validation", "Oracle bug", "Flash loan"], correct: 1, explanation: "The bridge contract didn't verify that minted CASH had corresponding USDT-USDC LP collateral deposits." }]
+  },
+
+  // Wintermute (2022)
+  {
+    id: "wintermute-2022",
+    slug: "wintermute-2022",
+    title: "Wintermute",
+    subtitle: "Optimism Airdrop Wallet Misconfiguration",
+    year: 2022,
+    chain: "Optimism",
+    type: ["Access Control"],
+    shortDesc: "Deployed L1 multisig on L2, allowing attacker to steal 20M OP tokens worth $27.6M.",
+    longDesc: "In June 2022, Wintermute, a crypto market maker, was supposed to receive 20M OP tokens from Optimism Foundation for liquidity provision. However, Wintermute deployed an Ethereum L1 multisig contract address on Optimism L2 instead of using a proper L2 multisig. An attacker noticed this, deployed the same contract on L2 first, and claimed the 20M OP tokens. The attacker later returned 17M OP tokens after negotiations.",
+    technicalDesc: "The exploit was a wallet management mistake. Optimism sent 20M OP tokens to an address that Wintermute controlled on L1. Wintermute assumed this address would work the same on L2, but L1 multisig contracts don't function on L2 without proper deployment. The attacker: (1) monitored the transaction; (2) deployed their own version of the multisig contract on L2 at the same address; (3) claimed the 20M OP tokens when they arrived; (4) sold or transferred tokens. Wintermute took responsibility for the operational error.",
+    impact: "$27.6M (20M OP tokens)",
+    impactUSD: 27600000,
+    contracts: [{ label: "Wintermute Multisig", address: "Optimism Address", url: "https://optimistic.etherscan.io" }],
+    timeline: [
+      { id: "t1", phase: "Setup", description: "Optimism planned to send 20M OP tokens to Wintermute for liquidity.", functionsCall: [], pseudocode: "// Airdrop for market maker services" },
+      { id: "t2", phase: "Misconfiguration", description: "Wintermute used L1 multisig address instead of deploying proper L2 multisig.", functionsCall: [], pseudocode: "// Operational error\n// L1 contract doesn't work on L2" },
+      { id: "t3", phase: "Attacker Action", description: "Attacker deployed same multisig contract on L2 at the target address.", functionsCall: ["Attacker.deploy(multisig_contract)"], pseudocode: "// Front-ran the address\n// Prepared to claim tokens" },
+      { id: "t4", phase: "Token Claim", description: "20M OP tokens arrived and attacker claimed them.", functionsCall: ["OP.transfer(attacker_address)"], pseudocode: "// Attacker controlled the L2 address\n// Claimed entire airdrop" },
+      { id: "t5", phase: "Negotiation", description: "Wintermute offered bounty; attacker returned 17M OP tokens.", functionsCall: ["Attacker.return(17M OP)"], pseudocode: "// 17M returned\n// 3M kept as 'bounty'\n// ~$27.6M total value" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Address front-run", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "L1 Multisig", detail: "Wrong network", x: 250, y: 100 },
+        { id: "n3", type: "contract", label: "L2 Contract", detail: "Attacker deployed", x: 250, y: 300 },
+        { id: "n4", type: "pool", label: "20M OP Tokens", detail: "$27.6M", x: 450, y: 200 },
+        { id: "n5", type: "result", label: "Attacker", detail: "Claimed tokens", x: 650, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n3", label: "Deploy on L2", animated: true },
+        { id: "e2", source: "n2", target: "n4", label: "Sent to wrong addr" },
+        { id: "e3", source: "n4", target: "n3", label: "Arrived at attacker", animated: true },
+        { id: "e4", source: "n3", target: "n5", label: "Claimed" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Optimism\n20M OP", type: "pool" },
+      { id: "b", label: "Wrong\nAddress", type: "vault" },
+      { id: "c", label: "Attacker\nClaimed", type: "attacker" },
+      { id: "d", label: "Returned\n17M OP", type: "pool" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 27.6, label: "Sent to wrong addr" },
+      { source: "b", target: "c", value: 27.6, label: "Attacker claimed" },
+      { source: "c", target: "d", value: 23.5, label: "17M returned" }
+    ],
+    mitigations: [
+      { category: "Cross-Chain Deployment", description: "Always deploy proper contracts on each chain. Never assume L1 addresses work on L2." },
+      { category: "Address Verification", description: "Verify contract deployment on target chain before sending significant funds." }
+    ],
+    quiz: [{ question: "What was Wintermute's mistake?", options: ["Reentrancy bug", "Used L1 multisig address on L2", "Oracle manipulation", "Flash loan"], correct: 1, explanation: "They deployed an L1 multisig contract address on L2, which doesn't work, allowing an attacker to front-run the address." }]
+  },
+
+  // KyberSwap (2023)
+  {
+    id: "kyberswap-2023",
+    slug: "kyberswap-2023",
+    title: "KyberSwap",
+    subtitle: "Precision Loss in Tick Calculation",
+    year: 2023,
+    chain: "Multi-chain",
+    type: ["Math Bug", "Logic Error"],
+    shortDesc: "Rounding error in tick calculation caused double liquidity counting, draining $48M across 6 chains.",
+    longDesc: "On November 23, 2023, KyberSwap Elastic suffered a $48M exploit across 6 chains (Ethereum, Arbitrum, Optimism, Polygon, Avalanche, BNB). The root cause was a precision loss bug in the SwapMath contract's estimateIncrementalLiquidity function. Incorrect rounding direction in delta liquidity calculation caused tick calculation errors, allowing liquidity to be double-counted. Attackers manipulated pool prices to trigger the bug and drain funds.",
+    technicalDesc: "The vulnerability was in SwapMath.computeSwapStep which called estimateIncrementalLiquidity. Line 188 intended to round up deltaL to round down nextSqrtP, but used mulDivFloor (rounds down) instead. This caused nextSqrtP to round up incorrectly. Attackers: (1) borrowed 2,000 WETH via Aave flash loan; (2) swapped to push current tick to location with no liquidity; (3) added/removed liquidity to control range; (4) manipulated tick so nextTick == currentTick; (5) swapped opposite direction to double-count liquidity; (6) drained pools with profitable swaps.",
+    impact: "$48M",
+    impactUSD: 48000000,
+    contracts: [{ label: "KyberSwap Elastic", address: "Multi-chain", url: "https://etherscan.io" }],
+    timeline: [
+      { id: "t1", phase: "Flash Loan", description: "Borrowed 2,000 WETH via Aave flash loan.", functionsCall: ["Aave.flashLoan(2000 WETH)"], pseudocode: "// Seed capital for manipulation" },
+      { id: "t2", phase: "Price Push", description: "Swapped to push current tick outside liquidity zone.", functionsCall: ["KyberSwap.swap(WETH→frxETH)"], pseudocode: "// Moved price to empty tick\n// baseL = 0, reinvestL != 0" },
+      { id: "t3", phase: "Liquidity Control", description: "Added then removed liquidity to control range precisely.", functionsCall: ["KyberSwap.addLiquidity()", "KyberSwap.removeLiquidity()"], pseudocode: "// Precise tick manipulation\n// Controlled total liquidity" },
+      { id: "t4", phase: "Tick Manipulation", description: "Swapped small amount to make nextTick == currentTick.", functionsCall: ["KyberSwap.swap(small_amount)"], pseudocode: "// Triggered precision bug\n// Prepared for double-count" },
+      { id: "t5", phase: "Double Count", description: "Swapped opposite direction - liquidity double-counted, making swap profitable.", functionsCall: ["KyberSwap.swap(reverse_direction)"], pseudocode: "// Bug: liquidity counted twice\n// Swap extracted more than input" },
+      { id: "t6", phase: "Drain", description: "Repaid flash loan, kept ~$48M profit across all chains.", functionsCall: ["Aave.repay(2000 WETH)"], pseudocode: "// 6 chains attacked\n// $48M total drained" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Precision exploit", x: 50, y: 200 },
+        { id: "n2", type: "pool", label: "Aave Flash Loan", detail: "2,000 WETH", x: 200, y: 100 },
+        { id: "n3", type: "contract", label: "SwapMath", detail: "Rounding bug", x: 400, y: 200 },
+        { id: "n4", type: "pool", label: "Kyber Pools", detail: "$48M drained", x: 600, y: 200 },
+        { id: "n5", type: "result", label: "Attacker", detail: "$48M profit", x: 800, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Flash loan", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Manipulate tick" },
+        { id: "e3", source: "n3", target: "n4", label: "Double-count liquidity", animated: true },
+        { id: "e4", source: "n4", target: "n5", label: "Drain", animated: true }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Aave\n2K WETH", type: "pool" },
+      { id: "b", label: "SwapMath\nBug", type: "vault" },
+      { id: "c", label: "Kyber\nPools", type: "pool" },
+      { id: "d", label: "Attacker\n$48M", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 2, label: "Flash loan" },
+      { source: "b", target: "c", value: 48, label: "Exploit" },
+      { source: "c", target: "d", value: 48, label: "Profit" }
+    ],
+    mitigations: [
+      { category: "Rounding Direction", description: "Carefully verify rounding direction in all math operations. Use mulDivCeiling when ceiling is required." },
+      { category: "Tick Validation", description: "Add bounds checks on tick calculations to prevent edge case manipulation." },
+      { category: "Liquidity Accounting", description: "Ensure liquidity is never double-counted in swap calculations." }
+    ],
+    quiz: [{ question: "What caused KyberSwap's precision loss?", options: ["Reentrancy", "Wrong rounding direction in delta liquidity", "Oracle bug", "Key leak"], correct: 1, explanation: "estimateIncrementalLiquidity used mulDivFloor instead of mulDivCeiling, causing incorrect tick calculations and double-counted liquidity." }]
+  },
+
+  // Alpha Homora (2021)
+  {
+    id: "alpha-homora-2021",
+    slug: "alpha-homora-2021",
+    title: "Alpha Homora",
+    subtitle: "Flash Loan Attack on Iron Bank",
+    year: 2021,
+    chain: "Ethereum",
+    type: ["Flash Loan", "Logic Error"],
+    shortDesc: "Flash loan attacker used counterfeit 'spell' contract to manipulate Iron Bank lending records, draining $37.5M.",
+    longDesc: "On February 13, 2021, Alpha Finance's leveraged lending protocol Alpha Homora V2 was exploited for $37.5M via a sophisticated flash loan attack. The attacker deployed a counterfeit 'spell' contract to manipulate Alpha's Iron Bank lending records, inflating their borrowing limits. The attack also affected Cream Finance which shared similar code. The attacker used multiple flash loans to drain WETH, USDC, and other assets.",
+    technicalDesc: "The exploit targeted Alpha Homora V2's integration with Iron Bank (a lending protocol). The attacker: (1) deployed a malicious 'spell' contract that mimicked the real spell contract; (2) used flash loans from Aave/dYdX to get initial capital; (3) deposited collateral into Alpha Homora; (4) manipulated the Iron Bank records through the counterfeit spell to show inflated collateral; (5) borrowed maximally against the inflated position; (6) repaid flash loans and kept the difference.",
+    impact: "$37.5M",
+    impactUSD: 37500000,
+    contracts: [{ label: "Alpha Homora V2", address: "Ethereum Contract", url: "https://etherscan.io" }],
+    timeline: [
+      { id: "t1", phase: "Setup", description: "Attacker deployed counterfeit 'spell' contract mimicking real implementation.", functionsCall: ["deploy(fake_spell_contract)"], pseudocode: "// Malicious contract to manipulate Iron Bank" },
+      { id: "t2", phase: "Flash Loan", description: "Borrowed assets via Aave/dYdX flash loans for initial capital.", functionsCall: ["Aave.flashLoan()", "dYdX.flashLoan()"], pseudocode: "// Multi-source flash loans\n// Seed capital for exploit" },
+      { id: "t3", phase: "Deposit", description: "Deposited collateral into Alpha Homora V2.", functionsCall: ["AlphaHomora.deposit(collateral)"], pseudocode: "// Opened leveraged position" },
+      { id: "t4", phase: "Manipulation", description: "Used counterfeit spell to inflate Iron Bank lending records.", functionsCall: ["IronBank.manipulate(fake_spell)"], pseudocode: "// Showed inflated collateral value\n// Borrowing limit artificially increased" },
+      { id: "t5", phase: "Borrow", description: "Borrowed maximum assets against inflated position.", functionsCall: ["AlphaHomora.borrow(max_amount)"], pseudocode: "// Drained WETH, USDC, others" },
+      { id: "t6", phase: "Exit", description: "Repaid flash loans, kept $37.5M profit.", functionsCall: ["Aave.repay()", "dYdX.repay()"], pseudocode: "// $37.5M net extracted\n// Cream Finance also affected" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Flash loan exploit", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "Fake Spell", detail: "Counterfeit", x: 200, y: 100 },
+        { id: "n3", type: "pool", label: "Flash Loans", detail: "Aave/dYdX", x: 200, y: 300 },
+        { id: "n4", type: "contract", label: "Alpha Homora", detail: "V2 vulnerable", x: 400, y: 200 },
+        { id: "n5", type: "pool", label: "Iron Bank", detail: "Records manipulated", x: 600, y: 200 },
+        { id: "n6", type: "result", label: "Attacker", detail: "$37.5M", x: 800, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Deploy fake", animated: true },
+        { id: "e2", source: "n3", target: "n1", label: "Flash loan" },
+        { id: "e3", source: "n1", target: "n4", label: "Deposit" },
+        { id: "e4", source: "n4", target: "n5", label: "Manipulate", animated: true },
+        { id: "e5", source: "n5", target: "n6", label: "Drain", animated: true }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Flash Loans\nCapital", type: "pool" },
+      { id: "b", label: "Alpha\nHomora", type: "vault" },
+      { id: "c", label: "Iron Bank\nManipulated", type: "pool" },
+      { id: "d", label: "Attacker\n$37.5M", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 37.5, label: "Flash loan" },
+      { source: "b", target: "c", value: 37.5, label: "Deposit" },
+      { source: "c", target: "d", value: 37.5, label: "Borrow & drain" }
+    ],
+    mitigations: [
+      { category: "Contract Verification", description: "Verify all external contract addresses and interfaces. Never trust unverified contracts." },
+      { category: "Integration Security", description: "Audit all third-party protocol integrations, especially lending/borrowing dependencies." },
+      { category: "Borrow Limits", description: "Implement conservative borrowing limits with circuit breakers for unusual activity." }
+    ],
+    quiz: [{ question: "How did Alpha Homora get exploited?", options: ["Reentrancy", "Counterfeit spell contract", "Oracle bug", "Key leak"], correct: 1, explanation: "Attacker deployed a fake 'spell' contract to manipulate Iron Bank lending records, inflating borrowing limits." }]
+  },
+
+  // Vee Finance (2021)
+  {
+    id: "vee-finance-2021",
+    slug: "vee-finance-2021",
+    title: "Vee Finance",
+    subtitle: "Reentrancy on Avalanche",
+    year: 2021,
+    chain: "Avalanche",
+    type: ["Reentrancy"],
+    shortDesc: "Reentrancy in lending contract allowed attacker to drain 8,804 ETH and 214 BTC ($34M).",
+    longDesc: "On September 21, 2021, Vee Finance, a lending protocol on Avalanche, suffered a $34M exploit. The attacker exploited a reentrancy vulnerability in the protocol's smart contracts. By re-entering functions before state updates completed, the attacker drained 8,804.7 ETH (~$26.2M) and 213.93 BTC (~$9M). This was the second major Avalanche DeFi hack in a week, following Zabu Finance's $3.2M exploit.",
+    technicalDesc: "The vulnerability was a classic reentrancy bug in Vee's lending contract. The attacker: (1) deposited collateral as normal; (2) borrowed against the collateral; (3) used a malicious contract to re-enter the borrow function before state was updated; (4) the reentrancy allowed multiple borrows against the same collateral; (5) repeated this to drain all available liquidity; (6) bridged funds off Avalanche. The protocol lacked ReentrancyGuard on critical functions.",
+    impact: "$34M (8,804 ETH + 214 BTC)",
+    impactUSD: 34000000,
+    contracts: [{ label: "Vee Finance", address: "Avalanche Contract", url: "https://snowtrace.io" }],
+    timeline: [
+      { id: "t1", phase: "Deposit", description: "Attacker deposited collateral into Vee Finance.", functionsCall: ["Vee.deposit(collateral)"], pseudocode: "// Normal deposit to open position" },
+      { id: "t2", phase: "Initial Borrow", description: "Borrowed assets against collateral.", functionsCall: ["Vee.borrow(assets)"], pseudocode: "// First borrow transaction" },
+      { id: "t3", phase: "Reentrancy", description: "Malicious contract re-entered borrow function before state update.", functionsCall: ["MaliciousContract.reenter(borrow)"], pseudocode: "// Reentrancy window opened\n// State not yet updated" },
+      { id: "t4", phase: "Multiple Borrows", description: "Re-entered multiple times to borrow against same collateral.", functionsCall: ["Vee.borrow(repeat)"], pseudocode: "// Collateral not decremented\n// Multiple borrows succeeded" },
+      { id: "t5", phase: "Drain", description: "Drained 8,804 ETH and 214 BTC from protocol.", functionsCall: ["Vee.withdraw(all)"], pseudocode: "// $26.2M ETH + $9M BTC\n// All liquidity drained" },
+      { id: "t6", phase: "Bridge", description: "Bridged profits off Avalanche to other chains.", functionsCall: ["Bridge.transfer(profits)"], pseudocode: "// Cross-chain laundering\n// Protocol paused" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Reentrancy", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "Vee Lending", detail: "No ReentrancyGuard", x: 250, y: 200 },
+        { id: "n3", type: "pool", label: "Collateral", detail: "Deposited", x: 450, y: 100 },
+        { id: "n4", type: "pool", label: "Liquidity Pool", detail: "ETH + BTC", x: 450, y: 300 },
+        { id: "n5", type: "result", label: "Attacker", detail: "$34M", x: 650, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Deposit", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Lock collateral" },
+        { id: "e3", source: "n3", target: "n2", label: "Reenter", animated: true },
+        { id: "e4", source: "n2", target: "n4", label: "Drain", animated: true },
+        { id: "e5", source: "n4", target: "n5", label: "Extract" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Vee\nLending", type: "vault" },
+      { id: "b", label: "Collateral\nDeposited", type: "pool" },
+      { id: "c", label: "Reentrancy\nBypass", type: "bridge" },
+      { id: "d", label: "Attacker\n$34M", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 34, label: "Deposit" },
+      { source: "b", target: "c", value: 34, label: "Reenter" },
+      { source: "c", target: "d", value: 34, label: "Drain" }
+    ],
+    mitigations: [
+      { category: "ReentrancyGuard", description: "Use OpenZeppelin ReentrancyGuard on all state-changing functions." },
+      { category: "Checks-Effects-Interactions", description: "Update all state variables before making external calls." },
+      { category: "Audit", description: "Conduct thorough audits, especially for lending protocols on newer chains." }
+    ],
+    quiz: [{ question: "What vulnerability did Vee Finance have?", options: ["Oracle bug", "Reentrancy", "Access control", "Integer overflow"], correct: 1, explanation: "Lending contract lacked ReentrancyGuard, allowing attacker to borrow multiple times against same collateral." }]
+  },
+
+  // Meerkat Finance (2021)
+  {
+    id: "meerkat-finance-2021",
+    slug: "meerkat-finance-2021",
+    title: "Meerkat Finance",
+    subtitle: "Rug Pull / Developer Exit Scam",
+    year: 2021,
+    chain: "BNB Chain",
+    type: ["Access Control"],
+    shortDesc: "Developer drained 73,635 WBNB and $14M BUSD ($32M total) one day after launch.",
+    longDesc: "On March 4, 2021, one day after launch, Meerkat Finance, a BSC yield vault project that forked Yearn.Finance, suffered a $32M exit scam. The developer called a method to transfer out 73,635 WBNB and $14M BUSD from the vaults. The dev initially claimed it was a 'test' and would return funds, but this was widely viewed as a rug pull. It remains one of BSC's largest frauds.",
+    technicalDesc: "This was a malicious developer exit scam, not a smart contract vulnerability. The developer: (1) deployed Meerkat Finance as a Yearn fork on BSC; (2) attracted users with yield farming promises; (3) users deposited BNB and BUSD into vaults; (4) one day later, the dev used admin privileges to call a withdraw function (0x70fcb0a7) on the WBNB vault; (5) transferred 73,635 WBNB and $14M BUSD to personal address; (6) initially claimed it was a 'test' but funds were never returned.",
+    impact: "$32M (73,635 WBNB + $14M BUSD)",
+    impactUSD: 32000000,
+    contracts: [{ label: "Meerkat Vault", address: "BSC Contract", url: "https://bscscan.com" }],
+    timeline: [
+      { id: "t1", phase: "Launch", description: "Meerkat Finance launched as Yearn fork on BSC.", functionsCall: ["deploy(meerkat)"], pseudocode: "// Yield farming protocol\n// Attracted users with high APY" },
+      { id: "t2", phase: "Deposits", description: "Users deposited BNB and BUSD into vaults.", functionsCall: ["Vault.deposit(BNB)", "Vault.deposit(BUSD)"], pseudocode: "// TVL grew rapidly\n// One day of operation" },
+      { id: "t3", phase: "Rug Pull", description: "Dev called method 0x70fcb0a7 to drain WBNB vault.", functionsCall: ["Vault.transferOut(73,635 WBNB)"], pseudocode: "// Admin privilege abuse\n// Direct vault drain" },
+      { id: "t4", phase: "Second Drain", description: "Dev also drained $14M BUSD from vaults.", functionsCall: ["Vault.transferOut(14M BUSD)"], pseudocode: "// Complete protocol drain\n// $32M total stolen" },
+      { id: "t5", phase: "Cover Story", description: "Dev claimed it was a 'test' and would return funds.", functionsCall: [], pseudocode: "// 'Test' excuse\n// Community skeptical" },
+      { id: "t6", phase: "Exit", description: "Funds never returned; confirmed as rug pull.", functionsCall: [], pseudocode: "// One of BSC's largest frauds\n// Dev vanished with funds" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Developer", detail: "Malicious admin", x: 50, y: 200 },
+        { id: "n2", type: "pool", label: "User Deposits", detail: "BNB + BUSD", x: 250, y: 200 },
+        { id: "n3", type: "contract", label: "Meerkat Vaults", detail: "Admin controlled", x: 450, y: 200 },
+        { id: "n4", type: "result", label: "Dev Wallet", detail: "$32M stolen", x: 650, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n2", target: "n3", label: "User deposits" },
+        { id: "e2", source: "n1", target: "n3", label: "Admin drain", animated: true },
+        { id: "e3", source: "n3", target: "n4", label: "Transfer", animated: true }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "User\nFunds", type: "pool" },
+      { id: "b", label: "Meerkat\nVaults", type: "vault" },
+      { id: "c", label: "Admin\nDrain", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 32, label: "Deposits" },
+      { source: "b", target: "c", value: 32, label: "Rug pull" }
+    ],
+    mitigations: [
+      { category: "Timelock", description: "Implement timelocks on admin functions to prevent sudden drains." },
+      { category: "Multi-sig", description: "Require multi-signature approval for large fund transfers." },
+      { category: "DAO Governance", description: "Transfer admin control to DAO to prevent single-point failures." }
+    ],
+    quiz: [{ question: "What was Meerkat Finance's exploit?", options: ["Smart contract bug", "Developer rug pull", "Oracle manipulation", "Flash loan"], correct: 1, explanation: "The developer used admin privileges to drain all vault funds one day after launch - a classic rug pull." }]
+  },
+
+  // MonoX (2021)
+  {
+    id: "monox-2021",
+    slug: "monox-2021",
+    title: "MonoX",
+    subtitle: "Smart Contract Bug in Price Update",
+    year: 2021,
+    chain: "Ethereum",
+    type: ["Logic Error", "Oracle Manipulation"],
+    shortDesc: "Smart contract bug caused incorrect price updates during token swaps, draining $31.4M.",
+    longDesc: "On November 30, 2021, MonoX Finance, a DeFi protocol allowing single-sided token deposits, suffered a $31.4M exploit. The vulnerability was a smart contract bug that led to incorrect price updates when conducting token swaps. The attacker drained $18M in WETH and $10.5M in MATIC, among other tokens. The bug was in how the protocol updated internal token prices during swaps.",
+    technicalDesc: "The vulnerability was in MonoX's price update logic during swaps. The protocol used a virtual balance system to track token prices. The attacker: (1) identified that price updates didn't correctly account for swap amounts; (2) performed swaps that manipulated the internal price oracle; (3) used the manipulated prices to borrow at favorable rates; (4) repeated this to drain the protocol; (5) the bug allowed price manipulation without proper checks on the resulting prices.",
+    impact: "$31.4M ($18M WETH + $10.5M MATIC)",
+    impactUSD: 31400000,
+    contracts: [{ label: "MonoX Protocol", address: "Ethereum Contract", url: "https://etherscan.io" }],
+    timeline: [
+      { id: "t1", phase: "Discovery", description: "Attacker identified price update bug in swap logic.", functionsCall: [], pseudocode: "// Price oracle vulnerable\n// Incorrect update calculation" },
+      { id: "t2", phase: "Manipulation", description: "Performed swaps to manipulate internal token prices.", functionsCall: ["MonoX.swap(manipulate)"], pseudocode: "// Swaps affected virtual balances\n// Internal prices distorted" },
+      { id: "t3", phase: "Borrow", description: "Used manipulated prices to borrow at favorable rates.", functionsCall: ["MonoX.borrow(at_manipulated_price)"], pseudocode: "// Borrowed against distorted prices\n// Extracted more value than deposited" },
+      { id: "t4", phase: "Drain WETH", description: "Drained $18M in WETH from protocol.", functionsCall: ["MonoX.withdraw(WETH)"], pseudocode: "// Largest asset drained" },
+      { id: "t5", phase: "Drain MATIC", description: "Drained $10.5M in MATIC and other tokens.", functionsCall: ["MonoX.withdraw(MATIC)"], pseudocode: "// Additional assets extracted" },
+      { id: "t6", phase: "Exit", description: "Attacker exited with $31.4M total.", functionsCall: [], pseudocode: "// Protocol paused\n// Bug identified and fixed" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Price manipulation", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "MonoX Swap", detail: "Price bug", x: 250, y: 200 },
+        { id: "n3", type: "oracle", label: "Price Oracle", detail: "Manipulated", x: 450, y: 200 },
+        { id: "n4", type: "pool", label: "Protocol Funds", detail: "$31.4M", x: 650, y: 200 },
+        { id: "n5", type: "result", label: "Attacker", detail: "$31.4M", x: 850, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Swap", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Corrupt prices" },
+        { id: "e3", source: "n3", target: "n4", label: "Borrow cheap", animated: true },
+        { id: "e4", source: "n4", target: "n5", label: "Drain" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "MonoX\nSwap", type: "vault" },
+      { id: "b", label: "Price\nOracle", type: "pool" },
+      { id: "c", label: "Protocol\nFunds", type: "pool" },
+      { id: "d", label: "Attacker\n$31.4M", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 31.4, label: "Manipulate" },
+      { source: "b", target: "c", value: 31.4, label: "Borrow" },
+      { source: "c", target: "d", value: 31.4, label: "Extract" }
+    ],
+    mitigations: [
+      { category: "Price Validation", description: "Validate all price updates against external oracles. Reject extreme deviations." },
+      { category: "Swap Limits", description: "Implement limits on swap impact to prevent oracle manipulation." },
+      { category: "Math Verification", description: "Formally verify all price calculation logic, especially virtual balance systems." }
+    ],
+    quiz: [{ question: "What caused MonoX's exploit?", options: ["Reentrancy", "Incorrect price update in swaps", "Key leak", "Flash loan"], correct: 1, explanation: "Smart contract bug caused incorrect price updates during token swaps, allowing manipulation of internal oracle." }]
+  },
+
+  // Spartan Protocol (2021)
+  {
+    id: "spartan-2021",
+    slug: "spartan-2021",
+    title: "Spartan Protocol",
+    subtitle: "Flash Loan Oracle Manipulation",
+    year: 2021,
+    chain: "BNB Chain",
+    type: ["Flash Loan", "Oracle Manipulation"],
+    shortDesc: "Flash loan attacker manipulated synthetic asset prices to drain $30.5M.",
+    longDesc: "In May 2021, Spartan Protocol on BSC suffered a $30.5M exploit via flash loan oracle manipulation. The protocol allowed users to mint synthetic assets. The attacker used flash loans to manipulate the prices of these synthetic assets, then used the inflated prices as collateral to borrow real assets. The exploit targeted the protocol's reliance on its own AMM for price discovery.",
+    technicalDesc: "The vulnerability was in Spartan's use of its own AMM as the price oracle for synthetic assets. The attacker: (1) borrowed large amounts via flash loans; (2) used the capital to manipulate Spartan's AMM prices; (3) minted synthetic assets at manipulated prices; (4) used the synthetic assets as collateral to borrow real assets; (5) repaid flash loans with profit. The protocol lacked external price feeds or TWAP oracles.",
+    impact: "$30.5M",
+    impactUSD: 30500000,
+    contracts: [{ label: "Spartan Protocol", address: "BSC Contract", url: "https://bscscan.com" }],
+    timeline: [
+      { id: "t1", phase: "Flash Loan", description: "Borrowed large amounts via BSC flash loans.", functionsCall: ["PancakeSwap.flashLoan()"], pseudocode: "// Capital for price manipulation" },
+      { id: "t2", phase: "Price Manipulation", description: "Used capital to manipulate Spartan AMM prices.", functionsCall: ["Spartan.swap(manipulate_prices)"], pseudocode: "// Moved AMM prices\n// Synthetic asset prices inflated" },
+      { id: "t3", phase: "Mint Synthetic", description: "Minted synthetic assets at manipulated prices.", functionsCall: ["Spartan.mint(synthetic)"], pseudocode: "// Minted at inflated values\n// Used as collateral" },
+      { id: "t4", phase: "Borrow Real", description: "Used synthetic assets as collateral to borrow real assets.", functionsCall: ["Spartan.borrow(real_assets)"], pseudocode: "// Borrowed against inflated collateral\n// Drained real value" },
+      { id: "t5", phase: "Repay", description: "Repaid flash loans, kept $30.5M profit.", functionsCall: ["PancakeSwap.repay()"], pseudocode: "// Net profit extracted\n// Protocol drained" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Oracle manipulation", x: 50, y: 200 },
+        { id: "n2", type: "pool", label: "Flash Loan", detail: "BSC", x: 200, y: 100 },
+        { id: "n3", type: "contract", label: "Spartan AMM", detail: "Price oracle", x: 400, y: 200 },
+        { id: "n4", type: "pool", label: "Synthetic Assets", detail: "Inflated", x: 600, y: 200 },
+        { id: "n5", type: "result", label: "Attacker", detail: "$30.5M", x: 800, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n2", target: "n1", label: "Flash loan", animated: true },
+        { id: "e2", source: "n1", target: "n3", label: "Manipulate" },
+        { id: "e3", source: "n3", target: "n4", label: "Inflate prices", animated: true },
+        { id: "e4", source: "n4", target: "n5", label: "Borrow & drain" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Flash Loan\nCapital", type: "pool" },
+      { id: "b", label: "Spartan\nAMM", type: "vault" },
+      { id: "c", label: "Synthetic\nAssets", type: "pool" },
+      { id: "d", label: "Attacker\n$30.5M", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 30.5, label: "Flash loan" },
+      { source: "b", target: "c", value: 30.5, label: "Manipulate" },
+      { source: "c", target: "d", value: 30.5, label: "Drain" }
+    ],
+    mitigations: [
+      { category: "External Oracles", description: "Use external price feeds (Chainlink, Band) instead of internal AMM prices for critical operations." },
+      { category: "TWAP", description: "Implement Time-Weighted Average Price oracles to resist manipulation." },
+      { category: "Collateral Limits", description: "Limit synthetic asset minting and borrowing against volatile collateral." }
+    ],
+    quiz: [{ question: "What was Spartan Protocol's vulnerability?", options: ["Reentrancy", "Internal AMM as oracle", "Key leak", "Integer overflow"], correct: 1, explanation: "Protocol used its own AMM as price oracle, which could be manipulated via flash loans." }]
+  },
+
+  // Grim Finance (2021)
+  {
+    id: "grim-finance-2021",
+    slug: "grim-finance-2021",
+    title: "Grim Finance",
+    subtitle: "Reentrancy on Fantom",
+    year: 2021,
+    chain: "Fantom",
+    type: ["Reentrancy"],
+    shortDesc: "Reentrancy in vault contract allowed attacker to drain $30M from Fantom DeFi protocol.",
+    longDesc: "In December 2021, Grim Finance, a yield optimizer on Fantom, suffered a $30M exploit via reentrancy. The attacker exploited a reentrancy vulnerability in the protocol's vault contract. By re-entering functions before state updates, the attacker drained multiple vaults. This was one of several reentrancy attacks that highlighted the importance of proper state update ordering.",
+    technicalDesc: "The vulnerability was a reentrancy bug in Grim's vault withdraw function. The attacker: (1) deposited collateral into Grim vaults; (2) initiated a withdraw; (3) used a malicious contract to re-enter the withdraw function before state was updated; (4) the reentrancy allowed multiple withdrawals against the same deposit; (5) repeated this across multiple vaults; (6) drained $30M in total. The contract lacked ReentrancyGuard.",
+    impact: "$30M",
+    impactUSD: 30000000,
+    contracts: [{ label: "Grim Finance Vaults", address: "Fantom Contract", url: "https://ftmscan.com" }],
+    timeline: [
+      { id: "t1", phase: "Deposit", description: "Attacker deposited collateral into Grim vaults.", functionsCall: ["Grim.deposit(collateral)"], pseudocode: "// Opened positions in multiple vaults" },
+      { id: "t2", phase: "Withdraw", description: "Initiated withdraw from vault.", functionsCall: ["Grim.withdraw()"], pseudocode: "// First withdraw request" },
+      { id: "t3", phase: "Reentrancy", description: "Malicious contract re-entered before state update.", functionsCall: ["MaliciousContract.reenter(withdraw)"], pseudocode: "// State not updated\n// Reentrancy window open" },
+      { id: "t4", phase: "Multiple Withdraws", description: "Re-entered multiple times to withdraw same deposit repeatedly.", functionsCall: ["Grim.withdraw(repeat)"], pseudocode: "// Balance not decremented\n// Multiple withdrawals succeeded" },
+      { id: "t5", phase: "Cross-Vault", description: "Repeated exploit across multiple vaults.", functionsCall: ["Grim.exploit(other_vaults)"], pseudocode: "// $30M total drained\n// Multiple vaults affected" },
+      { id: "t6", phase: "Exit", description: "Attacker bridged funds off Fantom.", functionsCall: ["Bridge.transfer(profits)"], pseudocode: "// Protocol paused\n// ReentrancyGuard added" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Reentrancy", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "Grim Vaults", detail: "No guard", x: 250, y: 200 },
+        { id: "n3", type: "pool", label: "User Deposits", detail: "Multiple vaults", x: 450, y: 200 },
+        { id: "n4", type: "result", label: "Attacker", detail: "$30M", x: 650, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Deposit", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Reenter", animated: true },
+        { id: "e3", source: "n3", target: "n4", label: "Drain" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Grim\nVaults", type: "vault" },
+      { id: "b", label: "Reentrancy\nBypass", type: "bridge" },
+      { id: "c", label: "Attacker\n$30M", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 30, label: "Reenter" },
+      { source: "b", target: "c", value: 30, label: "Drain" }
+    ],
+    mitigations: [
+      { category: "ReentrancyGuard", description: "Use OpenZeppelin ReentrancyGuard on all state-changing functions." },
+      { category: "State Update Order", description: "Update all state before external calls (Checks-Effects-Interactions)." },
+      { category: "Audit", description: "Audit protocols on newer chains thoroughly, especially vault/lending contracts." }
+    ],
+    quiz: [{ question: "What vulnerability did Grim Finance have?", options: ["Oracle bug", "Reentrancy", "Access control", "Integer overflow"], correct: 1, explanation: "Vault contract lacked ReentrancyGuard, allowing multiple withdrawals against same deposit." }]
+  },
+
   // Mango Markets (2022)
   {
     id: "mango-markets-2022",
@@ -2499,6 +3121,560 @@ export const hacks: Hack[] = [
         explanation: "The oracle reflected spot market prices that the attacker could move by trading. Critically, the protocol allowed large borrows against unrealized (phantom) PnL from perpetual positions — combining to enable the $117M drain.",
       },
     ],
+  },
+
+  // Pickle Finance (2020)
+  {
+    id: "pickle-finance-2020",
+    slug: "pickle-finance-2020",
+    title: "Pickle Finance",
+    subtitle: "Design Bugs in Yield Aggregator",
+    year: 2020,
+    chain: "Ethereum",
+    type: ["Logic Error", "Flash Loan"],
+    shortDesc: "Design flaws in jar contract allowed $19.7M drain via DAI pJar manipulation.",
+    longDesc: "On November 21, 2020, Pickle Finance, a yield aggregator on Ethereum, suffered a $19.7M exploit. The attacker stole exactly 19.76M DAI from the pDAI PickleJar liquidity pool. The hack was caused by several design issues within the Pickle contract. By combining these design flaws, the attacker was able to manipulate the pickle price and drain the pJar.",
+    technicalDesc: "The vulnerability was in Pickle's jar design which allowed manipulation of the PICKLE token price. The attacker: (1) used flash loans to get DAI; (2) deposited DAI into pJar; (3) manipulated the PICKLE/DAI price via swaps; (4) used the inflated PICKLE as collateral to borrow more DAI; (5) withdrew and repaid flash loans. The design flaws included lack of proper price oracles.",
+    impact: "$19.7M (19.76M DAI)",
+    impactUSD: 19700000,
+    contracts: [{ label: "Pickle Finance Jars", address: "Ethereum Contract", url: "https://etherscan.io" }],
+    timeline: [
+      { id: "t1", phase: "Flash Loan", description: "Borrowed DAI via flash loans for initial capital.", functionsCall: ["dYdX.flashLoan(DAI)"], pseudocode: "// Seed capital for manipulation" },
+      { id: "t2", phase: "Deposit", description: "Deposited DAI into pDAI PickleJar.", functionsCall: ["pJar.deposit(DAI)"], pseudocode: "// Received pDAI tokens\n// Opened position" },
+      { id: "t3", phase: "Price Manipulation", description: "Manipulated PICKLE/DAI price via DEX swaps.", functionsCall: ["Uniswap.swap(manipulate)"], pseudocode: "// Inflated PICKLE price\n// Used as collateral" },
+      { id: "t4", phase: "Borrow", description: "Used inflated PICKLE as collateral to borrow more DAI.", functionsCall: ["Pickle.borrow(DAI)"], pseudocode: "// Borrowed against inflated value\n// Drained 19.76M DAI" },
+      { id: "t5", phase: "Withdraw", description: "Withdrew from pJar and repaid flash loans.", functionsCall: ["pJar.withdraw()", "dYdX.repay()"], pseudocode: "// Kept 19.76M DAI profit\n// Protocol drained" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Price manipulation", x: 50, y: 200 },
+        { id: "n2", type: "pool", label: "Flash Loan", detail: "DAI", x: 200, y: 100 },
+        { id: "n3", type: "contract", label: "pJar", detail: "Design flaw", x: 400, y: 200 },
+        { id: "n4", type: "oracle", label: "PICKLE Price", detail: "Manipulated", x: 600, y: 200 },
+        { id: "n5", type: "result", label: "Attacker", detail: "$19.7M", x: 800, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n2", target: "n1", label: "Flash loan", animated: true },
+        { id: "e2", source: "n1", target: "n3", label: "Deposit" },
+        { id: "e3", source: "n3", target: "n4", label: "Manipulate", animated: true },
+        { id: "e4", source: "n4", target: "n5", label: "Borrow" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Flash Loan\nDAI", type: "pool" },
+      { id: "b", label: "pJar\nDesign Flaw", type: "vault" },
+      { id: "c", label: "PICKLE\nManipulated", type: "pool" },
+      { id: "d", label: "Attacker\n$19.7M", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 19.7, label: "Flash loan" },
+      { source: "b", target: "c", value: 19.7, label: "Manipulate" },
+      { source: "c", target: "d", value: 19.7, label: "Drain" }
+    ],
+    mitigations: [
+      { category: "External Oracles", description: "Use external price feeds instead of internal DEX prices for critical operations." },
+      { category: "TWAP", description: "Implement Time-Weighted Average Price oracles to resist manipulation." },
+      { category: "Audit", description: "Audit yield aggregator designs thoroughly, especially jar mechanisms." }
+    ],
+    quiz: [{ question: "What was Pickle Finance's vulnerability?", options: ["Reentrancy", "Design flaws in jar mechanism", "Key leak", "Integer overflow"], correct: 1, explanation: "Design issues in the jar contract allowed manipulation of PICKLE token price via DEX swaps." }]
+  },
+
+  // Ankr & Helio (2022)
+  {
+    id: "ankr-helio-2022",
+    slug: "ankr-helio-2022",
+    title: "Ankr & Helio",
+    subtitle: "Key Compromise + Oracle Manipulation",
+    year: 2022,
+    chain: "BNB Chain",
+    type: ["Access Control", "Oracle Manipulation"],
+    shortDesc: "Compromised Ankr deployment key allowed malicious contract, enabling $15M Helio oracle exploit.",
+    longDesc: "In December 2022, connected attacks on Ankr (infrastructure provider) and Helio Protocol (stablecoin issuer) totaled $20M. The Ankr exploit was caused by a compromised private key - since Ankr's update process used a single key, the attacker deployed a malicious contract that minted 6 quadrillion aBNBc tokens, crashing the price. A second attacker then bought the crashed aBNBc cheap and used it to exploit Helio's oracle for $15M.",
+    technicalDesc: "This was a two-stage attack. Stage 1 (Ankr): (1) attacker compromised Ankr's single deployment key; (2) deployed malicious contract; (3) minted 6 quadrillion aBNBc tokens; (4) crashed aBNBc price from ~$300 to near zero. Stage 2 (Helio): (1) second attacker bought 183,885 aBNBc for 10 BNB (~$2,900); (2) deposited into Helio Money to receive 191,130 hBNB; (3) used crashed aBNBc as collateral to borrow HAY stablecoin; (4) oracle didn't reflect crashed price; (5) drained $15M.",
+    impact: "$24M (combined Ankr + Helio)",
+    impactUSD: 24000000,
+    contracts: [{ label: "Ankr aBNBc", address: "BSC Contract", url: "https://bscscan.com" }],
+    timeline: [
+      { id: "t1", phase: "Key Compromise", description: "Attacker compromised Ankr's single deployment key.", functionsCall: [], pseudocode: "// Single point of failure\n// Private key exposed" },
+      { id: "t2", phase: "Malicious Deploy", description: "Deployed malicious Ankr contract.", functionsCall: ["deploy(malicious_contract)"], pseudocode: "// Unauthorized deployment\n// Key gave full control" },
+      { id: "t3", phase: "Infinite Mint", description: "Minted 6 quadrillion aBNBc tokens, crashing price.", functionsCall: ["aBNBc.mint(6 quadrillion)"], pseudocode: "// Price crashed from ~$300\n// Near zero value" },
+      { id: "t4", phase: "Cheap Purchase", description: "Second attacker bought 183,885 aBNBc for 10 BNB ($2,900).", functionsCall: ["DEX.buy(aBNBc)"], pseudocode: "// Bought crashed tokens\n// Should have been worth ~$55M" },
+      { id: "t5", phase: "Helio Exploit", description: "Deposited aBNBc into Helio, borrowed HAY at stale oracle price.", functionsCall: ["Helio.deposit(aBNBc)", "Helio.borrow(HAY)"], pseudocode: "// Oracle didn't update\n// Borrowed $15M against $2,900 collateral" },
+      { id: "t6", phase: "Profit", description: "Drained $15M from Helio; Ankr lost ~$5M in aBNBc value.", functionsCall: [], pseudocode: "// $20M total combined loss\n// Multi-sig would have prevented" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker 1", detail: "Key compromise", x: 50, y: 100 },
+        { id: "n2", type: "attacker", label: "Attacker 2", detail: "Oracle exploit", x: 50, y: 300 },
+        { id: "n3", type: "contract", label: "Ankr Key", detail: "Compromised", x: 250, y: 200 },
+        { id: "n4", type: "pool", label: "aBNBc", detail: "Price crashed", x: 450, y: 200 },
+        { id: "n5", type: "contract", label: "Helio Oracle", detail: "Stale price", x: 650, y: 200 },
+        { id: "n6", type: "result", label: "Attackers", detail: "$20M total", x: 850, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n3", label: "Compromise key", animated: true },
+        { id: "e2", source: "n3", target: "n4", label: "Mint & crash", animated: true },
+        { id: "e3", source: "n2", target: "n4", label: "Buy cheap" },
+        { id: "e4", source: "n4", target: "n5", label: "Deposit" },
+        { id: "e5", source: "n5", target: "n6", label: "Borrow", animated: true }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Ankr\nKey", type: "vault" },
+      { id: "b", label: "aBNBc\nCrashed", type: "pool" },
+      { id: "c", label: "Helio\nOracle", type: "pool" },
+      { id: "d", label: "Attackers\n$20M", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 20, label: "Compromise" },
+      { source: "b", target: "c", value: 15, label: "Oracle exploit" },
+      { source: "c", target: "d", value: 20, label: "Drain" }
+    ],
+    mitigations: [
+      { category: "Multi-sig", description: "Use multi-signature wallets for all critical operations. Never rely on single private keys." },
+      { category: "Oracle Updates", description: "Implement frequent oracle price updates with deviation checks. Pause operations on extreme price movements." },
+      { category: "Rate Limiting", description: "Implement mint rate limits to prevent infinite token creation." }
+    ],
+    quiz: [{ question: "What enabled the Ankr & Helio attacks?", options: ["Reentrancy", "Single key compromise + stale oracle", "Flash loan", "Integer overflow"], correct: 1, explanation: "Ankr's single deployment key was compromised, allowing malicious aBNBc minting. Helio's oracle didn't update to the crashed price, enabling exploitation." }]
+  },
+
+  // Stake (2023)
+  {
+    id: "stake-2023",
+    slug: "stake-2023",
+    title: "Stake.com",
+    subtitle: "Hot Wallet Key Compromise",
+    year: 2023,
+    chain: "Multi-chain",
+    type: ["Access Control"],
+    shortDesc: "Compromised hot wallet private keys allowed $41.6M drain across Ethereum, BNB, and Polygon.",
+    longDesc: "On September 4, 2023, Stake.com, a crypto betting platform, suffered a $41.6M exploit across Ethereum, BNB Chain, and Polygon. The attack was caused by compromised private keys for Stake's hot wallets. Attackers gained unauthorized access and drained funds from multiple chains. The incident was attributed to potential North Korean-affiliated hackers (Lazarus Group).",
+    technicalDesc: "This was a private key compromise, not a smart contract vulnerability. The attacker: (1) obtained Stake's hot wallet private keys through unknown means (possibly phishing or infrastructure breach); (2) used the keys to sign transactions across multiple chains; (3) drained ETH, BNB, MATIC, and other tokens; (4) moved funds through mixers and bridges for obfuscation. The incident highlighted the importance of proper key management for CEX hot wallets.",
+    impact: "$41.6M",
+    impactUSD: 41600000,
+    contracts: [{ label: "Stake Hot Wallets", address: "Multi-chain", url: "https://etherscan.io" }],
+    timeline: [
+      { id: "t1", phase: "Key Compromise", description: "Attacker obtained Stake's hot wallet private keys.", functionsCall: [], pseudocode: "// Infrastructure breach or phishing\n// Private keys exposed" },
+      { id: "t2", phase: "Access", description: "Attacker used keys to access hot wallets on multiple chains.", functionsCall: ["Wallet.sign(transaction)"], pseudocode: "// Ethereum, BNB, Polygon wallets\n// Unauthorized access granted" },
+      { id: "t3", phase: "Drain ETH", description: "Drained ETH and ERC-20 tokens from Ethereum hot wallet.", functionsCall: ["Wallet.transfer(ETH)", "Wallet.transfer(ERC20)"], pseudocode: "// Largest drain on Ethereum\n// Multiple tokens transferred" },
+      { id: "t4", phase: "Drain BNB", description: "Drained BNB and BEP-20 tokens from BNB Chain.", functionsCall: ["Wallet.transfer(BNB)", "Wallet.transfer(BEP20)"], pseudocode: "// BNB Chain wallet drained\n// Cross-chain attack" },
+      { id: "t5", phase: "Drain Polygon", description: "Drained MATIC and ERC-20 tokens from Polygon.", functionsCall: ["Wallet.transfer(MATIC)", "Wallet.transfer(ERC20)"], pseudocode: "// Polygon wallet affected\n// $41.6M total extracted" },
+      { id: "t6", phase: "Launder", description: "Funds moved through mixers and bridges for obfuscation.", functionsCall: ["Mixers.tumble()", "Bridge.transfer()"], pseudocode: "// Attribution to Lazarus Group\n// Funds not recovered" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Key compromise", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "Compromised Keys", detail: "Hot wallets", x: 250, y: 200 },
+        { id: "n3", type: "pool", label: "Stake Hot Wallets", detail: "Multi-chain", x: 450, y: 200 },
+        { id: "n4", type: "result", label: "Attacker", detail: "$41.6M", x: 650, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Obtain keys", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Access wallets" },
+        { id: "e3", source: "n3", target: "n4", label: "Drain", animated: true }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Compromised\nKeys", type: "vault" },
+      { id: "b", label: "Stake\nHot Wallets", type: "pool" },
+      { id: "c", label: "Attacker\n$41.6M", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 41.6, label: "Access" },
+      { source: "b", target: "c", value: 41.6, label: "Drain" }
+    ],
+    mitigations: [
+      { category: "Key Management", description: "Use hardware security modules (HSMs) for hot wallet keys. Implement multi-party computation (MPC) for critical signing operations." },
+      { category: "Cold Storage", description: "Keep majority of funds in cold storage. Limit hot wallet to minimal operational amounts." },
+      { category: "Monitoring", description: "Implement real-time monitoring for unusual wallet activity and automatic freezes on suspicious transactions." }
+    ],
+    quiz: [{ question: "What caused Stake.com's exploit?", options: ["Smart contract bug", "Hot wallet key compromise", "Oracle manipulation", "Flash loan"], correct: 1, explanation: "Compromised private keys for hot wallets allowed unauthorized access across multiple chains." }]
+  },
+
+  // Hedgey Finance (2024)
+  {
+    id: "hedgey-finance-2024",
+    slug: "hedgey-finance-2024",
+    title: "Hedgey Finance",
+    subtitle: "Flash Loan Input Validation Bug",
+    year: 2024,
+    chain: "Arbitrum/Ethereum",
+    type: ["Flash Loan", "Logic Error"],
+    shortDesc: "Input validation flaw in ClaimCampaigns contract allowed $44.7M drain via flash loans.",
+    longDesc: "On April 19, 2024, Hedgey Finance, a token infrastructure platform, suffered $44.7M in parallel exploits on Arbitrum ($42.6M) and Ethereum ($2.1M). Attackers used flash loans to exploit a business logic flaw in the ClaimCampaigns smart contract. The vulnerability was failure to properly implement input validation for a key function, allowing attackers to claim tokens they shouldn't have had access to.",
+    technicalDesc: "The vulnerability was in Hedgey's ClaimCampaigns contract which lacked proper input validation. The attacker: (1) took flash loans to get initial capital; (2) called the vulnerable claim function with manipulated inputs; (3) the missing validation allowed claiming of tokens without proper authorization; (4) repeated this across multiple campaigns; (5) repaid flash loans with profit. The bug was a business logic flaw, not a reentrancy or math error.",
+    impact: "$44.7M ($42.6M Arbitrum + $2.1M Ethereum)",
+    impactUSD: 44700000,
+    contracts: [{ label: "Hedgey ClaimCampaigns", address: "Arbitrum/Ethereum", url: "https://arbiscan.io" }],
+    timeline: [
+      { id: "t1", phase: "Flash Loan", description: "Attacker took flash loans for initial capital.", functionsCall: ["Aave.flashLoan()", "Balancer.flashLoan()"], pseudocode: "// Multi-chain flash loans\n// Arbitrum and Ethereum" },
+      { id: "t2", phase: "Identify Bug", description: "Found input validation flaw in ClaimCampaigns.", functionsCall: [], pseudocode: "// Missing parameter checks\n// Business logic vulnerability" },
+      { id: "t3", phase: "Exploit Arbitrum", description: "Exploited on Arbitrum for $42.6M.", functionsCall: ["ClaimCampaigns.claim(manipulated)"], pseudocode: "// Used invalid inputs\n// Claimed unauthorized tokens" },
+      { id: "t4", phase: "Exploit Ethereum", description: "Exploited on Ethereum for $2.1M.", functionsCall: ["ClaimCampaigns.claim(manipulated)"], pseudocode: "// Same vulnerability\n// Parallel attack" },
+      { id: "t5", phase: "Repay", description: "Repaid flash loans, kept $44.7M profit.", functionsCall: ["Aave.repay()", "Balancer.repay()"], pseudocode: "// Net profit extracted\n// Protocol paused" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Flash loan exploit", x: 50, y: 200 },
+        { id: "n2", type: "pool", label: "Flash Loans", detail: "Multi-chain", x: 200, y: 100 },
+        { id: "n3", type: "contract", label: "ClaimCampaigns", detail: "No validation", x: 400, y: 200 },
+        { id: "n4", type: "pool", label: "Token Claims", detail: "$44.7M", x: 600, y: 200 },
+        { id: "n5", type: "result", label: "Attacker", detail: "$44.7M", x: 800, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n2", target: "n1", label: "Flash loan", animated: true },
+        { id: "e2", source: "n1", target: "n3", label: "Exploit" },
+        { id: "e3", source: "n3", target: "n4", label: "Claim", animated: true },
+        { id: "e4", source: "n4", target: "n5", label: "Drain" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Flash Loans\nCapital", type: "pool" },
+      { id: "b", label: "ClaimCampaigns\nBug", type: "vault" },
+      { id: "c", label: "Tokens\nClaimed", type: "pool" },
+      { id: "d", label: "Attacker\n$44.7M", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 44.7, label: "Flash loan" },
+      { source: "b", target: "c", value: 44.7, label: "Claim" },
+      { source: "c", target: "d", value: 44.7, label: "Drain" }
+    ],
+    mitigations: [
+      { category: "Input Validation", description: "Implement comprehensive input validation on all external-facing functions. Validate all parameters against expected ranges and formats." },
+      { category: "Access Control", description: "Implement proper authorization checks for token claims. Verify caller has right to claim specific tokens." },
+      { category: "Audit", description: "Audit all business logic, especially token distribution and claim mechanisms." }
+    ],
+    quiz: [{ question: "What was Hedgey Finance's vulnerability?", options: ["Reentrancy", "Missing input validation", "Oracle bug", "Key leak"], correct: 1, explanation: "ClaimCampaigns contract lacked proper input validation, allowing unauthorized token claims via manipulated inputs." }]
+  },
+
+  // BingX (2024)
+  {
+    id: "bingx-2024",
+    slug: "bingx-2024",
+    title: "BingX",
+    subtitle: "CEX Hot Wallet Compromise",
+    year: 2024,
+    chain: "Multi-chain",
+    type: ["Access Control"],
+    shortDesc: "Hot wallet compromise across multiple chains drained $44.7M from centralized exchange.",
+    longDesc: "On September 19, 2024, BingX, a Singaporean centralized cryptocurrency exchange, suffered a $44.7M security breach. The attacker gained access to BingX's hot wallets across multiple blockchains. BingX detected abnormal network activity at 04:00 UTC+8 and immediately responded by freezing withdrawals and transferring assets to cold wallets. A compensation plan was announced for affected users.",
+    technicalDesc: "This was a CEX hot wallet compromise, not a DeFi smart contract vulnerability. The attacker: (1) gained unauthorized access to BingX's infrastructure; (2) obtained control of hot wallet private keys across multiple chains; (3) drained funds from at least 10 different exploit addresses; (4) moved assets rapidly through the blockchain; (5) BingX responded within an hour by freezing withdrawals. The exact attack vector (phishing, insider, infrastructure breach) was not publicly disclosed.",
+    impact: "$44.7M",
+    impactUSD: 44700000,
+    contracts: [{ label: "BingX Hot Wallets", address: "Multi-chain", url: "https://etherscan.io" }],
+    timeline: [
+      { id: "t1", phase: "Breach", description: "Attacker gained unauthorized access to BingX infrastructure.", functionsCall: [], pseudocode: "// Infrastructure breach\n// Hot wallet keys compromised" },
+      { id: "t2", phase: "Access", description: "Accessed hot wallets across multiple blockchains.", functionsCall: ["Wallet.sign()"], pseudocode: "// Multi-chain control\n// At least 10 addresses" },
+      { id: "t3", phase: "Drain", description: "Drained $44.7M from hot wallets.", functionsCall: ["Wallet.transfer(multiple_chains)"], pseudocode: "// Rapid extraction\n// Multiple tokens affected" },
+      { id: "t4", phase: "Detection", description: "BingX detected abnormal activity at 04:00 UTC+8.", functionsCall: [], pseudocode: "// Network monitoring triggered\n// Security team alerted" },
+      { id: "t5", phase: "Response", description: "Froze withdrawals, moved remaining assets to cold storage.", functionsCall: ["Wallet.freeze()", "ColdWallet.transfer()"], pseudocode: "// Response within 1 hour\n// Limited further damage" },
+      { id: "t6", phase: "Compensation", description: "Announced compensation plan for affected users.", functionsCall: [], pseudocode: "// User protection\n// CEX responsibility" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Infrastructure breach", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "BingX Infrastructure", detail: "Compromised", x: 250, y: 200 },
+        { id: "n3", type: "pool", label: "Hot Wallets", detail: "$44.7M", x: 450, y: 200 },
+        { id: "n4", type: "result", label: "Attacker", detail: "Drained", x: 650, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Breach", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Access" },
+        { id: "e3", source: "n3", target: "n4", label: "Drain", animated: true }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "BingX\nInfrastructure", type: "vault" },
+      { id: "b", label: "Hot Wallets\n$44.7M", type: "pool" },
+      { id: "c", label: "Attacker\nDrained", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 44.7, label: "Compromise" },
+      { source: "b", target: "c", value: 44.7, label: "Drain" }
+    ],
+    mitigations: [
+      { category: "Infrastructure Security", description: "Implement strict access controls, network segmentation, and monitoring for exchange infrastructure." },
+      { category: "Key Management", description: "Use HSMs and MPC for hot wallet keys. Rotate keys regularly." },
+      { category: "Cold Storage", description: "Keep minimal funds in hot wallets. Majority in multi-sig cold storage." }
+    ],
+    quiz: [{ question: "What was BingX's vulnerability?", options: ["Smart contract bug", "Hot wallet infrastructure compromise", "Oracle manipulation", "Flash loan"], correct: 1, explanation: "Attacker gained access to infrastructure and hot wallet private keys across multiple chains." }]
+  },
+
+  // ZKasino (2024)
+  {
+    id: "zkasino-2024",
+    slug: "zkasino-2024",
+    title: "ZKasino",
+    subtitle: "Exit Scam - Fund Diversion",
+    year: 2024,
+    chain: "Ethereum",
+    type: ["Access Control"],
+    shortDesc: "Gambling project diverted $33M of investor funds to Lido staking instead of returning them as promised.",
+    longDesc: "In April 2024, ZKasino, a blockchain gambling project, abruptly diverted $33 million worth of investor funds to Lido's staking protocol instead of returning them as promised to presale participants. Over 10,000 users deposited ETH to earn ZKAS tokens. The project misrepresented its Series A funding, claiming $350M backing from MEXC and Big Brain Holdings which was later debunked. Dutch authorities arrested a 26-year-old connected to the incident.",
+    technicalDesc: "This was an exit scam, not a smart contract vulnerability. The project: (1) opened a token bridge allowing investors to deposit ETH to earn ZKAS; (2) collected $33M from 10,000+ users; (3) instead of returning funds or launching as promised, diverted ETH to Lido staking; (4) claimed technical issues and delays; (5) investigations revealed false funding claims; (6) Dutch authorities arrested a suspect. The chain was a simple Arbitrum Nitro deployment with no actual zk-tech.",
+    impact: "$33M",
+    impactUSD: 33000000,
+    contracts: [{ label: "ZKasino Bridge", address: "Ethereum Contract", url: "https://etherscan.io" }],
+    timeline: [
+      { id: "t1", phase: "Presale", description: "ZKasino opened token bridge for ETH deposits to earn ZKAS tokens.", functionsCall: ["Bridge.deposit(ETH)"], pseudocode: "// 10,000+ users deposited\n// $33M ETH collected" },
+      { id: "t2", phase: "False Claims", description: "Project claimed $350M Series A backing from MEXC and Big Brain.", functionsCall: [], pseudocode: "// Misrepresented funding\n// Later debunked" },
+      { id: "t3", phase: "Launch Delay", description: "Project delayed launch, citing technical issues.", functionsCall: [], pseudocode: "// Stalling tactics\n// User concerns grew" },
+      { id: "t4", phase: "Fund Diversion", description: "$33M diverted to Lido staking instead of returned to users.", functionsCall: ["Lido.stake(33M ETH)"], pseudocode: "// Funds locked in staking\n// Not accessible to users" },
+      { id: "t5", phase: "Investigation", description: "Investigations revealed false claims and exit scam.", functionsCall: [], pseudocode: "// ZachXBT exposed scheme\n// Dutch authorities involved" },
+      { id: "t6", phase: "Arrest", description: "Dutch authorities arrested 26-year-old suspect.", functionsCall: [], pseudocode: "// Assets seized\n// Partial refunds promised" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "ZKasino Team", detail: "Exit scam", x: 50, y: 200 },
+        { id: "n2", type: "pool", label: "User Deposits", detail: "$33M ETH", x: 250, y: 200 },
+        { id: "n3", type: "contract", label: "Lido Staking", detail: "Funds diverted", x: 450, y: 200 },
+        { id: "n4", type: "result", label: "Team", detail: "Control", x: 650, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n2", target: "n1", label: "Users deposit" },
+        { id: "e2", source: "n1", target: "n3", label: "Divert", animated: true },
+        { id: "e3", source: "n3", target: "n4", label: "Control" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "User\n$33M", type: "pool" },
+      { id: "b", label: "ZKasino\nBridge", type: "vault" },
+      { id: "c", label: "Lido\nStaking", type: "pool" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 33, label: "Deposit" },
+      { source: "b", target: "c", value: 33, label: "Diverge" }
+    ],
+    mitigations: [
+      { category: "Due Diligence", description: "Investigate project team, funding claims, and technical implementation before investing." },
+      { category: "Custody", description: "Use escrow or time-locked contracts for presale funds rather than direct transfers to team." },
+      { category: "Verification", description: "Verify all funding claims with stated partners. Be skeptical of unverified announcements." }
+    ],
+    quiz: [{ question: "What was ZKasino's exploit?", options: ["Smart contract bug", "Exit scam - fund diversion", "Oracle manipulation", "Flash loan"], correct: 1, explanation: "Project diverted $33M of investor funds to Lido staking instead of returning them as promised." }]
+  },
+
+  // XToken (2021)
+  {
+    id: "xtoken-2021",
+    slug: "xtoken-2021",
+    title: "XToken",
+    subtitle: "Flash Loan Attack on Tokenized Positions",
+    year: 2021,
+    chain: "Ethereum",
+    type: ["Flash Loan", "Logic Error"],
+    shortDesc: "Flash loan attacker exploited xSNXa and xBNTa contracts to drain $24.5M.",
+    longDesc: "On May 12, 2021, DeFi protocol xToken suffered a $24.5M exploit via flash loans. The attacker used flash loans to exploit vulnerabilities in the xSNXa and xBNTa contracts, which represented tokenized positions in Synthetix and Bancor. The attacker got away with over $8M in SNX tokens and drained liquidity pools. Minting was paused on all contracts as the team investigated.",
+    technicalDesc: "The vulnerability was in xToken's implementation of tokenized leveraged positions. The attacker: (1) took flash loans to get initial capital; (2) exploited price calculation flaws in xSNXa/xBNTa; (3) manipulated the tokenized positions to extract value; (4) swapped and drained liquidity pools; (5) repaid flash loans with profit. The bug was related to how the contracts calculated the value of underlying tokenized positions.",
+    impact: "$24.5M",
+    impactUSD: 24500000,
+    contracts: [{ label: "xToken Contracts", address: "Ethereum", url: "https://etherscan.io" }],
+    timeline: [
+      { id: "t1", phase: "Flash Loan", description: "Borrowed assets via flash loans.", functionsCall: ["Aave.flashLoan()", "dYdX.flashLoan()"], pseudocode: "// Initial capital for exploit" },
+      { id: "t2", phase: "Exploit xSNXa", description: "Exploited xSNXa contract price calculation.", functionsCall: ["xSNXa.exploit()"], pseudocode: "$8M+ SNX tokens extracted" },
+      { id: "t3", phase: "Exploit xBNTa", description: "Exploited xBNTa contract.", functionsCall: ["xBNTa.exploit()"], pseudocode: "// Additional value drained" },
+      { id: "t4", phase: "Drain Liquidity", description: "Drained liquidity pools.", functionsCall: ["DEX.drain(liquidity)"], pseudocode: "// Liquidity pools emptied\n// Most SNX/BNT remained in contracts" },
+      { id: "t5", phase: "Repay", description: "Repaid flash loans, kept $24.5M profit.", functionsCall: ["Aave.repay()", "dYdX.repay()"], pseudocode: "// Minting paused\n// Protocol investigated" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Flash loan", x: 50, y: 200 },
+        { id: "n2", type: "pool", label: "Flash Loans", detail: "Capital", x: 200, y: 100 },
+        { id: "n3", type: "contract", label: "xSNXa/xBNTa", detail: "Vulnerable", x: 400, y: 200 },
+        { id: "n4", type: "pool", label: "Liquidity", detail: "$24.5M", x: 600, y: 200 },
+        { id: "n5", type: "result", label: "Attacker", detail: "Profit", x: 800, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n2", target: "n1", label: "Flash loan", animated: true },
+        { id: "e2", source: "n1", target: "n3", label: "Exploit" },
+        { id: "e3", source: "n3", target: "n4", label: "Drain", animated: true },
+        { id: "e4", source: "n4", target: "n5", label: "Profit" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Flash Loans\nCapital", type: "pool" },
+      { id: "b", label: "xToken\nContracts", type: "vault" },
+      { id: "c", label: "Liquidity\n$24.5M", type: "pool" },
+      { id: "d", label: "Attacker\nProfit", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 24.5, label: "Flash loan" },
+      { source: "b", target: "c", value: 24.5, label: "Exploit" },
+      { source: "c", target: "d", value: 24.5, label: "Drain" }
+    ],
+    mitigations: [
+      { category: "Price Calculation", description: "Rigorously test price calculation logic for tokenized positions, especially with external dependencies." },
+      { category: "Flash Loan Protection", description: "Add delays or limits on rapid position changes that could be flash loan driven." },
+      { category: "Audit", description: "Audit tokenized position implementations thoroughly, focusing on edge cases." }
+    ],
+    quiz: [{ question: "What was XToken's vulnerability?", options: ["Reentrancy", "Flash loan price calculation exploit", "Key leak", "Oracle bug"], correct: 1, explanation: "Flash loan attacker exploited price calculation flaws in xSNXa and xBNTa tokenized position contracts." }]
+  },
+
+  // Popsicle Finance (2021)
+  {
+    id: "popsicle-finance-2021",
+    slug: "popsicle-finance-2021",
+    title: "Popsicle Finance",
+    subtitle: "State Tracking Bug in Sorbetto Fragola",
+    year: 2021,
+    chain: "Ethereum",
+    type: ["Logic Error", "Flash Loan"],
+    shortDesc: "State tracking bug in Uniswap V3 LP optimizer allowed $20.7M drain.",
+    longDesc: "On August 4, 2021, Popsicle Finance, a multi-chain yield optimization platform for liquidity providers, was hacked for $20.7M. The exploit targeted Sorbetto Fragola, a Uniswap V3 LP optimizer. The hack demonstrated the importance of proper state tracking within DeFi protocols. While the project tracked state within a particular account, testing did not consider the impacts of transfers.",
+    technicalDesc: "The vulnerability was in Popsicle's state tracking for Sorbetto Fragola. The contract tracked user-specific state but didn't properly handle transfers. The attacker: (1) used flash loans for capital; (2) deposited into Sorbetto Fragola; (3) transferred position to bypass state tracking; (4) withdrew at inflated values; (5) repaid flash loans. The bug was that state wasn't properly updated on transfers, allowing position manipulation.",
+    impact: "$20.7M",
+    impactUSD: 20700000,
+    contracts: [{ label: "Sorbetto Fragola", address: "Ethereum Contract", url: "https://etherscan.io" }],
+    timeline: [
+      { id: "t1", phase: "Flash Loan", description: "Borrowed capital via flash loans.", functionsCall: ["Aave.flashLoan()"], pseudocode: "// Seed capital for exploit" },
+      { id: "t2", phase: "Deposit", description: "Deposited into Sorbetto Fragola LP optimizer.", functionsCall: ["Sorbetto.deposit()"], pseudocode: "// Uniswap V3 LP position\n// State tracked per account" },
+      { id: "t3", phase: "Transfer", description: "Transferred position to bypass state tracking.", functionsCall: ["Sorbetto.transfer()"], pseudocode: "// State not updated on transfer\n// Position manipulation possible" },
+      { id: "t4", phase: "Withdraw", description: "Withdrew at inflated values.", functionsCall: ["Sorbetto.withdraw()"], pseudocode: "// Exploited stale state\n// $20.7M drained" },
+      { id: "t5", phase: "Repay", description: "Repaid flash loans, kept profit.", functionsCall: ["Aave.repay()"], pseudocode: "// Net profit extracted\n// State tracking fixed" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "State exploit", x: 50, y: 200 },
+        { id: "n2", type: "pool", label: "Flash Loan", detail: "Capital", x: 200, y: 100 },
+        { id: "n3", type: "contract", label: "Sorbetto Fragola", detail: "State bug", x: 400, y: 200 },
+        { id: "n4", type: "pool", label: "LP Position", detail: "Manipulated", x: 600, y: 200 },
+        { id: "n5", type: "result", label: "Attacker", detail: "$20.7M", x: 800, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n2", target: "n1", label: "Flash loan", animated: true },
+        { id: "e2", source: "n1", target: "n3", label: "Deposit" },
+        { id: "e3", source: "n3", target: "n4", label: "Transfer bypass", animated: true },
+        { id: "e4", source: "n4", target: "n5", label: "Withdraw" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Flash Loan\nCapital", type: "pool" },
+      { id: "b", label: "Sorbetto\nState Bug", type: "vault" },
+      { id: "c", label: "LP Position\n$20.7M", type: "pool" },
+      { id: "d", label: "Attacker\nProfit", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 20.7, label: "Flash loan" },
+      { source: "b", target: "c", value: 20.7, label: "Manipulate" },
+      { source: "c", target: "d", value: 20.7, label: "Drain" }
+    ],
+    mitigations: [
+      { category: "State Tracking", description: "Ensure all state updates correctly handle transfers and account changes. Test all transfer scenarios." },
+      { category: "Invariant Testing", description: "Use formal verification and invariant testing to ensure state consistency across all operations." },
+      { category: "Audit", description: "Audit LP optimizer contracts thoroughly, focusing on state management." }
+    ],
+    quiz: [{ question: "What was Popsicle Finance's vulnerability?", options: ["Reentrancy", "State tracking bug on transfers", "Key leak", "Oracle bug"], correct: 1, explanation: "State wasn't properly updated on position transfers, allowing manipulation in Sorbetto Fragola." }]
+  },
+
+  // Cream Finance (2021)
+  {
+    id: "cream-finance-2021",
+    slug: "cream-finance-2021",
+    title: "Cream Finance",
+    subtitle: "Reentrancy via ERC-777 Token",
+    year: 2021,
+    chain: "Ethereum",
+    type: ["Reentrancy"],
+    shortDesc: "ERC-777 token standard in AMP created reentrancy vulnerability, draining $18.8M.",
+    longDesc: "On August 30, 2021, Cream Finance, a DeFi lending protocol, suffered an $18.8M exploit. The hacker exploited a reentrancy vulnerability arising from how CREAM integrated the AMP token. AMP implements the ERC-777 token standard, which includes hooks that can trigger reentrancy. The _callPostTransfersHook hook called the token contract during transfers, creating a reentrancy window that the attacker exploited to drain 418M AMP and 1,308 ETH.",
+    technicalDesc: "The vulnerability was in CREAM's integration with AMP's ERC-777 implementation. ERC-777 tokens have hooks that execute during transfers. The attacker: (1) deposited AMP as collateral into CREAM; (2) borrowed against the collateral; (3) the ERC-777 _callPostTransfersHook fired during transfer; (4) this hook re-entered the borrow function before state updated; (5) repeated to drain 418,311,571 AMP and 1,308.09 ETH; (6) CREAM paused AMP supply and borrow contracts.",
+    impact: "$18.8M (418M AMP + 1,308 ETH)",
+    impactUSD: 18800000,
+    contracts: [{ label: "Cream Finance v1", address: "Ethereum Contract", url: "https://etherscan.io" }],
+    timeline: [
+      { id: "t1", phase: "Deposit", description: "Deposited AMP tokens as collateral into CREAM.", functionsCall: ["Cream.deposit(AMP)"], pseudocode: "// AMP is ERC-777 token\n// Has transfer hooks" },
+      { id: "t2", phase: "Borrow", description: "Borrowed assets against AMP collateral.", functionsCall: ["Cream.borrow()"], pseudocode: "// Normal borrow operation" },
+      { id: "t3", phase: "Reentrancy", description: "ERC-777 _callPostTransfersHook fired, re-entering borrow function.", functionsCall: ["AMP._callPostTransfersHook()", "Cream.borrow()"], pseudocode: "// Hook triggered during transfer\n// Reentrancy window opened" },
+      { id: "t4", phase: "Drain", description: "Re-entered multiple times to drain 418M AMP and 1,308 ETH.", functionsCall: ["Cream.borrow(repeat)"], pseudocode: "// State not updated\n// Multiple borrows succeeded" },
+      { id: "t5", phase: "Pause", description: "CREAM paused AMP supply and borrow contracts.", functionsCall: ["Cream.pause(AMP)"], pseudocode: "// Protocol paused\n// $18.8M total drained" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "ERC-777 reentrancy", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "AMP Token", detail: "ERC-777 hooks", x: 250, y: 200 },
+        { id: "n3", type: "contract", label: "Cream Finance", detail: "No reentrancy guard", x: 450, y: 200 },
+        { id: "n4", type: "pool", label: "Treasury", detail: "$18.8M", x: 650, y: 200 },
+        { id: "n5", type: "result", label: "Attacker", detail: "Drained", x: 850, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Deposit AMP", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Hook triggers" },
+        { id: "e3", source: "n3", target: "n4", label: "Reenter & drain", animated: true },
+        { id: "e4", source: "n4", target: "n5", label: "Extract" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "AMP\nERC-777", type: "vault" },
+      { id: "b", label: "Cream\nFinance", type: "vault" },
+      { id: "c", label: "Reentrancy\nHook", type: "bridge" },
+      { id: "d", label: "Attacker\n$18.8M", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 18.8, label: "Deposit" },
+      { source: "b", target: "c", value: 18.8, label: "Hook" },
+      { source: "c", target: "d", value: 18.8, label: "Drain" }
+    ],
+    mitigations: [
+      { category: "ERC-777 Awareness", description: "Be aware that ERC-777 tokens have hooks that can trigger reentrancy. Treat them as untrusted external calls." },
+      { category: "ReentrancyGuard", description: "Use ReentrancyGuard on all functions that handle token transfers, especially with ERC-777 tokens." },
+      { category: "Token Allowlisting", description: "Consider allowlisting only safe token standards (ERC-20) or adding special handling for ERC-777." }
+    ],
+    quiz: [{ question: "What caused Cream Finance's exploit?", options: ["Oracle bug", "ERC-777 reentrancy via AMP hooks", "Key leak", "Integer overflow"], correct: 1, explanation: "AMP's ERC-777 implementation has hooks that triggered reentrancy during transfers, which CREAM didn't protect against." }]
+  },
+
+  // Sonne Finance (2024)
+  {
+    id: "sonne-finance-2024",
+    slug: "sonne-finance-2024",
+    title: "Sonne Finance",
+    subtitle: "Compound Fork Precision Loss Vulnerability",
+    year: 2024,
+    chain: "Optimism",
+    type: ["Math Bug", "Logic Error"],
+    shortDesc: "Known Compound fork vulnerability allowed $20M drain via precision loss in exchange rate calculation.",
+    longDesc: "On May 14, 2024, Sonne Finance on Optimism was exploited for approximately $20M using a known precision loss vulnerability first seen in the Hundred Finance exploit in April 2023. This is the largest exploit on Optimism. The attacker used a 'donation attack' to manipulate markets. The vulnerability affects all Compound v2 forks when deploying new markets without proper initialization.",
+    technicalDesc: "The vulnerability was a precision loss bug in the exchange rate calculation, a known issue with Compound v2 forks. The attacker: (1) identified uninitialized or poorly initialized markets; (2) used a 'donation' attack to manipulate exchange rates; (3) exploited precision loss to borrow more than should be possible; (4) drained $20M from lending pools. The bug occurs when new markets are deployed without proper initialization of exchange rate variables.",
+    impact: "$20M",
+    impactUSD: 20000000,
+    contracts: [{ label: "Sonne Finance", address: "Optimism Contract", url: "https://optimistic.etherscan.io" }],
+    timeline: [
+      { id: "t1", phase: "Market Addition", description: "Sonne added VELO markets via multisig proposal.", functionsCall: ["Multisig.execute(add_market)"], pseudocode: "// New market deployed\n// Known vulnerability not addressed" },
+      { id: "t2", phase: "Donation Attack", description: "Attacker used donation to manipulate exchange rates.", functionsCall: ["Sonne.donate(manipulate)"], pseudocode: "// Precision loss exploited\n// Exchange rate distorted" },
+      { id: "t3", phase: "Borrow", description: "Borrowed at manipulated rates to extract value.", functionsCall: ["Sonne.borrow(at_manipulated_rate)"], pseudocode: "// Borrowed more than collateral\n// $20M drained" },
+      { id: "t4", phase: "Cross-Chain", description: "Funds bridged off Optimism.", functionsCall: ["Bridge.transfer(profits)"], pseudocode: "// Largest Optimism exploit\n// Funds moved to evade tracking" },
+      { id: "t5", phase: "Pause", description: "Sonne paused all markets on Optimism.", functionsCall: ["Sonne.pause(all)"], pseudocode: "// Base chain also affected\n// Protocol halted" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Precision loss", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "Sonne Markets", detail: "Compound fork", x: 250, y: 200 },
+        { id: "n3", type: "pool", label: "Exchange Rate", detail: "Manipulated", x: 450, y: 200 },
+        { id: "n4", type: "pool", label: "Treasury", detail: "$20M", x: 650, y: 200 },
+        { id: "n5", type: "result", label: "Attacker", detail: "Drained", x: 850, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Donation", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Manipulate rate" },
+        { id: "e3", source: "n3", target: "n4", label: "Borrow", animated: true },
+        { id: "e4", source: "n4", target: "n5", label: "Extract" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Sonne\nMarkets", type: "vault" },
+      { id: "b", label: "Exchange Rate\nPrecision Loss", type: "pool" },
+      { id: "c", label: "Treasury\n$20M", type: "pool" },
+      { id: "d", label: "Attacker\nDrained", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 20, label: "Manipulate" },
+      { source: "b", target: "c", value: 20, label: "Borrow" },
+      { source: "c", target: "d", value: 20, label: "Drain" }
+    ],
+    mitigations: [
+      { category: "Market Initialization", description: "Properly initialize all market variables, especially exchange rates, before enabling operations." },
+      { category: "Known Vulnerabilities", description: "Research and address known vulnerabilities in forked code before deployment." },
+      { category: "Precision Handling", description: "Use high-precision math libraries and validate all exchange rate calculations." }
+    ],
+    quiz: [{ question: "What was Sonne Finance's vulnerability?", options: ["Reentrancy", "Known Compound fork precision loss", "Key leak", "Oracle bug"], correct: 1, explanation: "Known Compound v2 fork vulnerability in exchange rate calculation was not addressed when deploying new markets." }]
   },
 ];
 
