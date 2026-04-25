@@ -1234,6 +1234,382 @@ export const hacks: Hack[] = [
     ],
   },
 
+  // Phemex (2025)
+  {
+    id: "phemex-2025",
+    slug: "phemex-2025",
+    title: "Phemex",
+    subtitle: "CEX Hot Wallet Compromise",
+    year: 2025,
+    chain: "Multi-chain",
+    type: ["Access Control"],
+    shortDesc: "Hot wallet private keys compromised across multiple chains, draining $73.5M from Singapore-based exchange.",
+    longDesc: "On January 23, 2025, Phemex, a Singapore-based cryptocurrency exchange, suffered the largest centralized exchange hack of 2025 with $73.5M stolen. Attackers systematically emptied hot wallets across Solana, Ethereum, Base, Avalanche, and other chains. The breach unfolded like a game of blockchain whack-a-mole - as soon as Phemex spotted suspicious activity on one chain, the attacker was already draining another. The incident highlighted the vulnerability of CEX hot wallets that lack proper multi-sig protection.",
+    technicalDesc: "This was a private key compromise affecting multiple hot wallets across different blockchains. The attacker: (1) obtained Phemex's hot wallet private keys through unknown means; (2) systematically drained funds from wallets on Solana, Ethereum, Base, Avalanche, and other chains; (3) moved funds rapidly to evade detection; (4) exchanged tokens for ETH and moved through mixers. The multi-chain nature of the attack suggested the attacker had comprehensive access to Phemex's infrastructure.",
+    impact: "$73.5M",
+    impactUSD: 73500000,
+    contracts: [{ label: "Phemex Hot Wallets", address: "Multi-chain", url: "https://etherscan.io" }],
+    timeline: [
+      { id: "t1", phase: "Key Compromise", description: "Attacker obtained hot wallet private keys.", functionsCall: [], pseudocode: "// Infrastructure breach\n// Multi-chain keys exposed" },
+      { id: "t2", phase: "Multi-Chain Drain", description: "Drained wallets across Solana, Ethereum, Base, Avalanche.", functionsCall: ["Wallet.transfer(SOL)", "Wallet.transfer(ETH)", "Wallet.transfer(BASE)"], pseudocode: "// Systematic extraction\n// Multiple chains targeted" },
+      { id: "t3", phase: "Detection", description: "Phemex detected suspicious activity on one chain.", functionsCall: [], pseudocode: "// Blockchain whack-a-mole\n// Attacker already on next chain" },
+      { id: "t4", phase: "Evasion", description: "Funds moved through mixers and exchanges.", functionsCall: ["Mixers.tumble()", "DEX.swap()"], pseudocode: "// Evasion tactics\n// Funds laundered" },
+      { id: "t5", phase: "Response", description: "Phemex halted withdrawals and secured remaining funds.", functionsCall: ["Wallet.freeze()"], pseudocode: "// Incident response\n// $73.5M total lost" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Key compromise", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "Phemex Keys", detail: "Compromised", x: 250, y: 200 },
+        { id: "n3", type: "pool", label: "Multi-Chain Wallets", detail: "$73.5M", x: 450, y: 200 },
+        { id: "n4", type: "result", label: "Attacker", detail: "Drained", x: 650, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Compromise", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Access" },
+        { id: "e3", source: "n3", target: "n4", label: "Drain", animated: true }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Phemex\nKeys", type: "vault" },
+      { id: "b", label: "Hot Wallets\n$73.5M", type: "pool" },
+      { id: "c", label: "Attacker\nDrained", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 73.5, label: "Access" },
+      { source: "b", target: "c", value: 73.5, label: "Drain" }
+    ],
+    mitigations: [
+      { category: "Multi-sig", description: "Use multi-signature wallets for all hot wallets. Never rely on single private keys." },
+      { category: "HSM/MPC", description: "Use hardware security modules (HSMs) or multi-party computation (MPC) for key management." },
+      { category: "Cold Storage", description: "Keep majority of funds in cold storage. Limit hot wallet to minimal operational amounts." }
+    ],
+    quiz: [{ question: "What was Phemex's vulnerability?", options: ["Smart contract bug", "Hot wallet key compromise", "Oracle manipulation", "Flash loan"], correct: 1, explanation: "Compromised hot wallet private keys allowed draining across multiple chains." }]
+  },
+
+  // BTCTurk (2025)
+  {
+    id: "btcturk-2025",
+    slug: "btcturk-2025",
+    title: "BTCTurk",
+    subtitle: "Hot Wallet Private Key Compromise",
+    year: 2025,
+    chain: "Multi-chain",
+    type: ["Access Control"],
+    shortDesc: "Private keys compromised again, $51.7M drained from hot wallets across multiple chains.",
+    longDesc: "On August 14, 2025, Turkish cryptocurrency exchange BTCTurk suffered a $51.7M hack. This was the second major hack for BTCTurk within 14 months, both involving compromised private keys. Cyvers detected $48M in unusual transfers across ETH, AVAX, ARB, BASE, OP, MANTLE, and MATIC networks. Most funds were consolidated into two addresses. BTCTurk halted deposits and withdrawals, citing a technical issue with hot wallets while trading and local currency operations remained intact.",
+    technicalDesc: "This was a private key compromise affecting hot wallets across multiple blockchains. The attacker: (1) obtained BTCTurk's hot wallet private keys; (2) drained funds across ETH, AVAX, ARB, BASE, OP, MANTLE, and MATIC networks; (3) consolidated funds into two addresses; (4) moved funds to evade tracking. This was BTCTurk's second major hack in 14 months, indicating systemic security issues with their key management.",
+    impact: "$51.7M",
+    impactUSD: 51700000,
+    contracts: [{ label: "BTCTurk Hot Wallets", address: "Multi-chain", url: "https://etherscan.io" }],
+    timeline: [
+      { id: "t1", phase: "Key Compromise", description: "Attacker obtained hot wallet private keys.", functionsCall: [], pseudocode: "// Second breach in 14 months\n// Systemic security failure" },
+      { id: "t2", phase: "Multi-Chain Drain", description: "Drained across ETH, AVAX, ARB, BASE, OP, MANTLE, MATIC.", functionsCall: ["Wallet.transfer(multiple_chains)"], pseudocode: "// $48M detected initially\n// Total $51.7M lost" },
+      { id: "t3", phase: "Consolidation", description: "Funds consolidated into two addresses.", functionsCall: ["Wallet.consolidate()"], pseudocode: "// Consolidation for evasion\n// Tracing made difficult" },
+      { id: "t4", phase: "Detection", description: "Cyvers detected unusual transfers.", functionsCall: [], pseudocode: "// Monitoring triggered\n// Exchange notified" },
+      { id: "t5", phase: "Response", description: "BTCTurk halted deposits and withdrawals.", functionsCall: ["Wallet.freeze()"], pseudocode: "// Trading remained intact\n// Local currency operations continued" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Key compromise", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "BTCTurk Keys", detail: "Compromised", x: 250, y: 200 },
+        { id: "n3", type: "pool", label: "Multi-Chain Wallets", detail: "$51.7M", x: 450, y: 200 },
+        { id: "n4", type: "result", label: "Attacker", detail: "Drained", x: 650, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Compromise", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Access" },
+        { id: "e3", source: "n3", target: "n4", label: "Drain", animated: true }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "BTCTurk\nKeys", type: "vault" },
+      { id: "b", label: "Hot Wallets\n$51.7M", type: "pool" },
+      { id: "c", label: "Attacker\nDrained", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 51.7, label: "Access" },
+      { source: "b", target: "c", value: 51.7, label: "Drain" }
+    ],
+    mitigations: [
+      { category: "Key Rotation", description: "Regularly rotate private keys, especially after any security incident." },
+      { category: "Independent Key Storage", description: "Use independent key storage solutions with proper segmentation between chains." },
+      { category: "Audit", description: "Conduct regular security audits of key management procedures." }
+    ],
+    quiz: [{ question: "What was notable about BTCTurk's hack?", options: ["First hack ever", "Second hack in 14 months", "Smart contract bug", "Oracle manipulation"], correct: 1, explanation: "This was BTCTurk's second major hack in 14 months, both involving compromised private keys." }]
+  },
+
+  // CoinDCX (2025)
+  {
+    id: "coindcx-2025",
+    slug: "coindcx-2025",
+    title: "CoinDCX",
+    subtitle: "Server Compromise / Internal Account",
+    year: 2025,
+    chain: "Solana",
+    type: ["Access Control"],
+    shortDesc: "Server compromise allowed $44.3M drain from internal account used for liquidity provisioning.",
+    longDesc: "On July 19, 2025, CoinDCX, one of India's largest crypto exchanges, lost approximately $44.3M in a suspected hack. The issue was caused by a server compromise that affected an internal account used only for liquidity provisioning on a partner exchange. The company confirmed that customer funds were not affected and that all customer assets remained safe. The hack was traced from just 1 ETH initially by ZachXBT. CoinDCX's CEO stated the treasury was strong enough to continue operations.",
+    technicalDesc: "This was a server compromise affecting an operational wallet on the Solana blockchain, not a smart contract vulnerability. The attacker: (1) compromised CoinDCX's server infrastructure; (2) gained access to an internal account used for liquidity provisioning; (3) siphoned approximately $44.2M in USDC and USDT from the wallet; (4) laundered funds through various addresses. The attack was quickly contained by isolating the affected internal account, preventing spread to customer funds.",
+    impact: "$44.3M",
+    impactUSD: 44300000,
+    contracts: [{ label: "CoinDCX Internal Wallet", address: "Solana", url: "https://solscan.io" }],
+    timeline: [
+      { id: "t1", phase: "Server Compromise", description: "Attacker compromised CoinDCX server infrastructure.", functionsCall: [], pseudocode: "// Infrastructure breach\n// Internal account exposed" },
+      { id: "t2", phase: "Access Internal Account", description: "Gained access to liquidity provisioning wallet.", functionsCall: [], pseudocode: "// Partner exchange wallet\n// Not customer funds" },
+      { id: "t3", phase: "Drain", description: "Siphoned $44.2M in USDC and USDT.", functionsCall: ["Wallet.transfer(USDC)", "Wallet.transfer(USDT)"], pseudocode: "// Solana blockchain\n// Operational wallet drained" },
+      { id: "t4", phase: "Containment", description: "CoinDCX isolated affected internal account.", functionsCall: ["Account.isolate()"], pseudocode: "// Customer funds safe\n// Rapid containment" },
+      { id: "t5", phase: "Recovery", description: "CoinDCX confirmed treasury strong, operations continue.", functionsCall: [], pseudocode: "// Business continuity\n// $44.3M operational loss" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Server compromise", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "CoinDCX Server", detail: "Compromised", x: 250, y: 200 },
+        { id: "n3", type: "pool", label: "Internal Wallet", detail: "$44.3M", x: 450, y: 200 },
+        { id: "n4", type: "result", label: "Attacker", detail: "Drained", x: 650, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Compromise", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Access" },
+        { id: "e3", source: "n3", target: "n4", label: "Drain", animated: true }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "CoinDCX\nServer", type: "vault" },
+      { id: "b", label: "Internal\nWallet", type: "pool" },
+      { id: "c", label: "Attacker\n$44.3M", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 44.3, label: "Access" },
+      { source: "b", target: "c", value: 44.3, label: "Drain" }
+    ],
+    mitigations: [
+      { category: "Server Security", description: "Implement strict access controls and monitoring for server infrastructure." },
+      { category: "Account Segmentation", description: "Segregate operational accounts from customer funds with strict access controls." },
+      { category: "Monitoring", description: "Implement real-time monitoring for unusual wallet activity." }
+    ],
+    quiz: [{ question: "What was CoinDCX's vulnerability?", options: ["Smart contract bug", "Server compromise of internal account", "Oracle manipulation", "Flash loan"], correct: 1, explanation: "Server compromise affected an internal liquidity provisioning wallet, not customer funds." }]
+  },
+
+  // Swissborg (2025)
+  {
+    id: "swissborg-2025",
+    slug: "swissborg-2025",
+    title: "Swissborg",
+    subtitle: "Partner API Compromise",
+    year: 2025,
+    chain: "Solana",
+    type: ["Access Control"],
+    shortDesc: "Partner Kiln's API was compromised, resulting in $41.5M SOL drain from SOL Earn program.",
+    longDesc: "On September 8, 2025, Swiss wealth management platform SwissBorg lost $41.5M in SOL after their trusted staking partner Kiln's API was compromised. Approximately 192,600 SOL (valued at $41.5M) was stolen from an external wallet used for SwissBorg's Solana Earn strategy. The CEO stated this affected approximately 1% of SwissBorg users and 2% of total assets. SwissBorg assured users that the main app remained secure and all other funds in Earn programs were safe.",
+    technicalDesc: "This was a third-party partner API compromise, not a direct SwissBorg vulnerability. The attacker: (1) compromised Kiln's API (SwissBorg's staking partner); (2) obtained withdrawal keys through Kiln's backdoor; (3) drained 192,600 SOL from SwissBorg's external SOL Earn wallet; (4) moved funds to a flagged 'SwissBorg Exploiter' wallet on Solscan. The incident highlighted the risks of relying on third-party partners for critical infrastructure.",
+    impact: "$41.5M",
+    impactUSD: 41500000,
+    contracts: [{ label: "Swissborg SOL Earn Wallet", address: "Solana", url: "https://solscan.io" }],
+    timeline: [
+      { id: "t1", phase: "Partner Compromise", description: "Attacker compromised Kiln's API.", functionsCall: [], pseudocode: "// Third-party partner breach\n// API keys exposed" },
+      { id: "t2", phase: "Key Access", description: "Obtained withdrawal keys through Kiln's backdoor.", functionsCall: [], pseudocode: "// Kiln's security failure\n// Withdrawal keys handed to hackers" },
+      { id: "t3", phase: "Drain SOL", description: "Drained 192,600 SOL from external wallet.", functionsCall: ["Wallet.transfer(SOL)"], pseudocode: "// SOL Earn program affected\n// 1% of users, 2% of assets" },
+      { id: "t4", phase: "Flagging", description: "Funds moved to flagged 'SwissBorg Exploiter' wallet.", functionsCall: [], pseudocode: "// Solscan flagged address\n// Tracking enabled" },
+      { id: "t5", phase: "Containment", description: "Swissborg assured other funds safe, app secure.", functionsCall: [], pseudocode: "// Main app unaffected\n// Other Earn programs safe" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "API compromise", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "Kiln API", detail: "Compromised", x: 250, y: 200 },
+        { id: "n3", type: "pool", label: "SOL Earn Wallet", detail: "$41.5M", x: 450, y: 200 },
+        { id: "n4", type: "result", label: "Attacker", detail: "192,600 SOL", x: 650, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Compromise", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Access" },
+        { id: "e3", source: "n3", target: "n4", label: "Drain", animated: true }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Kiln\nAPI", type: "vault" },
+      { id: "b", label: "SOL Earn\nWallet", type: "pool" },
+      { id: "c", label: "Attacker\n192,600 SOL", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 41.5, label: "Access" },
+      { source: "b", target: "c", value: 41.5, label: "Drain" }
+    ],
+    mitigations: [
+      { category: "Partner Due Diligence", description: "Conduct thorough security audits of third-party partners before integration." },
+      { category: "API Security", description: "Implement strict API key management and rotation for third-party integrations." },
+      { category: "Monitoring", description: "Monitor third-party partner activity for unusual patterns." }
+    ],
+    quiz: [{ question: "What was Swissborg's vulnerability?", options: ["Smart contract bug", "Partner API compromise", "Oracle manipulation", "Flash loan"], correct: 1, explanation: "Kiln's API was compromised, allowing access to Swissborg's SOL Earn wallet." }]
+  },
+
+  // UXLink (2025)
+  {
+    id: "uxlink-2025",
+    slug: "uxlink-2025",
+    title: "UXLink",
+    subtitle: "Smart Contract Vulnerability / Multisig Exploit",
+    year: 2025,
+    chain: "Multi-chain",
+    type: ["Access Control", "Logic Error"],
+    shortDesc: "Smart contract vulnerability allowed $41M drain from multisig wallet, token price dropped 70%.",
+    longDesc: "On September 22, 2025, UXLink, a cross-chain asset protocol, suffered a hack where attackers moved around $11.3M worth of crypto from a multisig wallet. The token price dropped from $0.30 to $0.09, a 70% decline, erasing market cap. The attacker exploited a smart contract vulnerability and created almost 10 trillion tokens in a second mint. PeckShield flagged the token with 'DO NOT TRADE' warnings. The attacker attempted to trade stolen ETH but ended up with losses due to poor trading decisions.",
+    technicalDesc: "The vulnerability was in UXLink's smart contract that allowed unauthorized token minting. The attacker: (1) identified the smart contract vulnerability; (2) exploited it to mint almost 10 trillion tokens in a second mint; (3) drained $11.3M from the multisig wallet; (4) caused token price to drop 70% from $0.30 to $0.09; (5) attempted to trade stolen ETH but made poor trading decisions, ending with losses. The total impact was estimated at $41M including market cap erosion.",
+    impact: "$41M",
+    impactUSD: 41000000,
+    contracts: [{ label: "UXLink Smart Contract", address: "Multi-chain", url: "https://etherscan.io" }],
+    timeline: [
+      { id: "t1", phase: "Vulnerability Discovery", description: "Attacker identified smart contract vulnerability.", functionsCall: [], pseudocode: "// Contract flaw found\n// Unauthorized minting possible" },
+      { id: "t2", phase: "First Mint", description: "Attacker minted initial tokens.", functionsCall: ["Token.mint()"], pseudocode: "// Initial mint\n// PeckShield flagged token" },
+      { id: "t3", phase: "Second Mint", description: "Created almost 10 trillion tokens in second mint.", functionsCall: ["Token.mint(10T)"], pseudocode: "// Massive mint\n// 'DO NOT TRADE' warning" },
+      { id: "t4", phase: "Multisig Drain", description: "Drained $11.3M from multisig wallet.", functionsCall: ["Multisig.transfer()"], pseudocode: "// Price dropped 70%\n// $0.30 to $0.09" },
+      { id: "t5", phase: "Trading Losses", description: "Attacker tried to trade stolen ETH but lost money.", functionsCall: ["DEX.trade()"], pseudocode: "// Poor trading decisions\n// Net losses incurred" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Contract exploit", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "UXLink Contract", detail: "Vulnerable", x: 250, y: 200 },
+        { id: "n3", type: "pool", label: "Token Mint", detail: "10T tokens", x: 450, y: 200 },
+        { id: "n4", type: "pool", label: "Multisig", detail: "$11.3M", x: 650, y: 200 },
+        { id: "n5", type: "result", label: "Attacker", detail: "Trading losses", x: 850, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Exploit", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Mint", animated: true },
+        { id: "e3", source: "n3", target: "n4", label: "Price crash" },
+        { id: "e4", source: "n4", target: "n5", label: "Drain" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "UXLink\nContract", type: "vault" },
+      { id: "b", label: "Minted\nTokens", type: "pool" },
+      { id: "c", label: "Multisig\n$11.3M", type: "pool" },
+      { id: "d", label: "Attacker\nLosses", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 41, label: "Mint" },
+      { source: "b", target: "c", value: 11.3, label: "Drain" },
+      { source: "c", target: "d", value: 41, label: "Total impact" }
+    ],
+    mitigations: [
+      { category: "Mint Controls", description: "Implement strict mint rate limits and governance approvals for token minting." },
+      { category: "Multisig Security", description: "Use proper multi-signature wallets with time-locks for critical operations." },
+      { category: "Audit", description: "Conduct thorough smart contract audits, especially for minting mechanisms." }
+    ],
+    quiz: [{ question: "What was UXLink's vulnerability?", options: ["Reentrancy", "Smart contract mint vulnerability", "Oracle manipulation", "Key leak"], correct: 1, explanation: "Smart contract vulnerability allowed unauthorized minting of 10 trillion tokens." }]
+  },
+
+  // BigONE (2025)
+  {
+    id: "bigone-2025",
+    slug: "bigone-2025",
+    title: "BigONE",
+    subtitle: "Supply Chain Attack",
+    year: 2025,
+    chain: "Multi-chain",
+    type: ["Access Control"],
+    shortDesc: "Supply chain attack on production environment allowed $27M drain from hot wallets.",
+    longDesc: "On July 16, 2025, Seychelles-based cryptocurrency exchange BigONE suffered a $27M breach due to a supply chain attack. The production network was compromised, and the operating logic of account and risk control related servers was modified, enabling the attacker to withdraw funds. This wasn't a typical exchange hack with leaked private keys - the attacker bypassed the front door, rewrote the script, and exited with the vault. BigONE vowed full user compensation.",
+    technicalDesc: "This was a sophisticated supply chain attack, not a simple private key compromise. The attacker: (1) compromised BigONE's production environment; (2) modified the operating logic of account and risk control servers; (3) bypassed normal security controls; (4) drained $27M from hot wallets; (5) evaded detection through modified server logic. The attack suggested either extensive reconnaissance or insider access to BigONE's infrastructure.",
+    impact: "$27M",
+    impactUSD: 27000000,
+    contracts: [{ label: "BigONE Hot Wallets", address: "Multi-chain", url: "https://etherscan.io" }],
+    timeline: [
+      { id: "t1", phase: "Supply Chain Compromise", description: "Attacker compromised production environment.", functionsCall: [], pseudocode: "// Supply chain attack\n// Infrastructure breach" },
+      { id: "t2", phase: "Server Logic Modification", description: "Modified account and risk control server logic.", functionsCall: ["Server.modify(logic)"], pseudocode: "// Operating logic changed\n// Security controls bypassed" },
+      { id: "t3", phase: "Bypass Security", description: "Bypassed front door security controls.", functionsCall: [], pseudocode: "// Not typical key leak\n// Script rewritten" },
+      { id: "t4", phase: "Drain", description: "Drained $27M from hot wallets.", functionsCall: ["Wallet.transfer()"], pseudocode: "// Modified logic enabled\n// Withdrawal allowed" },
+      { id: "t5", phase: "Compensation", description: "BigONE vowed full user compensation.", functionsCall: [], pseudocode: "// User funds safe\n// Full reimbursement promised" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Supply chain", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "Production Env", detail: "Compromised", x: 250, y: 200 },
+        { id: "n3", type: "contract", label: "Server Logic", detail: "Modified", x: 450, y: 200 },
+        { id: "n4", type: "pool", label: "Hot Wallets", detail: "$27M", x: 650, y: 200 },
+        { id: "n5", type: "result", label: "Attacker", detail: "Drained", x: 850, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Compromise", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Modify", animated: true },
+        { id: "e3", source: "n3", target: "n4", label: "Bypass" },
+        { id: "e4", source: "n4", target: "n5", label: "Drain" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Production\nEnvironment", type: "vault" },
+      { id: "b", label: "Modified\nLogic", type: "bridge" },
+      { id: "c", label: "Hot Wallets\n$27M", type: "pool" },
+      { id: "d", label: "Attacker\nDrained", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 27, label: "Modify" },
+      { source: "b", target: "c", value: 27, label: "Bypass" },
+      { source: "c", target: "d", value: 27, label: "Drain" }
+    ],
+    mitigations: [
+      { category: "Supply Chain Security", description: "Implement strict supply chain security and verification for all software dependencies." },
+      { category: "Server Monitoring", description: "Monitor server logic and configuration for unauthorized modifications." },
+      { category: "Immutable Infrastructure", description: "Use immutable infrastructure where server logic cannot be modified without proper approval." }
+    ],
+    quiz: [{ question: "What was BigONE's vulnerability?", options: ["Private key leak", "Supply chain attack on production", "Oracle manipulation", "Flash loan"], correct: 1, explanation: "Supply chain attack modified server logic, bypassing normal security controls." }]
+  },
+
+  // SBI Crypto (2025)
+  {
+    id: "sbi-crypto-2025",
+    slug: "sbi-crypto-2025",
+    title: "SBI Crypto",
+    subtitle: "Hot Wallet Compromise Across 5 Chains",
+    year: 2025,
+    chain: "Multi-chain",
+    type: ["Access Control"],
+    shortDesc: "Hot wallet compromise drained $24M across Bitcoin, Ethereum, Litecoin, Dogecoin, and Bitcoin Cash.",
+    longDesc: "On September 24, 2025, SBI Crypto, a mining pool subsidiary of Japan's SBI Holdings, suffered approximately $24M theft across five blockchains: Bitcoin, Ethereum, Litecoin, Dogecoin, and Bitcoin Cash. The attackers systematically drained funds from SBI Crypto's hot wallets across all five chains. Suspicious outflows were detected by ZachXBT, with funds laundered through Tornado Cash. North Korean hackers were suspected to be behind the attack. This was particularly notable as SBI had acquired customers from DMM Bitcoin's closure in March 2025.",
+    technicalDesc: "This was a hot wallet compromise affecting multiple blockchains. The attacker: (1) obtained SBI Crypto's hot wallet private keys across five chains; (2) systematically drained funds from Bitcoin, Ethereum, Litecoin, Dogecoin, and Bitcoin Cash wallets; (3) laundered funds through Tornado Cash; (4) evaded tracking. The attack was attributed to North Korean hackers (Lazarus Group). The multi-chain nature suggested comprehensive access to SBI's infrastructure.",
+    impact: "$24M",
+    impactUSD: 24000000,
+    contracts: [{ label: "SBI Crypto Hot Wallets", address: "Multi-chain", url: "https://etherscan.io" }],
+    timeline: [
+      { id: "t1", phase: "Key Compromise", description: "Attacker obtained hot wallet keys across 5 chains.", functionsCall: [], pseudocode: "// BTC, ETH, LTC, DOGE, BCH\n// Comprehensive access" },
+      { id: "t2", phase: "Multi-Chain Drain", description: "Drained funds across all five blockchains.", functionsCall: ["Wallet.transfer(BTC)", "Wallet.transfer(ETH)", "Wallet.transfer(LTC)", "Wallet.transfer(DOGE)", "Wallet.transfer(BCH)"], pseudocode: "$24M total\n// Systematic extraction" },
+      { id: "t3", phase: "Laundering", description: "Funds laundered through Tornado Cash.", functionsCall: ["TornadoCash.deposit()"], pseudocode: "// Evasion tactics\n// DPRK attribution" },
+      { id: "t4", phase: "Detection", description: "ZachXBT detected suspicious outflows.", functionsCall: [], pseudocode: "// On-chain analysis\n// Attribution made" },
+      { id: "t5", phase: "Context", description: "Notable as SBI acquired DMM Bitcoin customers.", functionsCall: [], pseudocode: "// March 2025 DMM closure\n// Customer transfer irony" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "DPRK suspected", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "SBI Keys", detail: "5 chains", x: 250, y: 200 },
+        { id: "n3", type: "pool", label: "Hot Wallets", detail: "$24M", x: 450, y: 200 },
+        { id: "n4", type: "contract", label: "Tornado Cash", detail: "Laundering", x: 650, y: 200 },
+        { id: "n5", type: "result", label: "Attacker", detail: "Drained", x: 850, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Compromise", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Access" },
+        { id: "e3", source: "n3", target: "n4", label: "Launder", animated: true },
+        { id: "e4", source: "n4", target: "n5", label: "Extract" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "SBI\nKeys", type: "vault" },
+      { id: "b", label: "5 Chain\nWallets", type: "pool" },
+      { id: "c", label: "Tornado\nCash", type: "bridge" },
+      { id: "d", label: "Attacker\n$24M", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 24, label: "Access" },
+      { source: "b", target: "c", value: 24, label: "Launder" },
+      { source: "c", target: "d", value: 24, label: "Extract" }
+    ],
+    mitigations: [
+      { category: "Key Management", description: "Use hardware security modules (HSMs) for hot wallet keys across all chains." },
+      { category: "Chain Segregation", description: "Segregate hot wallet keys by chain to limit blast radius of compromise." },
+      { category: "Monitoring", description: "Implement real-time cross-chain monitoring for suspicious outflows." }
+    ],
+    quiz: [{ question: "What was SBI Crypto's vulnerability?", options: ["Smart contract bug", "Hot wallet compromise across 5 chains", "Oracle manipulation", "Flash loan"], correct: 1, explanation: "Hot wallet keys across Bitcoin, Ethereum, Litecoin, Dogecoin, and Bitcoin Cash were compromised." }]
+  },
+
   // --- CLASSIC HACKS ---
 
   // The DAO (2016)
