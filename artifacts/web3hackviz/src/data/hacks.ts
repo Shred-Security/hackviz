@@ -978,9 +978,19 @@ export const hacks: Hack[] = [
     impactUSD: 292000000,
     contracts: [
       {
-        label: "LayerZero V1 Endpoint",
-        address: "0x66A71Dcef29A0fFBDBE3c6a4B3A1E6D9A5b5C7E9",
-        url: "https://etherscan.io/address/0x66a71dcef29a0ffbdbe3c6a460a3b5bc225cd675"
+        label: "Kelp rsETH OFT Adapter (Victim)",
+        address: "0x85d456B2DfF1fd8245387C0BfB64Dfb700e98Ef3",
+        url: "https://etherscan.io/address/0x85d456B2DfF1fd8245387C0BfB64Dfb700e98Ef3"
+      },
+      {
+        label: "LayerZero EndpointV2",
+        address: "0x1a44076050125825900e736c501f859c50fE728c",
+        url: "https://etherscan.io/address/0x1a44076050125825900e736c501f859c50fe728c"
+      },
+      {
+        label: "Attacker Address",
+        address: "0x8B1b6c9A6DB1304000412dd21Ae6A70a82d60D3b",
+        url: "https://etherscan.io/address/0x8B1b6c9A6DB1304000412dd21Ae6A70a82d60D3b"
       }
     ],
     timeline: [
