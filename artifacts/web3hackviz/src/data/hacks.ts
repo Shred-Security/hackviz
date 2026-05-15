@@ -979,8 +979,8 @@ export const hacks: Hack[] = [
     contracts: [
       {
         label: "LayerZero V1 Endpoint",
-        address: "0x66A0Ee29Eb30D40D2D6E84e80b07728DcD7d7C1D",
-        url: "https://etherscan.io/address/0x66A0Ee29Eb30D40D2D6E84e80b07728DcD7d7C1D"
+        address: "0x66A71Dcef29A0fFBDBE3c6a4B3A1E6D9A5b5C7E9",
+        url: "https://etherscan.io/address/0x66a71dcef29a0ffbdbe3c6a460a3b5bc225cd675"
       }
     ],
     timeline: [
