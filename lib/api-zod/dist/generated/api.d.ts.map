@@ -1,1 +1,0 @@
-{"version":3,"file":"api.d.ts","sourceRoot":"","sources":["../../src/generated/api.ts"],"names":[],"mappings":"AAAA;;;;;;GAMG;AACH,OAAO,KAAK,GAAG,MAAM,KAAK,CAAC;AAE3B;;;GAGG;AACH,eAAO,MAAM,mBAAmB;;;;;;EAE9B,CAAC"}

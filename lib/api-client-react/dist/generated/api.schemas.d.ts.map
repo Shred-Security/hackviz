@@ -1,1 +1,0 @@
-{"version":3,"file":"api.schemas.d.ts","sourceRoot":"","sources":["../../src/generated/api.schemas.ts"],"names":[],"mappings":"AAAA;;;;;;GAMG;AACH,MAAM,WAAW,YAAY;IAC3B,MAAM,EAAE,MAAM,CAAC;CAChB"}
