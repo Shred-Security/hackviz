@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Hack } from "@/data/hacks";
 import { Play, Pause, SkipBack, SkipForward, ChevronRight, Code } from "lucide-react";
 
@@ -14,21 +14,19 @@ export function TimelineTab({ hack }: { hack: Hack }) {
   const goPrev = () => setCurrentStep((s) => Math.max(s - 1, 0));
   const goTo = (i: number) => setCurrentStep(i);
 
-  useState(() => {
-    let interval: ReturnType<typeof setInterval>;
-    if (playing) {
-      interval = setInterval(() => {
-        setCurrentStep((s) => {
-          if (s >= steps.length - 1) {
-            setPlaying(false);
-            return s;
-          }
-          return s + 1;
-        });
-      }, 2000);
-    }
+  useEffect(() => {
+    if (!playing) return;
+    const interval = setInterval(() => {
+      setCurrentStep((s) => {
+        if (s >= steps.length - 1) {
+          setPlaying(false);
+          return s;
+        }
+        return s + 1;
+      });
+    }, 2000);
     return () => clearInterval(interval);
-  });
+  }, [playing, steps.length]);
 
   const step = steps[currentStep];
 
