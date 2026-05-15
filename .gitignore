@@ -10,10 +10,24 @@ build/
 
 # Environment variables
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+!.env.example
+!.env.template
+!.env.sample
+
+# Secrets and credentials
+*.pem
+*.key
+*.p12
+*.pfx
+*.cert
+*.crt
+*.csr
+secrets/
+credentials/
+config/secrets.*
+*secret*
+*credential*
 
 # IDE and editor files
 .vscode/
@@ -95,9 +109,43 @@ temp/
 
 # Vercel
 .vercel
+**/.vercel/
 
 # Turbo
 .turbo
 
 # Local development
 .local
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
+
+# Package files
+*.tar.gz
+*.zip
+
+# Generated files
+generated/
+
+# Test outputs
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Misc
+*.pid
+*.seed
+*.pid.lock
+.history/
+.sass-cache/
+.eslintcache
+.stylelintcache
+.prettiercache

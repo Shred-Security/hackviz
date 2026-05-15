@@ -109,7 +109,7 @@ export default function HomePage() {
           Simulate and learn every exploit. Visualize smart contract
           drains, bridge hacks, flash loans, oracle manipulations, and
           governance attacks. Learn how to hunt and secure the blockchain.
-          Powered By <a href="https://shredsec.xyz" target="_blank" rel="noopener noreferrer" className="text-red-400 font-semibold hover:text-red-300 transition-colors">Shred Security</a>.
+          A <a href="https://shredsec.xyz" target="_blank" rel="noopener noreferrer" className="text-red-400 font-semibold hover:text-red-300 transition-colors">Shred Security</a> Product.
         </p>
 
         {/* Year selector above stats */}
