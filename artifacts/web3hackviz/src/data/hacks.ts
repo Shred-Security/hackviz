@@ -263,7 +263,7 @@ export const hacks: Hack[] = [
     technicalDesc: "The vulnerability resided in the library\'s arithmetic boundary checks. Move bytecode for `checked_shlw` (shift-left-wrapped) did not account for the case where the shift amount caused the bit-representation to wrap around the u256 boundary without triggering a panic in a specific unchecked context. The attacker called `add_liquidity` with a value that caused the overflow during the price-to-liquidity conversion. The pool, believing the attacker had provided massive depth, allowed withdrawals of the entire token reserve of multiple pools.",
     impact: "$223 million",
     impactUSD: 223000000,
-    contracts: [{ label: "Cetus CLMM Package", address: "0x1eabed7...dc8d0...d3e3f3", url: "https://suiexplorer.com/object/0x1eabed72c53feb3805120a081dc15963c204dc8d0d0d8c55c9c1c2c7c3d3e3f3" }],
+    contracts: [],
     timeline: [
       { id: "t1", phase: "Deposit", description: "Attacker deposited a minimal amount into targeted CLMM pools.", functionsCall: ["Pool::add_liquidity(min_deposit)"], pseudocode: "// Minimal collateral provided to open position" },
       { id: "t2", phase: "Overflow Trigger", description: "Triggered the overflow bug during liquidity position calculation using shift-left math.", functionsCall: ["inter_mate::checked_shlw()"], pseudocode: "// u256 overflow: (x << shift) wraps to near-max u256" },
@@ -420,7 +420,7 @@ export const hacks: Hack[] = [
     technicalDesc: "The vulnerability was a 'zombie contract' risk. An old V1 vault had a misconfigured parameter that allowed direct extraction and swapping of vault assets if a specific sequence of logic calls was executed. While V2 and V3 were secure, the idle liquidity in the V1 vault was vulnerable.",
     impact: "$300K",
     impactUSD: 300000,
-    contracts: [{ label: "Yearn V1 Vault", address: "0xACf969D...949f2b", url: "https://etherscan.io/address/0xACf969DA3170CD5f3333333333e9d8929949f2b" }],
+    contracts: [],
     timeline: [
       { id: "t1", phase: "Discovery", description: "Attacker identified vulnerable V1 contract.", functionsCall: [], pseudocode: "// identified legacy config flaw" },
       { id: "t2", phase: "Drain", description: "Submitted crafted transactions to drain vault assets.", functionsCall: ["Vault.withdraw()"], pseudocode: "// bypass check" },
@@ -602,7 +602,7 @@ export const hacks: Hack[] = [
     technicalDesc: "The vulnerability was an unchecked addition in the token purchase logic that overflowed when a massive amount of TRU was requested, wrapping the ETH cost to nearly zero. The attacker looped this to mint TRU cheaply and extract real ETH.",
     impact: "$26.2M",
     impactUSD: 26200000,
-    contracts: [{ label: "Truebit Purchase", address: "0x4Fd76FE6...B96576B", url: "https://etherscan.io/address/0x4Fd76FE66B2A55b8b4DFD6eB6eA0E5051B96576B" }],
+    contracts: [{ label: "Truebit Purchase Contract", address: "0x764C64b2A09b09Acb100B80d8c505Aa6a0302ef2", url: "https://etherscan.io/address/0x764c64b2a09b09acb100b80d8c505aa6a0302ef2" }],
     timeline: [
       { id: "t1", phase: "Identification", description: "Triggered overflow in old contract.", functionsCall: [], pseudocode: "// unchecked arithmetic" },
       { id: "t2", phase: "Mint", description: "Minted over 240M TRU tokens.", functionsCall: ["Purchase.buyTokens()"], pseudocode: "// amount wraps price" },
@@ -640,7 +640,7 @@ export const hacks: Hack[] = [
     technicalDesc: "Attackers obtained high-privilege private keys not protected by multi-sig. They executed a sweep of the treasury SOL and portfolio assets in a single transaction sequence.",
     impact: "$27.3M",
     impactUSD: 27300000,
-    contracts: [{ label: "Step Treasury Wallet", address: "Solana EOA", url: "https://solscan.io/account/treasury" }],
+    contracts: [],
     timeline: [
       { id: "t1", phase: "Phishing", description: "Spear-phishing on team.", functionsCall: [], pseudocode: "// social engineering" },
       { id: "t2", phase: "Access", description: "Obtained keys.", functionsCall: [], pseudocode: "// keys compromised" },
@@ -677,7 +677,7 @@ export const hacks: Hack[] = [
     technicalDesc: "The exploit targeted the bridge's custodial logic. By compromising a single-point owner key, the attacker gained admin access to the `TokenSafe` and `MinterPool` contracts. They drained real USDC/USDT/WBTC assets and minted 410M unbacked CIOTX tokens to inflate their exit value.",
     impact: "$8.9 million",
     impactUSD: 8900000,
-    contracts: [{ label: "ioTube Bridge", address: "0x...Bridge", url: "https://iotexscan.io/address/iotube" }],
+    contracts: [],
     timeline: [
       { id: "t1", phase: "Compromise", description: "Attacker seized owner key.", functionsCall: [], pseudocode: "// single validator key breach" },
       { id: "t2", phase: "Admin Control", description: "Gained admin control over TokenSafe and MinterPool.", functionsCall: ["Bridge.updateOwner()"], pseudocode: "// hijack bridge roles" },
@@ -726,7 +726,7 @@ export const hacks: Hack[] = [
     technicalDesc: "Compound forks enforce supply caps only on the mint() path. Direct transfers to the vToken contract bypass these checks, inflating exchangeRate (vTokens represent claim on more underlying). The attacker: (1) accumulated 12.2M THE over 9 months via Tornado-funded wallets; (2) transferred 36M THE directly to vTHE contract, inflating exchangeRate 3.81x; (3) recursively leveraged: borrow → swap to THE → donate → repeat; (4) manipulated THE price to $0.51 via thin liquidity buying; (5) borrowed against 7x inflated collateral before liquidation cascade.",
     impact: "$14.9M (protocol loss: $2.15M bad debt)",
     impactUSD: 14900000,
-    contracts: [{ label: "vTHE Contract", address: "BNB Chain Address", url: "https://bscscan.com" }],
+    contracts: [],
     timeline: [
       { id: "t1", phase: "Accumulation", description: "Attacker accumulated 12.2M THE over 9 months via Tornado-funded wallets.", functionsCall: ["THE.transfer(multiple_wallets)"], pseudocode: "// 84% of supply cap gathered\n// Tornado funding → Aave borrow → THE purchases" },
       { id: "t2", phase: "Donation Bypass", description: "36M THE transferred directly to vTHE contract, inflating exchangeRate 3.81x.", functionsCall: ["THE.transfer(vTHE_contract, 36M)"], pseudocode: "// Direct transfer bypasses mint() cap check\n// exchangeRate inflates: vTHE now represents 3.81x more underlying" },
@@ -788,7 +788,7 @@ export const hacks: Hack[] = [
     technicalDesc: "The exploit targeted Resolv's two-step swap mechanism where users deposit tokens on-chain but the USR output amount is passed as an unchecked parameter. The attacker: (1) compromised AWS KMS to obtain SERVICE_ROLE signing key; (2) made two swap requests with modest USDC deposits (~$100K-$200K total); (3) used the compromised key to call completeSwap with inflated output amounts, authorizing 80M USR; (4) converted USR to wstUSR to avoid immediate market impact; (5) swapped wstUSR to stablecoins then ETH via multiple DEX pools; (6) laundered proceeds through Railgun shielded pools.",
     impact: "$25M (80M USR minted, 80% depeg)",
     impactUSD: 25000000,
-    contracts: [{ label: "USR Token", address: "Ethereum Contract", url: "https://etherscan.io" }],
+    contracts: [{ label: "Resolv USR Token", address: "0x66a1e37c9b0eaddca17d3662d6c05f4decf3e110", url: "https://etherscan.io/address/0x66a1e37c9b0eaddca17d3662d6c05f4decf3e110" }],
     timeline: [
       { id: "t1", phase: "KMS Compromise", description: "Attacker compromised Resolv's AWS KMS environment to obtain SERVICE_ROLE signing key.", functionsCall: ["AWS_KMS.get_signing_key()"], pseudocode: "// Cloud infrastructure breach\n// Gained access to privileged minting key" },
       { id: "t2", phase: "Swap Requests", description: "Attacker made two swap requests funded with $100K-$200K USDC deposits.", functionsCall: ["Resolv.swap_request(USDC_deposit)"], pseudocode: "// Legitimate-looking deposits\n// Preparing for inflated authorization" },
@@ -852,7 +852,7 @@ export const hacks: Hack[] = [
     technicalDesc: "The exploit targeted three vulnerabilities: (1) MMR library boundary validation failed when leafCount=1, allowing leaf_index >= leafCount; (2) proof-to-request binding was missing - commitment hash didn't cover both proof and request payload; (3) TokenGateway had challengePeriod=0 with shallow source checks. The attacker: (1) funded via Railgun/Synapse for obfuscation; (2) deployed helper contract as new token admin; (3) crafted PostRequest with MMR proof triggering leafCount=1 edge case; (4) called handleChangeAssetAdmin() bypassing shallow checks; (5) minted 1B DOT and swapped via Uniswap V4 PoolManager.",
     impact: "$2.5M (1B fake DOT minted)",
     impactUSD: 2500000,
-    contracts: [{ label: "Hyperbridge HandlerV1", address: "Ethereum Contract", url: "https://etherscan.io" }],
+    contracts: [],
     timeline: [
       { id: "t1", phase: "Preparation", description: "Attacker funded via Railgun shielded pools and Synapse Bridge for obfuscation.", functionsCall: ["Railgun.withdraw()", "Synapse.bridge()"], pseudocode: "// Privacy-focused funding\n// Multiple test contract deployments" },
       { id: "t2", phase: "Contract Deployment", description: "Deployed master orchestration contract and helper contract as new token admin.", functionsCall: ["deploy(orchestration_contract)", "deploy(helper_contract)"], pseudocode: "// Helper contract designed to become token admin\n// Master contract coordinated the attack" },
@@ -917,7 +917,7 @@ export const hacks: Hack[] = [
     technicalDesc: "Rhea's margin trading includes slippage protection that sums expected outputs across swap steps. The flaw: when intermediate tokens were reused in multi-step swaps, the slippage calculation didn't properly account for token reuse, allowing manipulated swap routes to pass validation. The attacker: (1) created fake token pools on Ref Finance with injected liquidity; (2) constructed swap routes reusing intermediate tokens to bypass slippage checks; (3) borrowed debt tokens and routed them through fake pools; (4) triggered forced liquidations by draining reserve pool; (5) deleted 55 intermediary accounts to obfuscate trail.",
     impact: "$18.4M",
     impactUSD: 18400000,
-    contracts: [{ label: "Rhea Margin Contract", address: "NEAR Contract", url: "https://nearblocks.io" }],
+    contracts: [],
     timeline: [
       { id: "t1", phase: "Pool Creation", description: "Attacker created multiple fake token pools on Ref Finance and injected liquidity.", functionsCall: ["Ref.create_pool(fake_token)", "Ref.add_liquidity()"], pseudocode: "// Fake pools with controlled liquidity\n// Constructed malicious swap routes" },
       { id: "t2", phase: "Route Construction", description: "Built swap routes reusing intermediate tokens to bypass slippage protection.", functionsCall: ["Route.construct(reused_tokens)"], pseudocode: "// Slippage protection didn't account for\n// intermediate token reuse in multi-step swaps" },
@@ -977,15 +977,10 @@ export const hacks: Hack[] = [
     impact: "$292M",
     impactUSD: 292000000,
     contracts: [
-      { 
-        label: "Kelp DAO Bridge", 
-        address: "0x1234567890123456789012345678901234567890", 
-        url: "https://etherscan.io/address/0x1234567890123456789012345678901234567890" 
-      },
-      { 
-        label: "LayerZero Endpoint", 
-        address: "0x66A71Dcef29A0fFBDBE3c6a4B3A1E6D9A5b5C7E9", 
-        url: "https://etherscan.io/address/0x66A71Dcef29A0fFBDBE3c6a4B3A1E6D9A5b5C7E9" 
+      {
+        label: "LayerZero V1 Endpoint",
+        address: "0x66A0Ee29Eb30D40D2D6E84e80b07728DcD7d7C1D",
+        url: "https://etherscan.io/address/0x66A0Ee29Eb30D40D2D6E84e80b07728DcD7d7C1D"
       }
     ],
     timeline: [
@@ -1248,7 +1243,7 @@ export const hacks: Hack[] = [
     technicalDesc: "This was a private key compromise affecting multiple hot wallets across different blockchains. The attacker: (1) obtained Phemex's hot wallet private keys through unknown means; (2) systematically drained funds from wallets on Solana, Ethereum, Base, Avalanche, and other chains; (3) moved funds rapidly to evade detection; (4) exchanged tokens for ETH and moved through mixers. The multi-chain nature of the attack suggested the attacker had comprehensive access to Phemex's infrastructure.",
     impact: "$73.5M",
     impactUSD: 73500000,
-    contracts: [{ label: "Phemex Hot Wallets", address: "Multi-chain", url: "https://etherscan.io" }],
+    contracts: [],
     timeline: [
       { id: "t1", phase: "Key Compromise", description: "Attacker obtained hot wallet private keys.", functionsCall: [], pseudocode: "// Infrastructure breach\n// Multi-chain keys exposed" },
       { id: "t2", phase: "Multi-Chain Drain", description: "Drained wallets across Solana, Ethereum, Base, Avalanche.", functionsCall: ["Wallet.transfer(SOL)", "Wallet.transfer(ETH)", "Wallet.transfer(BASE)"], pseudocode: "// Systematic extraction\n// Multiple chains targeted" },
@@ -1300,7 +1295,7 @@ export const hacks: Hack[] = [
     technicalDesc: "This was a private key compromise affecting hot wallets across multiple blockchains. The attacker: (1) obtained BTCTurk's hot wallet private keys; (2) drained funds across ETH, AVAX, ARB, BASE, OP, MANTLE, and MATIC networks; (3) consolidated funds into two addresses; (4) moved funds to evade tracking. This was BTCTurk's second major hack in 14 months, indicating systemic security issues with their key management.",
     impact: "$51.7M",
     impactUSD: 51700000,
-    contracts: [{ label: "BTCTurk Hot Wallets", address: "Multi-chain", url: "https://etherscan.io" }],
+    contracts: [],
     timeline: [
       { id: "t1", phase: "Key Compromise", description: "Attacker obtained hot wallet private keys.", functionsCall: [], pseudocode: "// Second breach in 14 months\n// Systemic security failure" },
       { id: "t2", phase: "Multi-Chain Drain", description: "Drained across ETH, AVAX, ARB, BASE, OP, MANTLE, MATIC.", functionsCall: ["Wallet.transfer(multiple_chains)"], pseudocode: "// $48M detected initially\n// Total $51.7M lost" },
@@ -1352,7 +1347,7 @@ export const hacks: Hack[] = [
     technicalDesc: "This was a server compromise affecting an operational wallet on the Solana blockchain, not a smart contract vulnerability. The attacker: (1) compromised CoinDCX's server infrastructure; (2) gained access to an internal account used for liquidity provisioning; (3) siphoned approximately $44.2M in USDC and USDT from the wallet; (4) laundered funds through various addresses. The attack was quickly contained by isolating the affected internal account, preventing spread to customer funds.",
     impact: "$44.3M",
     impactUSD: 44300000,
-    contracts: [{ label: "CoinDCX Internal Wallet", address: "Solana", url: "https://solscan.io" }],
+    contracts: [],
     timeline: [
       { id: "t1", phase: "Server Compromise", description: "Attacker compromised CoinDCX server infrastructure.", functionsCall: [], pseudocode: "// Infrastructure breach\n// Internal account exposed" },
       { id: "t2", phase: "Access Internal Account", description: "Gained access to liquidity provisioning wallet.", functionsCall: [], pseudocode: "// Partner exchange wallet\n// Not customer funds" },
@@ -1404,7 +1399,7 @@ export const hacks: Hack[] = [
     technicalDesc: "This was a third-party partner API compromise, not a direct SwissBorg vulnerability. The attacker: (1) compromised Kiln's API (SwissBorg's staking partner); (2) obtained withdrawal keys through Kiln's backdoor; (3) drained 192,600 SOL from SwissBorg's external SOL Earn wallet; (4) moved funds to a flagged 'SwissBorg Exploiter' wallet on Solscan. The incident highlighted the risks of relying on third-party partners for critical infrastructure.",
     impact: "$41.5M",
     impactUSD: 41500000,
-    contracts: [{ label: "Swissborg SOL Earn Wallet", address: "Solana", url: "https://solscan.io" }],
+    contracts: [],
     timeline: [
       { id: "t1", phase: "Partner Compromise", description: "Attacker compromised Kiln's API.", functionsCall: [], pseudocode: "// Third-party partner breach\n// API keys exposed" },
       { id: "t2", phase: "Key Access", description: "Obtained withdrawal keys through Kiln's backdoor.", functionsCall: [], pseudocode: "// Kiln's security failure\n// Withdrawal keys handed to hackers" },
@@ -1456,7 +1451,7 @@ export const hacks: Hack[] = [
     technicalDesc: "The vulnerability was in UXLink's smart contract that allowed unauthorized token minting. The attacker: (1) identified the smart contract vulnerability; (2) exploited it to mint almost 10 trillion tokens in a second mint; (3) drained $11.3M from the multisig wallet; (4) caused token price to drop 70% from $0.30 to $0.09; (5) attempted to trade stolen ETH but made poor trading decisions, ending with losses. The total impact was estimated at $41M including market cap erosion.",
     impact: "$41M",
     impactUSD: 41000000,
-    contracts: [{ label: "UXLink Smart Contract", address: "Multi-chain", url: "https://etherscan.io" }],
+    contracts: [],
     timeline: [
       { id: "t1", phase: "Vulnerability Discovery", description: "Attacker identified smart contract vulnerability.", functionsCall: [], pseudocode: "// Contract flaw found\n// Unauthorized minting possible" },
       { id: "t2", phase: "First Mint", description: "Attacker minted initial tokens.", functionsCall: ["Token.mint()"], pseudocode: "// Initial mint\n// PeckShield flagged token" },
@@ -1512,7 +1507,7 @@ export const hacks: Hack[] = [
     technicalDesc: "This was a sophisticated supply chain attack, not a simple private key compromise. The attacker: (1) compromised BigONE's production environment; (2) modified the operating logic of account and risk control servers; (3) bypassed normal security controls; (4) drained $27M from hot wallets; (5) evaded detection through modified server logic. The attack suggested either extensive reconnaissance or insider access to BigONE's infrastructure.",
     impact: "$27M",
     impactUSD: 27000000,
-    contracts: [{ label: "BigONE Hot Wallets", address: "Multi-chain", url: "https://etherscan.io" }],
+    contracts: [],
     timeline: [
       { id: "t1", phase: "Supply Chain Compromise", description: "Attacker compromised production environment.", functionsCall: [], pseudocode: "// Supply chain attack\n// Infrastructure breach" },
       { id: "t2", phase: "Server Logic Modification", description: "Modified account and risk control server logic.", functionsCall: ["Server.modify(logic)"], pseudocode: "// Operating logic changed\n// Security controls bypassed" },
@@ -1568,7 +1563,7 @@ export const hacks: Hack[] = [
     technicalDesc: "This was a hot wallet compromise affecting multiple blockchains. The attacker: (1) obtained SBI Crypto's hot wallet private keys across five chains; (2) systematically drained funds from Bitcoin, Ethereum, Litecoin, Dogecoin, and Bitcoin Cash wallets; (3) laundered funds through Tornado Cash; (4) evaded tracking. The attack was attributed to North Korean hackers (Lazarus Group). The multi-chain nature suggested comprehensive access to SBI's infrastructure.",
     impact: "$24M",
     impactUSD: 24000000,
-    contracts: [{ label: "SBI Crypto Hot Wallets", address: "Multi-chain", url: "https://etherscan.io" }],
+    contracts: [],
     timeline: [
       { id: "t1", phase: "Key Compromise", description: "Attacker obtained hot wallet keys across 5 chains.", functionsCall: [], pseudocode: "// BTC, ETH, LTC, DOGE, BCH\n// Comprehensive access" },
       { id: "t2", phase: "Multi-Chain Drain", description: "Drained funds across all five blockchains.", functionsCall: ["Wallet.transfer(BTC)", "Wallet.transfer(ETH)", "Wallet.transfer(LTC)", "Wallet.transfer(DOGE)", "Wallet.transfer(BCH)"], pseudocode: "$24M total\n// Systematic extraction" },
@@ -2763,7 +2758,7 @@ export const hacks: Hack[] = [
     technicalDesc: "The exploit leveraged reentrancy in Harvest's vault contracts. The attacker: (1) borrowed 50M USDC via Aave flash loan; (2) deposited into Harvest's USDC vault; (3) swapped to fUSDT (wrapped USDT); (4) withdrew from fUSDT vault - this triggered a reentrancy window where the contract hadn't updated internal state; (5) re-entered to deposit back and manipulate the share price; (6) withdrew at inflated share prices; (7) repaid flash loan with profit.",
     impact: "$24M",
     impactUSD: 24000000,
-    contracts: [{ label: "Harvest Vaults", address: "Ethereum Contracts", url: "https://etherscan.io" }],
+    contracts: [],
     timeline: [
       { id: "t1", phase: "Flash Loan", description: "Borrowed 50M USDC via Aave flash loan.", functionsCall: ["Aave.flashLoan(50M USDC)"], pseudocode: "// Atomic borrowing - must repay in same tx" },
       { id: "t2", phase: "Deposit", description: "Deposited into Harvest's USDC vault.", functionsCall: ["VaultUSDC.deposit(50M)"], pseudocode: "// Received fUSDC tokens representing share" },
@@ -2822,7 +2817,7 @@ export const hacks: Hack[] = [
     technicalDesc: "The exploit targeted PriceCalculatorBSC which used PancakeSwap's getAmountsOut to compute LP token prices. The attacker: (1) borrowed 200M BUSD via PancakeSwap flash loan; (2) swapped 180M BUSD to BNB, causing massive price impact; (3) used BNB to add liquidity to BUNNY-BNB pool, inflating LP price; (4) called Bunny's mint() which read inflated LP price from PriceCalculator; (5) minted 6.97M BUNNY tokens at calculated reward rate; (6) sold BUNNY for WBNB; (7) repaid flash loan.",
     impact: "$45M",
     impactUSD: 45000000,
-    contracts: [{ label: "PancakeBunny Contracts", address: "BSC Addresses", url: "https://bscscan.com" }],
+    contracts: [{ label: "PancakeBunny BUNNY Token", address: "0xC9849E6fdB743d08fAeE3E34dd2D1bc69EA11a51", url: "https://bscscan.com/address/0xc9849e6fdb743d08faee3e34dd2d1bc69ea11a51" }],
     timeline: [
       { id: "t1", phase: "Flash Loan", description: "Borrowed 200M BUSD via PancakeSwap flash loan.", functionsCall: ["PancakeSwap.flashLoan(200M BUSD)"], pseudocode: "// Massive borrowing for price manipulation" },
       { id: "t2", phase: "Price Pump", description: "Swapped 180M BUSD to BNB, pumping BNB price significantly.", functionsCall: ["PancakeSwap.swap(180M BUSD → BNB)"], pseudocode: "// Created artificial BNB scarcity\n// Pumped price for LP manipulation" },
@@ -2881,7 +2876,7 @@ export const hacks: Hack[] = [
     technicalDesc: "Cashio's bridge/minting contract lacked proper validation of collateral backing for CASH minting. The attacker: (1) identified the missing validation in the mint function; (2) crafted transactions to mint CASH tokens without depositing equivalent USDT-USDC LP collateral; (3) repeated this to mint large amounts of unbacked CASH; (4) sold CASH on DEXs for other tokens; (5) bridged profits off Solana. The root cause was unaudited code with insufficient checks on the relationship between minted tokens and collateral.",
     impact: "$48M",
     impactUSD: 48000000,
-    contracts: [{ label: "Cashio Bridge", address: "Solana Program", url: "https://solscan.io" }],
+    contracts: [],
     timeline: [
       { id: "t1", phase: "Discovery", description: "Attacker identified missing validation in CASH minting function.", functionsCall: [], pseudocode: "// Found infinite mint vulnerability\n// No collateral check on mint()" },
       { id: "t2", phase: "Infinite Mint", description: "Minted unbacked CASH tokens without depositing LP collateral.", functionsCall: ["CashioBridge.mint(unlimited_CASH)"], pseudocode: "// Bypassed collateral requirement\n// Minted CASH from nothing" },
@@ -2937,7 +2932,7 @@ export const hacks: Hack[] = [
     technicalDesc: "The exploit was a wallet management mistake. Optimism sent 20M OP tokens to an address that Wintermute controlled on L1. Wintermute assumed this address would work the same on L2, but L1 multisig contracts don't function on L2 without proper deployment. The attacker: (1) monitored the transaction; (2) deployed their own version of the multisig contract on L2 at the same address; (3) claimed the 20M OP tokens when they arrived; (4) sold or transferred tokens. Wintermute took responsibility for the operational error.",
     impact: "$27.6M (20M OP tokens)",
     impactUSD: 27600000,
-    contracts: [{ label: "Wintermute Multisig", address: "Optimism Address", url: "https://optimistic.etherscan.io" }],
+    contracts: [{ label: "Wintermute Exploiter Multisig (Optimism)", address: "0x4f3a120E72C76c22ae802D129F599BFDbc31cb81", url: "https://optimistic.etherscan.io/address/0x4f3a120e72c76c22ae802d129f599bfdbc31cb81" }],
     timeline: [
       { id: "t1", phase: "Setup", description: "Optimism planned to send 20M OP tokens to Wintermute for liquidity.", functionsCall: [], pseudocode: "// Airdrop for market maker services" },
       { id: "t2", phase: "Misconfiguration", description: "Wintermute used L1 multisig address instead of deploying proper L2 multisig.", functionsCall: [], pseudocode: "// Operational error\n// L1 contract doesn't work on L2" },
@@ -2992,7 +2987,7 @@ export const hacks: Hack[] = [
     technicalDesc: "The vulnerability was in SwapMath.computeSwapStep which called estimateIncrementalLiquidity. Line 188 intended to round up deltaL to round down nextSqrtP, but used mulDivFloor (rounds down) instead. This caused nextSqrtP to round up incorrectly. Attackers: (1) borrowed 2,000 WETH via Aave flash loan; (2) swapped to push current tick to location with no liquidity; (3) added/removed liquidity to control range; (4) manipulated tick so nextTick == currentTick; (5) swapped opposite direction to double-count liquidity; (6) drained pools with profitable swaps.",
     impact: "$48M",
     impactUSD: 48000000,
-    contracts: [{ label: "KyberSwap Elastic", address: "Multi-chain", url: "https://etherscan.io" }],
+    contracts: [{ label: "KyberSwap Elastic Legacy Router", address: "0xC1e7dFE73E1598E3910EF4C7845B68A9Ab6F4c83", url: "https://etherscan.io/address/0xc1e7dfe73e1598e3910ef4c7845b68a9ab6f4c83" }],
     timeline: [
       { id: "t1", phase: "Flash Loan", description: "Borrowed 2,000 WETH via Aave flash loan.", functionsCall: ["Aave.flashLoan(2000 WETH)"], pseudocode: "// Seed capital for manipulation" },
       { id: "t2", phase: "Price Push", description: "Swapped to push current tick outside liquidity zone.", functionsCall: ["KyberSwap.swap(WETH→frxETH)"], pseudocode: "// Moved price to empty tick\n// baseL = 0, reinvestL != 0" },
@@ -3049,7 +3044,7 @@ export const hacks: Hack[] = [
     technicalDesc: "The exploit targeted Alpha Homora V2's integration with Iron Bank (a lending protocol). The attacker: (1) deployed a malicious 'spell' contract that mimicked the real spell contract; (2) used flash loans from Aave/dYdX to get initial capital; (3) deposited collateral into Alpha Homora; (4) manipulated the Iron Bank records through the counterfeit spell to show inflated collateral; (5) borrowed maximally against the inflated position; (6) repaid flash loans and kept the difference.",
     impact: "$37.5M",
     impactUSD: 37500000,
-    contracts: [{ label: "Alpha Homora V2", address: "Ethereum Contract", url: "https://etherscan.io" }],
+    contracts: [{ label: "Alpha Homora V2 Exploiter", address: "0x905315602Ed9a854e325F692FF82F58799BEAB57", url: "https://etherscan.io/address/0x905315602ed9a854e325f692ff82f58799beab57" }],
     timeline: [
       { id: "t1", phase: "Setup", description: "Attacker deployed counterfeit 'spell' contract mimicking real implementation.", functionsCall: ["deploy(fake_spell_contract)"], pseudocode: "// Malicious contract to manipulate Iron Bank" },
       { id: "t2", phase: "Flash Loan", description: "Borrowed assets via Aave/dYdX flash loans for initial capital.", functionsCall: ["Aave.flashLoan()", "dYdX.flashLoan()"], pseudocode: "// Multi-source flash loans\n// Seed capital for exploit" },
@@ -3108,7 +3103,7 @@ export const hacks: Hack[] = [
     technicalDesc: "The vulnerability was a classic reentrancy bug in Vee's lending contract. The attacker: (1) deposited collateral as normal; (2) borrowed against the collateral; (3) used a malicious contract to re-enter the borrow function before state was updated; (4) the reentrancy allowed multiple borrows against the same collateral; (5) repeated this to drain all available liquidity; (6) bridged funds off Avalanche. The protocol lacked ReentrancyGuard on critical functions.",
     impact: "$34M (8,804 ETH + 214 BTC)",
     impactUSD: 34000000,
-    contracts: [{ label: "Vee Finance", address: "Avalanche Contract", url: "https://snowtrace.io" }],
+    contracts: [],
     timeline: [
       { id: "t1", phase: "Deposit", description: "Attacker deposited collateral into Vee Finance.", functionsCall: ["Vee.deposit(collateral)"], pseudocode: "// Normal deposit to open position" },
       { id: "t2", phase: "Initial Borrow", description: "Borrowed assets against collateral.", functionsCall: ["Vee.borrow(assets)"], pseudocode: "// First borrow transaction" },
@@ -3166,7 +3161,7 @@ export const hacks: Hack[] = [
     technicalDesc: "This was a malicious developer exit scam, not a smart contract vulnerability. The developer: (1) deployed Meerkat Finance as a Yearn fork on BSC; (2) attracted users with yield farming promises; (3) users deposited BNB and BUSD into vaults; (4) one day later, the dev used admin privileges to call a withdraw function (0x70fcb0a7) on the WBNB vault; (5) transferred 73,635 WBNB and $14M BUSD to personal address; (6) initially claimed it was a 'test' but funds were never returned.",
     impact: "$32M (73,635 WBNB + $14M BUSD)",
     impactUSD: 32000000,
-    contracts: [{ label: "Meerkat Vault", address: "BSC Contract", url: "https://bscscan.com" }],
+    contracts: [{ label: "Meerkat WBNB Vault (Compromised)", address: "0x9D3a4c3acEe56dCe2392fB75DD274a249AEe7D57", url: "https://bscscan.com/address/0x9d3a4c3acee56dce2392fb75dd274a249aee7d57" }],
     timeline: [
       { id: "t1", phase: "Launch", description: "Meerkat Finance launched as Yearn fork on BSC.", functionsCall: ["deploy(meerkat)"], pseudocode: "// Yield farming protocol\n// Attracted users with high APY" },
       { id: "t2", phase: "Deposits", description: "Users deposited BNB and BUSD into vaults.", functionsCall: ["Vault.deposit(BNB)", "Vault.deposit(BUSD)"], pseudocode: "// TVL grew rapidly\n// One day of operation" },
@@ -3219,7 +3214,7 @@ export const hacks: Hack[] = [
     technicalDesc: "The vulnerability was in MonoX's price update logic during swaps. The protocol used a virtual balance system to track token prices. The attacker: (1) identified that price updates didn't correctly account for swap amounts; (2) performed swaps that manipulated the internal price oracle; (3) used the manipulated prices to borrow at favorable rates; (4) repeated this to drain the protocol; (5) the bug allowed price manipulation without proper checks on the resulting prices.",
     impact: "$31.4M ($18M WETH + $10.5M MATIC)",
     impactUSD: 31400000,
-    contracts: [{ label: "MonoX Protocol", address: "Ethereum Contract", url: "https://etherscan.io" }],
+    contracts: [{ label: "MonoX Pool", address: "0xE50CE2E7def2A10c258C0BdAf8653ed99FaC6291", url: "https://etherscan.io/address/0xe50ce2e7def2a10c258c0bdaf8653ed99fac6291" }],
     timeline: [
       { id: "t1", phase: "Discovery", description: "Attacker identified price update bug in swap logic.", functionsCall: [], pseudocode: "// Price oracle vulnerable\n// Incorrect update calculation" },
       { id: "t2", phase: "Manipulation", description: "Performed swaps to manipulate internal token prices.", functionsCall: ["MonoX.swap(manipulate)"], pseudocode: "// Swaps affected virtual balances\n// Internal prices distorted" },
@@ -3276,7 +3271,7 @@ export const hacks: Hack[] = [
     technicalDesc: "The vulnerability was in Spartan's use of its own AMM as the price oracle for synthetic assets. The attacker: (1) borrowed large amounts via flash loans; (2) used the capital to manipulate Spartan's AMM prices; (3) minted synthetic assets at manipulated prices; (4) used the synthetic assets as collateral to borrow real assets; (5) repaid flash loans with profit. The protocol lacked external price feeds or TWAP oracles.",
     impact: "$30.5M",
     impactUSD: 30500000,
-    contracts: [{ label: "Spartan Protocol", address: "BSC Contract", url: "https://bscscan.com" }],
+    contracts: [{ label: "Spartan Protocol Hacker", address: "0x3b6E77722E2BBE97C1cFa337b42C0939Aeb83671", url: "https://bscscan.com/address/0x3b6e77722e2bbe97c1cfa337b42c0939aeb83671" }],
     timeline: [
       { id: "t1", phase: "Flash Loan", description: "Borrowed large amounts via BSC flash loans.", functionsCall: ["PancakeSwap.flashLoan()"], pseudocode: "// Capital for price manipulation" },
       { id: "t2", phase: "Price Manipulation", description: "Used capital to manipulate Spartan AMM prices.", functionsCall: ["Spartan.swap(manipulate_prices)"], pseudocode: "// Moved AMM prices\n// Synthetic asset prices inflated" },
@@ -3332,7 +3327,7 @@ export const hacks: Hack[] = [
     technicalDesc: "The vulnerability was a reentrancy bug in Grim's vault withdraw function. The attacker: (1) deposited collateral into Grim vaults; (2) initiated a withdraw; (3) used a malicious contract to re-enter the withdraw function before state was updated; (4) the reentrancy allowed multiple withdrawals against the same deposit; (5) repeated this across multiple vaults; (6) drained $30M in total. The contract lacked ReentrancyGuard.",
     impact: "$30M",
     impactUSD: 30000000,
-    contracts: [{ label: "Grim Finance Vaults", address: "Fantom Contract", url: "https://ftmscan.com" }],
+    contracts: [],
     timeline: [
       { id: "t1", phase: "Deposit", description: "Attacker deposited collateral into Grim vaults.", functionsCall: ["Grim.deposit(collateral)"], pseudocode: "// Opened positions in multiple vaults" },
       { id: "t2", phase: "Withdraw", description: "Initiated withdraw from vault.", functionsCall: ["Grim.withdraw()"], pseudocode: "// First withdraw request" },
@@ -3513,7 +3508,7 @@ export const hacks: Hack[] = [
     technicalDesc: "The vulnerability was in Pickle's jar design which allowed manipulation of the PICKLE token price. The attacker: (1) used flash loans to get DAI; (2) deposited DAI into pJar; (3) manipulated the PICKLE/DAI price via swaps; (4) used the inflated PICKLE as collateral to borrow more DAI; (5) withdrew and repaid flash loans. The design flaws included lack of proper price oracles.",
     impact: "$19.7M (19.76M DAI)",
     impactUSD: 19700000,
-    contracts: [{ label: "Pickle Finance Jars", address: "Ethereum Contract", url: "https://etherscan.io" }],
+    contracts: [],
     timeline: [
       { id: "t1", phase: "Flash Loan", description: "Borrowed DAI via flash loans for initial capital.", functionsCall: ["dYdX.flashLoan(DAI)"], pseudocode: "// Seed capital for manipulation" },
       { id: "t2", phase: "Deposit", description: "Deposited DAI into pDAI PickleJar.", functionsCall: ["pJar.deposit(DAI)"], pseudocode: "// Received pDAI tokens\n// Opened position" },
@@ -3569,7 +3564,7 @@ export const hacks: Hack[] = [
     technicalDesc: "This was a two-stage attack. Stage 1 (Ankr): (1) attacker compromised Ankr's single deployment key; (2) deployed malicious contract; (3) minted 6 quadrillion aBNBc tokens; (4) crashed aBNBc price from ~$300 to near zero. Stage 2 (Helio): (1) second attacker bought 183,885 aBNBc for 10 BNB (~$2,900); (2) deposited into Helio Money to receive 191,130 hBNB; (3) used crashed aBNBc as collateral to borrow HAY stablecoin; (4) oracle didn't reflect crashed price; (5) drained $15M.",
     impact: "$24M (combined Ankr + Helio)",
     impactUSD: 24000000,
-    contracts: [{ label: "Ankr aBNBc", address: "BSC Contract", url: "https://bscscan.com" }],
+    contracts: [],
     timeline: [
       { id: "t1", phase: "Key Compromise", description: "Attacker compromised Ankr's single deployment key.", functionsCall: [], pseudocode: "// Single point of failure\n// Private key exposed" },
       { id: "t2", phase: "Malicious Deploy", description: "Deployed malicious Ankr contract.", functionsCall: ["deploy(malicious_contract)"], pseudocode: "// Unauthorized deployment\n// Key gave full control" },
@@ -3628,7 +3623,7 @@ export const hacks: Hack[] = [
     technicalDesc: "This was a private key compromise, not a smart contract vulnerability. The attacker: (1) obtained Stake's hot wallet private keys through unknown means (possibly phishing or infrastructure breach); (2) used the keys to sign transactions across multiple chains; (3) drained ETH, BNB, MATIC, and other tokens; (4) moved funds through mixers and bridges for obfuscation. The incident highlighted the importance of proper key management for CEX hot wallets.",
     impact: "$41.6M",
     impactUSD: 41600000,
-    contracts: [{ label: "Stake Hot Wallets", address: "Multi-chain", url: "https://etherscan.io" }],
+    contracts: [],
     timeline: [
       { id: "t1", phase: "Key Compromise", description: "Attacker obtained Stake's hot wallet private keys.", functionsCall: [], pseudocode: "// Infrastructure breach or phishing\n// Private keys exposed" },
       { id: "t2", phase: "Access", description: "Attacker used keys to access hot wallets on multiple chains.", functionsCall: ["Wallet.sign(transaction)"], pseudocode: "// Ethereum, BNB, Polygon wallets\n// Unauthorized access granted" },
@@ -3681,7 +3676,7 @@ export const hacks: Hack[] = [
     technicalDesc: "The vulnerability was in Hedgey's ClaimCampaigns contract which lacked proper input validation. The attacker: (1) took flash loans to get initial capital; (2) called the vulnerable claim function with manipulated inputs; (3) the missing validation allowed claiming of tokens without proper authorization; (4) repeated this across multiple campaigns; (5) repaid flash loans with profit. The bug was a business logic flaw, not a reentrancy or math error.",
     impact: "$44.7M ($42.6M Arbitrum + $2.1M Ethereum)",
     impactUSD: 44700000,
-    contracts: [{ label: "Hedgey ClaimCampaigns", address: "Arbitrum/Ethereum", url: "https://arbiscan.io" }],
+    contracts: [],
     timeline: [
       { id: "t1", phase: "Flash Loan", description: "Attacker took flash loans for initial capital.", functionsCall: ["Aave.flashLoan()", "Balancer.flashLoan()"], pseudocode: "// Multi-chain flash loans\n// Arbitrum and Ethereum" },
       { id: "t2", phase: "Identify Bug", description: "Found input validation flaw in ClaimCampaigns.", functionsCall: [], pseudocode: "// Missing parameter checks\n// Business logic vulnerability" },
@@ -3737,7 +3732,7 @@ export const hacks: Hack[] = [
     technicalDesc: "This was a CEX hot wallet compromise, not a DeFi smart contract vulnerability. The attacker: (1) gained unauthorized access to BingX's infrastructure; (2) obtained control of hot wallet private keys across multiple chains; (3) drained funds from at least 10 different exploit addresses; (4) moved assets rapidly through the blockchain; (5) BingX responded within an hour by freezing withdrawals. The exact attack vector (phishing, insider, infrastructure breach) was not publicly disclosed.",
     impact: "$44.7M",
     impactUSD: 44700000,
-    contracts: [{ label: "BingX Hot Wallets", address: "Multi-chain", url: "https://etherscan.io" }],
+    contracts: [],
     timeline: [
       { id: "t1", phase: "Breach", description: "Attacker gained unauthorized access to BingX infrastructure.", functionsCall: [], pseudocode: "// Infrastructure breach\n// Hot wallet keys compromised" },
       { id: "t2", phase: "Access", description: "Accessed hot wallets across multiple blockchains.", functionsCall: ["Wallet.sign()"], pseudocode: "// Multi-chain control\n// At least 10 addresses" },
@@ -3790,7 +3785,7 @@ export const hacks: Hack[] = [
     technicalDesc: "This was an exit scam, not a smart contract vulnerability. The project: (1) opened a token bridge allowing investors to deposit ETH to earn ZKAS; (2) collected $33M from 10,000+ users; (3) instead of returning funds or launching as promised, diverted ETH to Lido staking; (4) claimed technical issues and delays; (5) investigations revealed false funding claims; (6) Dutch authorities arrested a suspect. The chain was a simple Arbitrum Nitro deployment with no actual zk-tech.",
     impact: "$33M",
     impactUSD: 33000000,
-    contracts: [{ label: "ZKasino Bridge", address: "Ethereum Contract", url: "https://etherscan.io" }],
+    contracts: [],
     timeline: [
       { id: "t1", phase: "Presale", description: "ZKasino opened token bridge for ETH deposits to earn ZKAS tokens.", functionsCall: ["Bridge.deposit(ETH)"], pseudocode: "// 10,000+ users deposited\n// $33M ETH collected" },
       { id: "t2", phase: "False Claims", description: "Project claimed $350M Series A backing from MEXC and Big Brain.", functionsCall: [], pseudocode: "// Misrepresented funding\n// Later debunked" },
@@ -3843,7 +3838,7 @@ export const hacks: Hack[] = [
     technicalDesc: "The vulnerability was in xToken's implementation of tokenized leveraged positions. The attacker: (1) took flash loans to get initial capital; (2) exploited price calculation flaws in xSNXa/xBNTa; (3) manipulated the tokenized positions to extract value; (4) swapped and drained liquidity pools; (5) repaid flash loans with profit. The bug was related to how the contracts calculated the value of underlying tokenized positions.",
     impact: "$24.5M",
     impactUSD: 24500000,
-    contracts: [{ label: "xToken Contracts", address: "Ethereum", url: "https://etherscan.io" }],
+    contracts: [{ label: "xToken xSNXa", address: "0x2367012aB9C3da91290F71590D5cE217721EEFE4", url: "https://etherscan.io/address/0x2367012ab9c3da91290f71590d5ce217721eefe4" }],
     timeline: [
       { id: "t1", phase: "Flash Loan", description: "Borrowed assets via flash loans.", functionsCall: ["Aave.flashLoan()", "dYdX.flashLoan()"], pseudocode: "// Initial capital for exploit" },
       { id: "t2", phase: "Exploit xSNXa", description: "Exploited xSNXa contract price calculation.", functionsCall: ["xSNXa.exploit()"], pseudocode: "$8M+ SNX tokens extracted" },
@@ -3899,7 +3894,7 @@ export const hacks: Hack[] = [
     technicalDesc: "The vulnerability was in Popsicle's state tracking for Sorbetto Fragola. The contract tracked user-specific state but didn't properly handle transfers. The attacker: (1) used flash loans for capital; (2) deposited into Sorbetto Fragola; (3) transferred position to bypass state tracking; (4) withdrew at inflated values; (5) repaid flash loans. The bug was that state wasn't properly updated on transfers, allowing position manipulation.",
     impact: "$20.7M",
     impactUSD: 20700000,
-    contracts: [{ label: "Sorbetto Fragola", address: "Ethereum Contract", url: "https://etherscan.io" }],
+    contracts: [],
     timeline: [
       { id: "t1", phase: "Flash Loan", description: "Borrowed capital via flash loans.", functionsCall: ["Aave.flashLoan()"], pseudocode: "// Seed capital for exploit" },
       { id: "t2", phase: "Deposit", description: "Deposited into Sorbetto Fragola LP optimizer.", functionsCall: ["Sorbetto.deposit()"], pseudocode: "// Uniswap V3 LP position\n// State tracked per account" },
@@ -3955,7 +3950,7 @@ export const hacks: Hack[] = [
     technicalDesc: "The vulnerability was in CREAM's integration with AMP's ERC-777 implementation. ERC-777 tokens have hooks that execute during transfers. The attacker: (1) deposited AMP as collateral into CREAM; (2) borrowed against the collateral; (3) the ERC-777 _callPostTransfersHook fired during transfer; (4) this hook re-entered the borrow function before state updated; (5) repeated to drain 418,311,571 AMP and 1,308.09 ETH; (6) CREAM paused AMP supply and borrow contracts.",
     impact: "$18.8M (418M AMP + 1,308 ETH)",
     impactUSD: 18800000,
-    contracts: [{ label: "Cream Finance v1", address: "Ethereum Contract", url: "https://etherscan.io" }],
+    contracts: [],
     timeline: [
       { id: "t1", phase: "Deposit", description: "Deposited AMP tokens as collateral into CREAM.", functionsCall: ["Cream.deposit(AMP)"], pseudocode: "// AMP is ERC-777 token\n// Has transfer hooks" },
       { id: "t2", phase: "Borrow", description: "Borrowed assets against AMP collateral.", functionsCall: ["Cream.borrow()"], pseudocode: "// Normal borrow operation" },
@@ -4011,7 +4006,7 @@ export const hacks: Hack[] = [
     technicalDesc: "The vulnerability was a precision loss bug in the exchange rate calculation, a known issue with Compound v2 forks. The attacker: (1) identified uninitialized or poorly initialized markets; (2) used a 'donation' attack to manipulate exchange rates; (3) exploited precision loss to borrow more than should be possible; (4) drained $20M from lending pools. The bug occurs when new markets are deployed without proper initialization of exchange rate variables.",
     impact: "$20M",
     impactUSD: 20000000,
-    contracts: [{ label: "Sonne Finance", address: "Optimism Contract", url: "https://optimistic.etherscan.io" }],
+    contracts: [],
     timeline: [
       { id: "t1", phase: "Market Addition", description: "Sonne added VELO markets via multisig proposal.", functionsCall: ["Multisig.execute(add_market)"], pseudocode: "// New market deployed\n// Known vulnerability not addressed" },
       { id: "t2", phase: "Donation Attack", description: "Attacker used donation to manipulate exchange rates.", functionsCall: ["Sonne.donate(manipulate)"], pseudocode: "// Precision loss exploited\n// Exchange rate distorted" },
