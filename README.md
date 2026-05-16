@@ -107,7 +107,3 @@ An interactive educational platform featuring:
 ## Disclaimer
 
 This platform is for **defensive learning only**. All data is sourced from public post-mortems, block explorers, and published security research. The goal is to help auditors and developers understand attack patterns to build more secure protocols.
-
-## License
-
-MIT
