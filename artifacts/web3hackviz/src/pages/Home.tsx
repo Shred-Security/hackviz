@@ -101,15 +101,21 @@ export default function HomePage() {
             Defensive Learning Platform
           </span>
         </div>
-        <h1 className="text-4xl md:text-5xl font-bold mb-3">
+        <h1 className="text-4xl md:text-5xl font-bold mb-1">
           <span className="glow-cyan">Hack</span>
           <span className="text-foreground/80">Viz</span>
         </h1>
+        <p className="text-xs text-muted-foreground/60 font-mono mb-3">
+          A{" "}
+          <a href="https://shredsec.xyz" target="_blank" rel="noopener noreferrer" className="text-red-400/80 hover:text-red-300 transition-colors">
+            Shred Security
+          </a>{" "}
+          product, built for the community
+        </p>
         <p className="text-muted-foreground max-w-2xl text-sm md:text-base leading-relaxed">
           Simulate and learn every exploit. Visualize smart contract
           drains, bridge hacks, flash loans, oracle manipulations, and
           governance attacks. Learn how to hunt and secure the blockchain.
-          A <a href="https://shredsec.xyz" target="_blank" rel="noopener noreferrer" className="text-red-400 font-semibold hover:text-red-300 transition-colors">Shred Security</a> Product.
         </p>
 
         {/* Year selector above stats */}

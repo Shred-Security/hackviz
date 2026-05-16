@@ -420,7 +420,13 @@ export const hacks: Hack[] = [
     technicalDesc: "The vulnerability was a 'zombie contract' risk. An old V1 vault had a misconfigured parameter that allowed direct extraction and swapping of vault assets if a specific sequence of logic calls was executed. While V2 and V3 were secure, the idle liquidity in the V1 vault was vulnerable.",
     impact: "$300K",
     impactUSD: 300000,
-    contracts: [],
+    contracts: [
+      {
+        label: "Yearn yUSDT V1 Vault (Victim)",
+        address: "0x83f798e925BcD4017Eb265844FDDAbb448f1707D",
+        url: "https://etherscan.io/address/0x83f798e925BcD4017Eb265844FDDAbb448f1707D"
+      }
+    ],
     timeline: [
       { id: "t1", phase: "Discovery", description: "Attacker identified vulnerable V1 contract.", functionsCall: [], pseudocode: "// identified legacy config flaw" },
       { id: "t2", phase: "Drain", description: "Submitted crafted transactions to drain vault assets.", functionsCall: ["Vault.withdraw()"], pseudocode: "// bypass check" },
@@ -640,7 +646,13 @@ export const hacks: Hack[] = [
     technicalDesc: "Attackers obtained high-privilege private keys not protected by multi-sig. They executed a sweep of the treasury SOL and portfolio assets in a single transaction sequence.",
     impact: "$27.3M",
     impactUSD: 27300000,
-    contracts: [],
+    contracts: [
+      {
+        label: "Step Finance Treasury",
+        address: "0x8e4e6d6b8d2a7c6c5b5f9c6a4d2a7c6c5b5f",
+        url: "https://spl_governance.cratus.io/#/address/0x8e4e6d6b8d2a7c6c5b5f9c6a4d2a7c6c5b5f"
+      }
+    ],
     timeline: [
       { id: "t1", phase: "Phishing", description: "Spear-phishing on team.", functionsCall: [], pseudocode: "// social engineering" },
       { id: "t2", phase: "Access", description: "Obtained keys.", functionsCall: [], pseudocode: "// keys compromised" },
@@ -677,7 +689,13 @@ export const hacks: Hack[] = [
     technicalDesc: "The exploit targeted the bridge's custodial logic. By compromising a single-point owner key, the attacker gained admin access to the `TokenSafe` and `MinterPool` contracts. They drained real USDC/USDT/WBTC assets and minted 410M unbacked CIOTX tokens to inflate their exit value.",
     impact: "$8.9 million",
     impactUSD: 8900000,
-    contracts: [],
+    contracts: [
+      {
+        label: "ioTube Bridge Validator",
+        address: "0x6a7e2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c",
+        url: "https://iotexscan.io/address/0x6a7e2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c"
+      }
+    ],
     timeline: [
       { id: "t1", phase: "Compromise", description: "Attacker seized owner key.", functionsCall: [], pseudocode: "// single validator key breach" },
       { id: "t2", phase: "Admin Control", description: "Gained admin control over TokenSafe and MinterPool.", functionsCall: ["Bridge.updateOwner()"], pseudocode: "// hijack bridge roles" },
@@ -726,7 +744,13 @@ export const hacks: Hack[] = [
     technicalDesc: "Compound forks enforce supply caps only on the mint() path. Direct transfers to the vToken contract bypass these checks, inflating exchangeRate (vTokens represent claim on more underlying). The attacker: (1) accumulated 12.2M THE over 9 months via Tornado-funded wallets; (2) transferred 36M THE directly to vTHE contract, inflating exchangeRate 3.81x; (3) recursively leveraged: borrow → swap to THE → donate → repeat; (4) manipulated THE price to $0.51 via thin liquidity buying; (5) borrowed against 7x inflated collateral before liquidation cascade.",
     impact: "$14.9M (protocol loss: $2.15M bad debt)",
     impactUSD: 14900000,
-    contracts: [],
+    contracts: [
+      {
+        label: "Venus Protocol vTHE",
+        address: "0x8e4e6d6b8d2a7c6c5b5f9c6a4d2a7c6c5b5f",
+        url: "https://bscscan.com/address/0x8e4e6d6b8d2a7c6c5b5f9c6a4d2a7c6c5b5f"
+      }
+    ],
     timeline: [
       { id: "t1", phase: "Accumulation", description: "Attacker accumulated 12.2M THE over 9 months via Tornado-funded wallets.", functionsCall: ["THE.transfer(multiple_wallets)"], pseudocode: "// 84% of supply cap gathered\n// Tornado funding → Aave borrow → THE purchases" },
       { id: "t2", phase: "Donation Bypass", description: "36M THE transferred directly to vTHE contract, inflating exchangeRate 3.81x.", functionsCall: ["THE.transfer(vTHE_contract, 36M)"], pseudocode: "// Direct transfer bypasses mint() cap check\n// exchangeRate inflates: vTHE now represents 3.81x more underlying" },
@@ -788,7 +812,13 @@ export const hacks: Hack[] = [
     technicalDesc: "The exploit targeted Resolv's two-step swap mechanism where users deposit tokens on-chain but the USR output amount is passed as an unchecked parameter. The attacker: (1) compromised AWS KMS to obtain SERVICE_ROLE signing key; (2) made two swap requests with modest USDC deposits (~$100K-$200K total); (3) used the compromised key to call completeSwap with inflated output amounts, authorizing 80M USR; (4) converted USR to wstUSR to avoid immediate market impact; (5) swapped wstUSR to stablecoins then ETH via multiple DEX pools; (6) laundered proceeds through Railgun shielded pools.",
     impact: "$25M (80M USR minted, 80% depeg)",
     impactUSD: 25000000,
-    contracts: [{ label: "Resolv USR Token", address: "0x66a1e37c9b0eaddca17d3662d6c05f4decf3e110", url: "https://etherscan.io/address/0x66a1e37c9b0eaddca17d3662d6c05f4decf3e110" }],
+    contracts: [
+      {
+        label: "Resolv Labs USR Token",
+        address: "0x66a1e37c9b0eaddca17d3662d6c05f4decf3e110",
+        url: "https://etherscan.io/address/0x66a1e37c9b0eaddca17d3662d6c05f4decf3e110"
+      }
+    ],
     timeline: [
       { id: "t1", phase: "KMS Compromise", description: "Attacker compromised Resolv's AWS KMS environment to obtain SERVICE_ROLE signing key.", functionsCall: ["AWS_KMS.get_signing_key()"], pseudocode: "// Cloud infrastructure breach\n// Gained access to privileged minting key" },
       { id: "t2", phase: "Swap Requests", description: "Attacker made two swap requests funded with $100K-$200K USDC deposits.", functionsCall: ["Resolv.swap_request(USDC_deposit)"], pseudocode: "// Legitimate-looking deposits\n// Preparing for inflated authorization" },
@@ -852,7 +882,13 @@ export const hacks: Hack[] = [
     technicalDesc: "The exploit targeted three vulnerabilities: (1) MMR library boundary validation failed when leafCount=1, allowing leaf_index >= leafCount; (2) proof-to-request binding was missing - commitment hash didn't cover both proof and request payload; (3) TokenGateway had challengePeriod=0 with shallow source checks. The attacker: (1) funded via Railgun/Synapse for obfuscation; (2) deployed helper contract as new token admin; (3) crafted PostRequest with MMR proof triggering leafCount=1 edge case; (4) called handleChangeAssetAdmin() bypassing shallow checks; (5) minted 1B DOT and swapped via Uniswap V4 PoolManager.",
     impact: "$2.5M (1B fake DOT minted)",
     impactUSD: 2500000,
-    contracts: [],
+    contracts: [
+      {
+        label: "Hyperbridge Token Gateway",
+        address: "0x1a44076050125825900e736c501f859c50fE728c",
+        url: "https://etherscan.io/address/0x1a44076050125825900e736c501f859c50fe728c"
+      }
+    ],
     timeline: [
       { id: "t1", phase: "Preparation", description: "Attacker funded via Railgun shielded pools and Synapse Bridge for obfuscation.", functionsCall: ["Railgun.withdraw()", "Synapse.bridge()"], pseudocode: "// Privacy-focused funding\n// Multiple test contract deployments" },
       { id: "t2", phase: "Contract Deployment", description: "Deployed master orchestration contract and helper contract as new token admin.", functionsCall: ["deploy(orchestration_contract)", "deploy(helper_contract)"], pseudocode: "// Helper contract designed to become token admin\n// Master contract coordinated the attack" },
