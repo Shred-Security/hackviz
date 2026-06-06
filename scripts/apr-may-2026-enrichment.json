@@ -1,0 +1,1142 @@
+{
+  "tmm-2026": {
+    "technicalDesc": "The root cause was a reserve-accounting desync: pool balances changed after a burn to 0xdead, but reserve state used for pricing was not atomically updated. The vulnerable pattern was relying on cached `getReserves()` during swap execution while allowing direct token balance changes that bypass reserve sync. The attacker used flash-loaned capital, burned tokens to distort balance-to-reserve ratios, then traded against stale reserves in the same transaction bundle. Validation failed because swap checks trusted stale reserve snapshots instead of current balances or post-mutation sync state. Standard slippage controls did not stop the exploit because the manipulated state existed intra-block and looked locally consistent. Auditors should hunt for reserve-versus-balance divergence paths, unsynced transfer/burn side effects, and missing invariant checks around AMM reserve updates.",
+    "quiz": [
+      {
+        "question": "What was the primary root cause in TMM?",
+        "options": [
+          "Compromised admin key",
+          "Reserve desync after burn-induced balance mutation",
+          "Oracle downtime",
+          "Unchecked delegatecall"
+        ],
+        "correct": 1,
+        "explanation": "Burning to a dead address changed balances without synchronizing reserves, so pricing logic trusted stale reserve data."
+      },
+      {
+        "question": "How did the attacker realize profit in one transaction?",
+        "options": [
+          "Borrow flash liquidity, distort reserves, swap at stale prices, repay loan",
+          "Mint governance tokens and vote treasury transfer",
+          "Exploit reentrancy in withdraw()",
+          "Hijack DNS and steal signatures"
+        ],
+        "correct": 0,
+        "explanation": "The exploit chained flash capital, burn-based distortion, stale-reserve swaps, and flash-loan repayment atomically."
+      },
+      {
+        "question": "Which mitigation is most effective for this class of AMM bug?",
+        "options": [
+          "Increase UI slippage defaults",
+          "Block all flash loans globally",
+          "Enforce atomic reserve sync and reserve-balance invariant checks",
+          "Hide pool addresses from explorers"
+        ],
+        "correct": 2,
+        "explanation": "Atomic sync and hard invariants prevent swaps from executing when reserves and balances diverge."
+      }
+    ]
+  },
+  "dango-2026": {
+    "technicalDesc": "Dango's loss came from missing amount-domain validation in insurance donation logic, where inputs were accepted without enforcing a positive amount. The vulnerable pattern was accounting code that allowed zero or negative values to flow into balance updates. The attacker crafted donation calls that inverted bookkeeping semantics, causing protocol reserves to decrease while attacker credit increased. Exploitation was straightforward: send malformed donation parameters, repeat drains, then bridge part of proceeds cross-chain. Checks failed because input validation and invariants were both incomplete, so nonsensical values were treated as legitimate state transitions. Auditors should review signed-versus-unsigned assumptions, test negative/zero boundaries in fee and donation paths, and assert that insurance funds cannot decrease except through explicitly authorized withdrawal logic.",
+    "quiz": [
+      {
+        "question": "What bug enabled the Dango incident?",
+        "options": [
+          "Missing positive-amount validation in donation accounting",
+          "Outdated price oracle heartbeat",
+          "Bridge validator key leak",
+          "Signature malleability in ECDSA"
+        ],
+        "correct": 0,
+        "explanation": "The donation flow failed to require amount > 0, enabling malicious accounting inversion."
+      },
+      {
+        "question": "What attack mechanism drained protocol funds?",
+        "options": [
+          "Repeating malformed donation calls to credit attacker and debit insurance reserves",
+          "Reentering claim() before state update",
+          "Spoofing DNS records for frontend",
+          "Hijacking sequencer ordering"
+        ],
+        "correct": 0,
+        "explanation": "The attacker abused malformed donation inputs to repeatedly shift value out of the insurance pool."
+      },
+      {
+        "question": "What is the best mitigation strategy?",
+        "options": [
+          "Add stricter UI form validation only",
+          "Require amount > 0 plus invariant tests that reserve balance cannot decrease unexpectedly",
+          "Disable bridging permanently",
+          "Increase gas limit for donation calls"
+        ],
+        "correct": 1,
+        "explanation": "Contract-level validation and invariants are required; UI checks alone are bypassable."
+      }
+    ]
+  },
+  "cow-swap-2026": {
+    "technicalDesc": "This incident was a web-infrastructure compromise rather than a smart-contract flaw. The vulnerable pattern was over-trusting DNS and registrar security as a single control plane for transaction intent capture. Attackers socially engineered registrar and registry processes, changed name resolution, and redirected users to a convincing phishing frontend. Users then signed approvals and transaction payloads that were valid on-chain but malicious in intent, enabling token drains. Defensive checks failed because contracts cannot distinguish a signature captured on a hijacked domain from one signed on a legitimate UI, and registrar hardening controls were insufficient. Auditors should include off-chain threat modeling: registrar lock, DNSSEC, domain change monitoring, wallet-level transaction decoding, and emergency kill-switch communication plans for frontend compromise scenarios.",
+    "quiz": [
+      {
+        "question": "What was the real root cause in the CoW Swap case?",
+        "options": [
+          "AMM arithmetic overflow",
+          "DNS/registrar social engineering leading to frontend hijack",
+          "Bridge replay bug",
+          "Proxy storage collision"
+        ],
+        "correct": 1,
+        "explanation": "The theft came from DNS hijack and phishing flow, not an on-chain contract bug."
+      },
+      {
+        "question": "How were user funds actually stolen?",
+        "options": [
+          "Users signed malicious approvals and transfers on a fake frontend",
+          "Validators censored legitimate withdrawals",
+          "A flash loan drained LP reserves",
+          "Gas griefing forced failed swaps"
+        ],
+        "correct": 0,
+        "explanation": "The attacker harvested valid user signatures through a hijacked interface and executed token drains."
+      },
+      {
+        "question": "Which mitigation most directly reduces this risk?",
+        "options": [
+          "Registrar lock + DNSSEC + real-time DNS change alerts",
+          "Raise pool swap fees",
+          "Disable ERC-20 approvals",
+          "Increase block confirmations"
+        ],
+        "correct": 0,
+        "explanation": "Hardening registrar and DNS controls is the direct defense against this attack vector."
+      }
+    ]
+  },
+  "grinex-2026": {
+    "technicalDesc": "Grinex suffered an operational key-control failure in hot wallet infrastructure rather than a contract exploit. The vulnerable pattern was concentration of spend authority in internet-exposed signing systems with limited withdrawal friction. After obtaining key material or signer access, the attacker initiated rapid multi-chain transfers from exchange-controlled wallets. The attack succeeded because transactional controls were reactive: outflow detection and freeze actions occurred after significant value had already moved. Integrity checks failed at the custody layer, not at protocol logic, so on-chain transfers were valid but unauthorized from a business perspective. Auditors should inspect exchange security architecture, including HSM/MPC usage, withdrawal velocity limits, anomaly-triggered pause controls, and strict segregation between hot-wallet liquidity and long-term reserves.",
+    "quiz": [
+      {
+        "question": "Which category best describes the Grinex root cause?",
+        "options": [
+          "Smart-contract reentrancy",
+          "Operational hot-wallet key compromise",
+          "Cross-chain proof forgery",
+          "MEV sandwiching"
+        ],
+        "correct": 1,
+        "explanation": "The core failure was compromised wallet signing infrastructure, not contract code."
+      },
+      {
+        "question": "What was the attacker’s primary mechanism?",
+        "options": [
+          "Forging governance proposals",
+          "Executing fast outbound transfers across chains using compromised custody access",
+          "Minting unbacked wrapped assets",
+          "Manipulating TWAP oracles"
+        ],
+        "correct": 1,
+        "explanation": "Once signing control was obtained, the attacker simply swept assets through valid transfer calls."
+      },
+      {
+        "question": "What mitigation is most important for similar exchanges?",
+        "options": [
+          "Use larger UI warning banners",
+          "Store all funds in one hot wallet",
+          "Adopt HSM/MPC plus withdrawal rate limits and anomaly auto-freeze",
+          "Increase token decimals"
+        ],
+        "correct": 2,
+        "explanation": "Custody hardening and transfer controls reduce both key theft impact and time-to-containment."
+      }
+    ]
+  },
+  "volo-protocol-2026": {
+    "technicalDesc": "Volo's exploit stemmed from admin key compromise through social-engineering, making privileged control the single point of failure. The vulnerable surface was privileged administrative functions capable of moving vault assets without layered authorization. After obtaining the key, the attacker executed authorized-by-key but unauthorized-by-intent admin withdrawals and asset redirects. Checks failed because the protocol trusted one credential path and lacked mandatory timelock or multisig friction for high-impact admin actions. Recovery was possible only after incident response and fund negotiation, not because on-chain controls blocked abuse. Auditors should prioritize role-risk mapping, enforce multi-party control for treasury-critical functions, and test whether any one compromised key can instantly execute irreversible asset movement.",
+    "quiz": [
+      {
+        "question": "What was the direct root cause in Volo?",
+        "options": [
+          "Price oracle staleness",
+          "Social-engineered admin key compromise",
+          "Nonce reuse in signatures",
+          "Integer underflow in vault math"
+        ],
+        "correct": 1,
+        "explanation": "The attacker gained admin private-key access and used privileged flows to drain funds."
+      },
+      {
+        "question": "How did the attacker move funds after compromise?",
+        "options": [
+          "By exploiting slippage checks",
+          "By calling privileged admin withdrawal/redirection operations",
+          "By poisoning keeper jobs",
+          "By using a reentrancy loop"
+        ],
+        "correct": 1,
+        "explanation": "The exploit path was direct use of legitimate admin powers with stolen credentials."
+      },
+      {
+        "question": "Which mitigation best addresses this class of failure?",
+        "options": [
+          "Timelocked multisig for admin actions and strict signer operational security",
+          "Disable token swaps",
+          "Lower gas price on admin txs",
+          "Use larger block confirmations"
+        ],
+        "correct": 0,
+        "explanation": "Multisig + timelock reduces single-key blast radius and gives response time."
+      }
+    ]
+  },
+  "giddy-defi-2026": {
+    "technicalDesc": "The root cause was incomplete EIP-712 domain coverage: critical execution parameters were omitted from the signed struct. The vulnerable pattern was signature validation that checked authenticity of a message but not integrity of all mutable fields used at execution time. An attacker reused a valid signature while changing aggregator route, token pair, and amount, so signature recovery still passed. Replay succeeded because unsigned parameters remained attacker-controlled and nonce semantics did not protect altered payload variants. Security checks failed at schema design, not cryptography, since the hash did exactly what it was asked to sign. Auditors should diff every execution input against typed-data fields, require nonces/deadlines, and reject any architecture where meaningful calldata can vary outside the signed commitment.",
+    "quiz": [
+      {
+        "question": "What was the key root-cause flaw in GiddyVaultV3?",
+        "options": [
+          "Broken secp256k1 precompile",
+          "Critical swap fields excluded from EIP-712 signed data",
+          "Chain ID not available on Ethereum",
+          "Unchecked external call return value"
+        ],
+        "correct": 1,
+        "explanation": "Aggregator, token addresses, and amount were not fully bound by the signature schema."
+      },
+      {
+        "question": "How did the replay attack work in practice?",
+        "options": [
+          "Attacker reused one valid signature while substituting unsigned swap parameters",
+          "Attacker brute-forced a private key",
+          "Attacker drained by repeated selfdestruct",
+          "Attacker manipulated bridge relayers"
+        ],
+        "correct": 0,
+        "explanation": "Because key parameters were unsigned, modified executions still passed signature checks."
+      },
+      {
+        "question": "Best mitigation for EIP-712 authorization bugs?",
+        "options": [
+          "Use shorter signatures",
+          "Include all execution fields plus nonce and deadline in typed data",
+          "Move signing to frontend only",
+          "Disable calldata encoding"
+        ],
+        "correct": 1,
+        "explanation": "Complete message binding prevents parameter substitution and replay variants."
+      }
+    ]
+  },
+  "purrlend-2026": {
+    "technicalDesc": "Purrlend failed at privileged bridge governance: signer control changes and unbacked mint authority were insufficiently constrained. The vulnerable functions were signer-management flows and `mintUnbacked`, which could create claimable value without hard collateral checks. The attacker obtained effective 2-of-3 signing power, authorized unbacked minting, and immediately swapped minted assets for real liquidity. Controls failed because signer onboarding lacked timelock/governance friction and mint logic trusted signer quorum alone as proof of legitimacy. Once mint authority was abused, market liquidation converted synthetic value into real assets before intervention. Auditors should treat bridge signer topology as critical logic, verify signer-change guardrails, enforce per-epoch mint caps, and require on-chain collateral/proof validation even for quorum-approved mints.",
+    "quiz": [
+      {
+        "question": "What governance weakness was central to the Purrlend exploit?",
+        "options": [
+          "Permissionless lending market creation",
+          "Unsafe signer control over bridge multisig and unbacked mint authority",
+          "TWAP oracle lag",
+          "Reentrancy in borrow()"
+        ],
+        "correct": 1,
+        "explanation": "Attacker-controlled signer authority enabled `mintUnbacked` misuse."
+      },
+      {
+        "question": "What attack sequence generated realized profit?",
+        "options": [
+          "Manipulate oracle then liquidate debt",
+          "Gain multisig authority, mint unbacked tokens, dump via DEX",
+          "Drain via DNS spoofing",
+          "Replay permit signatures across chains"
+        ],
+        "correct": 1,
+        "explanation": "The attacker converted unauthorized mint capacity into market-sold assets."
+      },
+      {
+        "question": "Which mitigation is most robust?",
+        "options": [
+          "Hide signer addresses from public explorers",
+          "Require timelocked signer changes and collateral/proof checks for minting",
+          "Increase token symbol length",
+          "Turn off swap routes temporarily"
+        ],
+        "correct": 1,
+        "explanation": "Signer governance controls and collateralized mint validation close both exploit stages."
+      }
+    ]
+  },
+  "aftermath-finance-2026": {
+    "technicalDesc": "Aftermath's perps engine accepted negative integrator fees, turning a cost term into an attacker subsidy. The vulnerable pattern was signed fee arithmetic without domain constraints, allowing values below zero to propagate into payout calculations. The attacker configured negative fees, executed repetitive open/close trade cycles, and accumulated credits debited from protocol reserves. Checks failed because the system validated trade execution but did not enforce fee non-negativity or cap-derived balance invariants. As a result, each legitimate trade call produced illegitimate accounting outcomes that drained insurance funds over time. Auditors should enforce strict fee bounds, fuzz signed-number edge cases, and assert invariants such as fee flows never creating protocol-negative revenue from neutral trade activity.",
+    "quiz": [
+      {
+        "question": "What was the mathematical root cause in Aftermath perps?",
+        "options": [
+          "Integrator fee accepted negative values",
+          "Oracle median too slow",
+          "Missed safeTransfer return check",
+          "Improper decimals conversion only"
+        ],
+        "correct": 0,
+        "explanation": "Allowing negative fees inverted expected economics and paid the attacker per trade."
+      },
+      {
+        "question": "How did the attacker scale extraction?",
+        "options": [
+          "Single one-time withdrawal",
+          "Repeated leveraged trade cycles to harvest negative-fee credits",
+          "Bridge proof replay",
+          "Multisig ownership takeover"
+        ],
+        "correct": 1,
+        "explanation": "The exploit was repeated execution of valid trades that generated invalid fee credits."
+      },
+      {
+        "question": "Most appropriate mitigation?",
+        "options": [
+          "Force all fees to 18 decimals",
+          "Require fee >= 0 with hard caps and insurance-balance invariants",
+          "Disable short positions permanently",
+          "Increase block gas target"
+        ],
+        "correct": 1,
+        "explanation": "Bounded fee domains plus accounting invariants prevent negative-fee abuse."
+      }
+    ]
+  },
+  "sweat-foundation-2026": {
+    "technicalDesc": "The SWEAT incident combined token-logic weakness with an automated drainer strategy that exploited approval and transfer semantics at scale. The vulnerable pattern was permissive token movement paths that let a helper contract batch-extract balances from exposed accounts or state configurations. The attacker deployed a custom drainer, targeted reachable balances through approval-compatible flows, and executed repeated pull operations to aggregate massive token outflow. Checks failed because privilege assumptions in token transfer pathways were too broad and high-velocity anomalous drains were not halted quickly enough. Even though restoration occurred later, prevention failed at authorization granularity and runtime monitoring. Auditors should review NEP-141 transfer/allowance edge cases, batch-drain abuse paths, and circuit-breaker triggers for abnormal fan-out transfers.",
+    "quiz": [
+      {
+        "question": "Which description best matches the Sweat Foundation root cause?",
+        "options": [
+          "Pure oracle manipulation",
+          "Token-contract authorization weakness abused by a custom drainer",
+          "Bridge validator cartel attack",
+          "UUPS storage collision"
+        ],
+        "correct": 1,
+        "explanation": "A token-level flaw plus a drainer contract enabled large-scale unauthorized extraction."
+      },
+      {
+        "question": "What was the attacker’s mechanism for scale?",
+        "options": [
+          "One oversized mint call",
+          "Batch extraction via custom drainer against vulnerable/approved accounts",
+          "Gas token refund exploit",
+          "Miner bribery for censorship"
+        ],
+        "correct": 1,
+        "explanation": "The drainer automated repeated pull actions across many targets."
+      },
+      {
+        "question": "What mitigation would most reduce recurrence risk?",
+        "options": [
+          "Add stricter UI passwords",
+          "Audit token auth logic, limit approval scope, and auto-pause on burst drains",
+          "Rename the token contract",
+          "Increase swap fees"
+        ],
+        "correct": 1,
+        "explanation": "Authorization hardening plus anomaly-based circuit breakers addresses both root cause and blast radius."
+      }
+    ]
+  },
+  "wasabi-protocol-2026": {
+    "technicalDesc": "Wasabi was compromised through backend exposure, where an unauthenticated Spring Boot Actuator heap dump leaked deployer secrets in memory. The vulnerable chain linked off-chain secret handling to on-chain upgrade authority, specifically UUPS `upgradeTo` control. The attacker retrieved the key from `/actuator/heapdump`, signed malicious upgrades, and replaced implementations with draining logic across multiple chains. Checks failed because upgrade governance depended on a single deployer path without multisig timelock, and infrastructure hardening did not restrict sensitive diagnostics endpoints. Contract-level permissions behaved as designed but were fed stolen credentials from an insecure operations layer. Auditors should include server-surface review, secret-in-memory exposure tests, and mandatory multi-party, delayed upgrade governance for any upgradeable proxy system.",
+    "quiz": [
+      {
+        "question": "What was the initial compromise vector in Wasabi?",
+        "options": [
+          "Reentrancy in vault withdrawal",
+          "Exposed Actuator heap dump leaking deployer key",
+          "Bridge replay from L2",
+          "Incorrect token decimals"
+        ],
+        "correct": 1,
+        "explanation": "The attacker first obtained key material from an exposed backend diagnostic endpoint."
+      },
+      {
+        "question": "How did that backend leak become an on-chain drain?",
+        "options": [
+          "By forging oracle signatures",
+          "By performing malicious UUPS upgrades using stolen deployer authority",
+          "By front-running liquidations",
+          "By bypassing ERC-20 allowance checks"
+        ],
+        "correct": 1,
+        "explanation": "Stolen deployer credentials enabled direct proxy upgrades to attacker-controlled logic."
+      },
+      {
+        "question": "Which mitigation combination is strongest?",
+        "options": [
+          "Disable logs only",
+          "Keep deployer key on app server but rotate weekly",
+          "Lock down Actuator endpoints and enforce multisig timelocked upgrades",
+          "Increase gas price for upgrades"
+        ],
+        "correct": 2,
+        "explanation": "You must secure both the backend secret surface and the upgrade governance pathway."
+      }
+    ]
+  },
+  "ekubo-protocol-2026": {
+    "technicalDesc": "Ekubo's router extension exposed an unauthenticated callback path that could trigger token pulls from user allowances. The vulnerable function pattern was `payCallback` executing `transferFrom`-style movements without strict caller verification. The attacker scanned for wallets with existing router approvals, invoked callback calls directly, and redirected approved assets to attacker addresses. Checks failed because callback trust assumptions were implicit: approval presence was treated as consent even when invocation origin was arbitrary. Unlimited or stale allowances amplified impact, turning one auth gap into multi-victim drainage across chains. Auditors should verify callback caller allowlists, ensure approval consumption is context-bound to active trades, and test hostile direct invocation of every externally callable settlement hook.",
+    "quiz": [
+      {
+        "question": "What root cause made Ekubo users vulnerable?",
+        "options": [
+          "Incorrect block timestamp math",
+          "Unauthenticated callback capable of spending approved tokens",
+          "Merkle proof underflow",
+          "Sequencer downtime"
+        ],
+        "correct": 1,
+        "explanation": "Anyone could invoke callback logic that consumed existing allowances."
+      },
+      {
+        "question": "How did the attacker select and drain victims?",
+        "options": [
+          "By compromising hardware wallets",
+          "By scanning for live approvals, then triggering malicious callback-driven transfers",
+          "By forcing users into liquidation",
+          "By forging staking rewards"
+        ],
+        "correct": 1,
+        "explanation": "The exploit targeted accounts with lingering router approvals and abused callback execution."
+      },
+      {
+        "question": "Best mitigation for this design flaw?",
+        "options": [
+          "Add caller authentication and context checks to callback execution",
+          "Raise transfer gas stipend",
+          "Require larger approval amounts",
+          "Disable token metadata"
+        ],
+        "correct": 0,
+        "explanation": "Callback functions must validate authorized caller and expected swap context before moving funds."
+      }
+    ]
+  },
+  "trustedvolumes-2026": {
+    "technicalDesc": "TrustedVolumes combined two logic failures: unrestricted signer registration and weak RFQ inventory validation. The vulnerable functions were `registerAllowedOrderSigner` without access control and settlement paths trusting order-declared inventory fields. The attacker self-registered as an approved signer, forged orders with inflated inventory claims, and settled against protocol assets. Checks failed because authorization and state-consistency checks were separated but both incomplete, so a fabricated signer could feed fabricated liquidity into settlement logic. Since settlement consumed trusted signed data without hard on-chain reconciliation, losses scaled quickly. Auditors should test every signer-admission endpoint for RBAC, then verify signed-order fields are cross-checked against current balances, limits, and inventory ownership at execution time.",
+    "quiz": [
+      {
+        "question": "What paired weaknesses caused the TrustedVolumes drain?",
+        "options": [
+          "Oracle lag and liquidation bonus bug",
+          "Permissionless signer registration plus unvalidated inventory fields",
+          "Nonce collision and replay cache miss",
+          "UUPS initializer misuse only"
+        ],
+        "correct": 1,
+        "explanation": "Anyone could become a signer and submit inventory claims that were not properly verified."
+      },
+      {
+        "question": "What was the attacker’s sequence?",
+        "options": [
+          "Self-authorize signer role, forge high-inventory orders, settle to extract assets",
+          "Steal DNS credentials, phish wallets",
+          "Flash-loan oracle manipulation, then liquidate",
+          "Bridge VAA replay"
+        ],
+        "correct": 0,
+        "explanation": "The exploit chained authorization bypass with fraudulent order-state settlement."
+      },
+      {
+        "question": "Most effective mitigation?",
+        "options": [
+          "Require API key on frontend",
+          "Gate signer registration and reconcile order inventory against on-chain balances",
+          "Increase RFQ expiry windows",
+          "Lower block gas limit"
+        ],
+        "correct": 1,
+        "explanation": "Both signer permissioning and hard inventory validation are needed to close this class."
+      }
+    ]
+  },
+  "tac-protocol-2026": {
+    "technicalDesc": "TAC's bridge trust model over-relied on code-hash style wallet verification that could be bypassed by crafted implementations. The vulnerable pattern was acceptance logic that proved interface or partial identity instead of strict canonical bytecode provenance. The attacker deployed a forged jetton wallet, passed sequencer validation, and initiated unauthorized cross-chain movements. Checks failed because verification did not bind wallet identity to an allowlisted deployment source and full immutable bytecode fingerprint. Once accepted as trusted, malicious transfer behavior executed within normal bridge flow and looked structurally valid. Auditors should validate bridge recipient/wallet authenticity with hard allowlists, factory provenance, and immutable hash checks, then adversarially test lookalike contracts designed to satisfy superficial validation criteria.",
+    "quiz": [
+      {
+        "question": "What root issue enabled TAC's forged wallet attack?",
+        "options": [
+          "Weak wallet authenticity verification model",
+          "Missing compiler optimization flag",
+          "Front-end typo in token symbol",
+          "Expired LP token lock"
+        ],
+        "correct": 0,
+        "explanation": "Validation accepted a forged wallet that appeared compatible but contained malicious behavior."
+      },
+      {
+        "question": "How did the attacker pass trust checks?",
+        "options": [
+          "By brute-forcing validator keys",
+          "By deploying a lookalike jetton wallet that bypassed code-hash checks",
+          "By causing block reorgs",
+          "By exploiting integer wraparound"
+        ],
+        "correct": 1,
+        "explanation": "A crafted wallet implementation satisfied insufficient authenticity checks."
+      },
+      {
+        "question": "Best mitigation for this bridge-validation class?",
+        "options": [
+          "Use longer wallet names",
+          "Use factory provenance and strict allowlisted bytecode hashes",
+          "Disable event logs",
+          "Increase bridge fee"
+        ],
+        "correct": 1,
+        "explanation": "Trust should be anchored to canonical deploy paths and immutable bytecode allowlists."
+      }
+    ]
+  },
+  "transit-finance-2026": {
+    "technicalDesc": "Transit Finance was exploited through technical debt: a deprecated 2022 contract remained callable with lingering user approvals. The vulnerable pattern was migration without deactivation, where legacy `transferFrom` capability preserved real spending authority years after replacement. The attacker scanned allowances to the obsolete contract, then swept approved balances from multiple users. Checks failed because deprecation was treated as social guidance rather than enforced revocation or contract kill-switch, and approval hygiene was not operationally completed. The on-chain behavior was valid under ERC/TRC allowance semantics, so the old contract became a latent drain surface. Auditors should inventory deprecated contracts, verify irreversible decommission paths, and monitor historical allowance exposure when planning upgrades or migration campaigns.",
+    "quiz": [
+      {
+        "question": "Why could a 2022 Transit contract still drain users in 2026?",
+        "options": [
+          "Consensus rollback",
+          "Legacy contract stayed active with unrecalled user approvals",
+          "ERC-20 standard changed",
+          "Bridge validator outage"
+        ],
+        "correct": 1,
+        "explanation": "Approvals persisted on a still-functional deprecated contract."
+      },
+      {
+        "question": "What was the attacker’s practical drain method?",
+        "options": [
+          "Execute repeated transferFrom calls on approved victims via legacy contract",
+          "Mint fake LP shares",
+          "Replay zk proofs",
+          "Steal front-end API keys only"
+        ],
+        "correct": 0,
+        "explanation": "Allowance-based transferFrom sweeps were enough because approvals remained live."
+      },
+      {
+        "question": "Most effective mitigation for future migrations?",
+        "options": [
+          "Mark old contracts as deprecated in docs",
+          "Disable legacy functions and run enforced approval-revocation campaigns",
+          "Increase bridge confirmations",
+          "Rename function selectors"
+        ],
+        "correct": 1,
+        "explanation": "Hard deactivation plus revocation cleanup removes lingering spend authority."
+      }
+    ]
+  },
+  "thorchain-2026": {
+    "technicalDesc": "THORChain's root issue was TSS key-share leakage across signing rounds, compounded by delayed patch deployment. The vulnerable pattern was insufficient isolation and lifecycle hygiene for GG20 share material in a hostile validator environment. A malicious node participated in signing ceremonies, accumulated leaked fragments over time, and reconstructed enough signing authority for fraudulent outbound transfers. Checks failed at operational security governance: known defensive fixes were not uniformly enforced before participation. Once threshold signing guarantees were undermined, vault withdrawals appeared cryptographically valid to the system. Auditors should examine TSS implementation details, verify per-round share zeroization, enforce mandatory patch levels for validator admission, and model progressive share-harvest attacks rather than only single-round compromise scenarios.",
+    "quiz": [
+      {
+        "question": "What fundamentally broke in the THORChain incident?",
+        "options": [
+          "AMM pool invariant",
+          "TSS share isolation across signing rounds",
+          "ERC-20 approve race",
+          "Frontend domain integrity"
+        ],
+        "correct": 1,
+        "explanation": "A malicious node could leak and accumulate GG20 share material over time."
+      },
+      {
+        "question": "How was value ultimately drained?",
+        "options": [
+          "Forged oracle prices",
+          "Reconstructed signing authority produced valid fraudulent outbound transfers",
+          "Liquidity mining reward inflation",
+          "Cross-domain message replay"
+        ],
+        "correct": 1,
+        "explanation": "After collecting enough share data, fraudulent withdrawals were signed as if legitimate."
+      },
+      {
+        "question": "Best mitigation theme for validator/TSS systems?",
+        "options": [
+          "Lower validator bond requirements",
+          "Enforce patch compliance and strict per-round key-share isolation",
+          "Hide node IP addresses only",
+          "Increase token supply"
+        ],
+        "correct": 1,
+        "explanation": "Operational patch discipline and cryptographic share hygiene are both required."
+      }
+    ]
+  },
+  "adshares-bridge-2026": {
+    "technicalDesc": "Adshares Bridge minted wrapped assets from claimed native txids without proving those deposits existed. The vulnerable function was `wrapTo` accepting user-supplied transaction references as sufficient mint authorization. The attacker submitted fabricated txids, received unbacked wADS mint output, and sold those tokens for real market assets. Validation failed because source-chain existence, amount consistency, and confirmation depth were not enforced before mint issuance. Replay and fabrication surfaces remained open since txid linkage was trust-based rather than cryptographic-proof based. Auditors should verify bridge mint paths require objective source-chain proofs, immutable consumed-message tracking, and strict transaction-to-mint amount reconciliation with defensive mint caps.",
+    "quiz": [
+      {
+        "question": "What was the root validation failure in Adshares `wrapTo`?",
+        "options": [
+          "No slippage parameter",
+          "No verification that referenced native txids actually existed",
+          "Wrong token decimals",
+          "Missing event emission"
+        ],
+        "correct": 1,
+        "explanation": "Mint authorization trusted fabricated transaction IDs without source-chain proof."
+      },
+      {
+        "question": "How did the attacker realize value from fake mints?",
+        "options": [
+          "Used unbacked wADS as collateral then defaulted",
+          "Swapped unbacked minted wADS for real ETH/stablecoins",
+          "Changed governance quorum",
+          "Forced validator halt"
+        ],
+        "correct": 1,
+        "explanation": "The attacker converted counterfeit wrapped tokens into real assets via market liquidity."
+      },
+      {
+        "question": "Which mitigation is most direct?",
+        "options": [
+          "Require source-chain proof-of-deposit and consume-once tx tracking before mint",
+          "Increase bridge UI warning text",
+          "Disable token symbols",
+          "Raise swap fee in all pools"
+        ],
+        "correct": 0,
+        "explanation": "Bridge mints must be cryptographically tied to verified source deposits."
+      }
+    ]
+  },
+  "verus-ethereum-bridge-2026": {
+    "technicalDesc": "The Verus-Ethereum bridge failed to enforce source-amount integrity in `checkCCEValues`, allowing claim inflation. The vulnerable pattern was partial validation of cross-chain export fields where destination mint amounts were not strictly bound to authenticated source deposits. The attacker submitted forged or inflated CCE claims that passed checks, minted excess wrapped assets, and liquidated them on Ethereum. Security checks failed because validation logic confirmed structure but not full economic equivalence between source and destination amounts. Without strict field-by-field reconciliation, legitimate message format became a vehicle for illegitimate value creation. Auditors should trace every bridge claim field through verification, require cryptographic proofs for amount and asset identity, and add invariants that total minted supply never exceeds proven inbound deposits.",
+    "quiz": [
+      {
+        "question": "What did `checkCCEValues` fail to enforce?",
+        "options": [
+          "Gas refund cap",
+          "Source-chain amount consistency with destination mint",
+          "Token symbol casing",
+          "Block producer identity"
+        ],
+        "correct": 1,
+        "explanation": "Missing source-amount validation allowed inflated claim values to be minted."
+      },
+      {
+        "question": "What was the attack flow?",
+        "options": [
+          "Inflate CCE claim values, mint unbacked tokens, sell for real assets",
+          "Spam mempool and front-run users",
+          "Exploit nft metadata parser",
+          "Hijack DNS and redirect wallets"
+        ],
+        "correct": 0,
+        "explanation": "The exploit transformed weak cross-chain validation into unbacked token issuance."
+      },
+      {
+        "question": "Most appropriate bridge mitigation?",
+        "options": [
+          "Increase lock period on LP positions",
+          "Enforce cryptographic proof-backed amount reconciliation for every claim",
+          "Disable wallet connect",
+          "Use shorter claim IDs"
+        ],
+        "correct": 1,
+        "explanation": "Bridges must bind destination mint amounts to proven source deposits cryptographically."
+      }
+    ]
+  },
+  "retoswap-2026": {
+    "technicalDesc": "RetoSwap's failure centered on message-authentication and ordering guarantees in escrow release signaling. The vulnerable pattern was trusting arbitrator ACK messages without robust anti-impersonation and strict monotonic sequence enforcement. The attacker forged out-of-order ACK payloads that appeared to come from a valid arbitrator context and triggered premature escrow releases. Checks failed because signature/identity binding and sequence validation were insufficiently coupled, so stale or malformed protocol states were accepted as release-authorizing. Once release conditions were bypassed, multiple trades could be settled in favor of the attacker without payment completion. Auditors should test authenticated message channels for replay/out-of-order handling, bind ACKs to immutable trade state, and require multi-party confirmation on high-value dispute releases.",
+    "quiz": [
+      {
+        "question": "What root weakness enabled RetoSwap escrow abuse?",
+        "options": [
+          "Weak ACK authenticity and ordering validation",
+          "Unbounded flash loan liquidity",
+          "Arithmetic overflow in collateral ratio",
+          "ERC-20 permit nonce reuse only"
+        ],
+        "correct": 0,
+        "explanation": "Forged, out-of-order arbitrator-style ACKs were accepted as valid release signals."
+      },
+      {
+        "question": "How were funds unlocked without proper trade completion?",
+        "options": [
+          "By submitting forged arbitrator ACK messages with manipulated sequence timing",
+          "By executing reentrancy in escrow payout",
+          "By changing chain finality rules",
+          "By minting governance shares"
+        ],
+        "correct": 0,
+        "explanation": "Premature release logic was triggered by crafted ACK messages that bypassed sequencing/auth checks."
+      },
+      {
+        "question": "Best mitigation for similar P2P escrow protocols?",
+        "options": [
+          "Increase trade sizes gradually",
+          "Bind ACK signatures to trade state and enforce strict monotonic sequence checks",
+          "Disable arbitrators entirely",
+          "Shorten block intervals"
+        ],
+        "correct": 1,
+        "explanation": "State-bound signatures plus ordering enforcement prevent forged or replayed release commands."
+      }
+    ]
+  },
+  "stablr-2026": {
+    "technicalDesc": "StablR's core weakness was governance threshold design: mint authority was effectively single-key despite appearing multisig. The vulnerable pattern was 1-of-3 approval for high-impact mint operations, where any one compromised signer could create unbacked supply. The attacker used one stolen key to authorize large minting, then liquidated a portion before emergency controls activated. Checks failed because issuance trust relied on quorum size too small for the value at risk and lacked pre-mint risk throttles. Blacklisting and freeze tooling reduced net extraction but only after unauthorized supply was already created. Auditors should evaluate signer threshold adequacy against treasury risk, require multi-party mint approval, and add hard issuance velocity limits with automatic pause triggers.",
+    "quiz": [
+      {
+        "question": "What was the structural root cause in StablR?",
+        "options": [
+          "Bridge message parser bug",
+          "1-of-3 mint multisig threshold too weak",
+          "Oracle decimal mismatch",
+          "Unchecked call to transfer()"
+        ],
+        "correct": 1,
+        "explanation": "A single compromised signer could mint, making the effective trust model single-key."
+      },
+      {
+        "question": "How did the attacker convert compromised authority into loss?",
+        "options": [
+          "Minted unbacked stablecoins then liquidated what could be sold before freeze",
+          "Stole LP NFTs and burned them",
+          "Replayed permit signatures",
+          "Forced chain halt"
+        ],
+        "correct": 0,
+        "explanation": "Unauthorized minting was monetized via market sales before containment."
+      },
+      {
+        "question": "Which mitigation best hardens mint governance?",
+        "options": [
+          "Use 2-of-3 (or higher) plus mint-rate caps and auto-pause alarms",
+          "Make mint function private",
+          "Increase metadata size",
+          "Turn off events"
+        ],
+        "correct": 0,
+        "explanation": "Raising threshold and constraining issuance speed directly reduces single-key blast radius."
+      }
+    ]
+  },
+  "squid-router-module-2026": {
+    "technicalDesc": "SquidRouterModule relied on fixed-string authorization semantics for privileged module execution in Gnosis Safe contexts. The vulnerable pattern was brittle string-based auth checks in place of cryptographic signer/role verification tied to transaction intent. The attacker crafted calls that satisfied the string predicate, then invoked module execution against many Safes with the module enabled. Checks failed because module-level trust was broad and reusable; once bypassed, each Safe inherited the same exploit surface with little per-wallet friction. This created systemic blast radius across 86 wallets rather than a single-account compromise. Auditors should reject string-comparison auth for modules, enforce signature-based intent validation, and model cross-tenant impact when a shared extension is enabled across many safes.",
+    "quiz": [
+      {
+        "question": "What was the key authorization flaw in SquidRouterModule?",
+        "options": [
+          "Fixed-string auth check that could be bypassed",
+          "Lack of reentrancy guard in ERC-20",
+          "Expired oracle feed",
+          "Incorrect chain ID in permit"
+        ],
+        "correct": 0,
+        "explanation": "String-based authorization was insufficient and allowed crafted bypass payloads."
+      },
+      {
+        "question": "Why did this bug affect many wallets at once?",
+        "options": [
+          "Because token supply was globally paused",
+          "The same vulnerable module was enabled across multiple Safes",
+          "All users shared one private key",
+          "Bridge relayers were centralized"
+        ],
+        "correct": 1,
+        "explanation": "Shared module deployment created a high blast radius when auth bypass was discovered."
+      },
+      {
+        "question": "Best mitigation for safe-module authorization?",
+        "options": [
+          "Use fixed strings with stronger casing rules",
+          "Require cryptographic intent verification and per-safe scoped permissions",
+          "Disable transaction history",
+          "Raise gas limits"
+        ],
+        "correct": 1,
+        "explanation": "Module calls should be authorized by signatures/roles, not string matching."
+      }
+    ]
+  },
+  "superfortune-ai-2026": {
+    "technicalDesc": "SUPERFORTUNE AI was compromised through signer key leakage in a high-value multisig distribution workflow. The vulnerable pattern was relying on key possession and human review to protect recipient integrity in one-shot airdrop transactions. The attacker used compromised signing capability to alter recipient targets to a lookalike address while preserving plausibility. Controls failed because destination validation was not independently enforced on-chain and signing workflow checks did not reliably catch subtle address substitution. Once approved, token transfer execution was valid and irreversible, making response purely reactive. Auditors should demand address allowlists for distribution jobs, hardware-backed signer isolation, and multi-party out-of-band verification of recipient sets before any large treasury or airdrop execution.",
+    "quiz": [
+      {
+        "question": "What initiated the SUPERFORTUNE AI loss?",
+        "options": [
+          "Oracle price divergence",
+          "Leaked multisig signer private key",
+          "Bridge replay proof",
+          "Token decimal truncation"
+        ],
+        "correct": 1,
+        "explanation": "Compromised signer access enabled malicious transaction preparation/approval."
+      },
+      {
+        "question": "How was the airdrop hijacked technically?",
+        "options": [
+          "By changing token total supply",
+          "By redirecting recipient address to attacker-controlled lookalike destination",
+          "By halting the mempool",
+          "By reentering claim()"
+        ],
+        "correct": 1,
+        "explanation": "The attacker altered destination details while preserving transaction legitimacy."
+      },
+      {
+        "question": "Which mitigation best protects large airdrops?",
+        "options": [
+          "Use a shorter recipient list",
+          "Enforce recipient allowlists and multi-party deterministic destination verification",
+          "Disable events during distribution",
+          "Increase transfer gas"
+        ],
+        "correct": 1,
+        "explanation": "Strong recipient controls and independent signer verification prevent address-redirection fraud."
+      }
+    ]
+  },
+  "polymarket-uma-2026": {
+    "technicalDesc": "Polymarket's incident was a key-lifecycle failure in an operational rewards wallet, not a smart-contract or oracle exploit. The vulnerable pattern was prolonged dependence on an old single private key without modern custody controls or periodic rotation. After key compromise, the attacker executed straightforward token transfers from the rewards wallet and drained available balance. Checks failed because wallet governance lacked multisig friction and historical key hygiene had not been enforced despite age and exposure risk. On-chain transactions were fully valid, so protocol logic offered no compensating control once key custody was lost. Auditors should evaluate operational wallet architecture, mandate key rotation and retirement schedules, and require multisig or MPC for any wallet with recurring treasury or rewards authority.",
+    "quiz": [
+      {
+        "question": "What was the true root cause in Polymarket's incident?",
+        "options": [
+          "UMA oracle corruption",
+          "Legacy ops wallet private key compromise",
+          "AMM reserve skew",
+          "Bridge fee miscalculation"
+        ],
+        "correct": 1,
+        "explanation": "The loss came from compromised wallet credentials, not oracle or contract logic."
+      },
+      {
+        "question": "How did funds leave the protocol?",
+        "options": [
+          "Through normal signed transfers from the compromised rewards wallet",
+          "Through forced liquidations",
+          "By minting synthetic assets",
+          "By replaying finality proofs"
+        ],
+        "correct": 0,
+        "explanation": "Once key control was lost, standard transfer operations were enough to drain value."
+      },
+      {
+        "question": "Best long-term mitigation?",
+        "options": [
+          "Keep old keys but rotate API secrets",
+          "Adopt multisig/MPC and strict key rotation-retirement policies",
+          "Raise collateral factors",
+          "Disable UMA resolution"
+        ],
+        "correct": 1,
+        "explanation": "Custody modernization and lifecycle policy are the direct controls for this failure type."
+      }
+    ]
+  },
+  "dxsale-2026": {
+    "technicalDesc": "DxSale's legacy locker combined a state-machine flaw with governance fragility in ownership control. The vulnerable function was `unlockToken` lacking a consumed/withdrawn state guard, allowing repeated unlocks on the same lock record. The attacker repeatedly called unlock on already-served entries and multiplied withdrawals beyond intended lock balances. Impact grew because ownership transfer removed effective emergency controls, so the vulnerable contract could not be rapidly paused. Checks failed due to non-idempotent withdrawal logic and insufficient deprecation hardening for legacy contracts still holding user value. Auditors should test idempotency on unlock/claim paths, verify lock-state mutation correctness, and require multisig/timelock ownership controls before any authority transfer on fund-holding contracts.",
+    "quiz": [
+      {
+        "question": "What bug in DxSale v1 enabled repeated extraction?",
+        "options": [
+          "unlockToken lacked one-time withdrawal state enforcement",
+          "Oracle timestamp drift",
+          "Bridge gas accounting mismatch",
+          "Missing ERC-721 receiver hook"
+        ],
+        "correct": 0,
+        "explanation": "Without a spent flag, the same lock could be unlocked multiple times."
+      },
+      {
+        "question": "Why did containment fail quickly?",
+        "options": [
+          "Network congestion only",
+          "Ownership/control issues reduced ability to pause legacy contract",
+          "Validators rejected pause transactions",
+          "Wallet signatures expired"
+        ],
+        "correct": 1,
+        "explanation": "Administrative safeguards were weakened after ownership transfer, slowing response."
+      },
+      {
+        "question": "Most appropriate mitigation set?",
+        "options": [
+          "Add stronger UI lock labels",
+          "Enforce idempotent unlock state + decommission legacy contracts + protected ownership",
+          "Increase lock duration globally",
+          "Lower chain confirmation depth"
+        ],
+        "correct": 1,
+        "explanation": "The fix must address both state-machine correctness and governance control."
+      }
+    ]
+  },
+  "gravity-bridge-2026": {
+    "technicalDesc": "Gravity Bridge was compromised through signing-key custody failure, which undermined message authenticity assumptions. The vulnerable pattern was trust in validator signatures without sufficient resilience to key theft and without strong anomaly friction for large releases. The attacker generated valid signatures for fraudulent transfer payloads, causing destination-side release/mint actions without equivalent source deposits. Checks failed because cryptographic verification confirmed compromised credentials, so messages were valid-form but invalid-intent. Bridge safety therefore depended on signer hygiene and threshold robustness more than contract arithmetic. Auditors should inspect signer key storage, threshold policy, independent message sanity checks, and automated circuit breakers for sudden transfer-volume anomalies even when signatures verify correctly.",
+    "quiz": [
+      {
+        "question": "What was Gravity Bridge's root-cause category?",
+        "options": [
+          "Key-custody compromise of bridge signing authority",
+          "Reentrancy in withdraw",
+          "Liquidity oracle delay",
+          "Governance quorum bug"
+        ],
+        "correct": 0,
+        "explanation": "Compromised signing keys allowed fraudulent but cryptographically valid bridge messages."
+      },
+      {
+        "question": "How did fraudulent transfers pass protocol checks?",
+        "options": [
+          "By bypassing signature verification completely",
+          "By using stolen keys to produce signatures that verified as valid",
+          "By rewriting chain history",
+          "By exploiting frontend caching"
+        ],
+        "correct": 1,
+        "explanation": "Verification accepted attacker-signed messages because the keys themselves were compromised."
+      },
+      {
+        "question": "Best mitigation direction for this threat?",
+        "options": [
+          "HSM/MPC custody, stronger thresholding, and anomaly-based auto-halt",
+          "Higher bridge UI contrast",
+          "Disable event indexing",
+          "Increase token logo resolution"
+        ],
+        "correct": 0,
+        "explanation": "Custody hardening and behavioral guardrails reduce both chance and impact of key compromise."
+      }
+    ]
+  },
+  "alephium-bridge-2026": {
+    "technicalDesc": "Alephium's bridge incident originated in off-chain backend validation logic rather than guardian private key theft. The vulnerable pattern was trusting backend-produced message attestations without end-to-end cryptographic enforcement at the final execution boundary. The attacker exploited backend handling, forged valid-appearing Wormhole-style messages, and triggered unauthorized unlocks on destination chains. Checks failed because backend acceptance criteria could be manipulated and on-chain safeguards did not independently reject forged attestations early enough. This turned infrastructure compromise into protocol-level asset release despite intact guardian key custody. Auditors should treat relayer/backends as part of the trust base, require strict on-chain guardian-signature verification, and adversarially test malformed or backend-forged message pathways.",
+    "quiz": [
+      {
+        "question": "What distinguishes Alephium Bridge's root cause from typical bridge hacks?",
+        "options": [
+          "It was caused by LP impermanent loss",
+          "Forged messages came from backend-validation weakness, not guardian key theft",
+          "It used only flash loans",
+          "It required smart-contract selfdestruct"
+        ],
+        "correct": 1,
+        "explanation": "The attacker abused off-chain backend logic to forge transfer attestations."
+      },
+      {
+        "question": "How did the forged messages lead to loss?",
+        "options": [
+          "They triggered unauthorized token unlock/completion on destination chains",
+          "They changed token metadata only",
+          "They paused bridge operations",
+          "They forced validators offline"
+        ],
+        "correct": 0,
+        "explanation": "Destination contracts accepted forged attestations and released value without real deposits."
+      },
+      {
+        "question": "Most effective mitigation for this architecture?",
+        "options": [
+          "Rely on backend checks only but add retries",
+          "Enforce independent on-chain signature verification and harden backend pipeline",
+          "Disable monitoring dashboards",
+          "Increase bridge message size"
+        ],
+        "correct": 1,
+        "explanation": "Defense-in-depth requires both hardened backend logic and strict on-chain cryptographic checks."
+      }
+    ]
+  },
+  "aros-2026": {
+    "technicalDesc": "Available evidence points to a likely pool or token-mechanics manipulation, but the exact exploit primitive remains unconfirmed. The vulnerable pattern appears to be price formation sensitivity where reserves, transfer behavior, or pool accounting could be distorted for short-window extraction. The attacker staged liquidity and token movements to create temporary mispricing, then executed swaps that realized value before normal state reversion. Checks failed because guardrails such as robust TWAP enforcement, deviation circuit breakers, or deep sanity bounds were insufficient to halt abnormal conditions quickly. Since root cause is unresolved, treating any single mechanism as definitive would be premature. Auditors should reconstruct full transaction traces, test transfer-hook edge cases, and stress pool math against adversarial reserve-shift scenarios before finalizing remediation.",
+    "quiz": [
+      {
+        "question": "What is currently confirmed about AROS root cause?",
+        "options": [
+          "Confirmed reentrancy in withdrawal",
+          "Confirmed bridge key compromise",
+          "Exact vector unconfirmed, with pool/token manipulation suspected",
+          "Confirmed oracle signer collusion"
+        ],
+        "correct": 2,
+        "explanation": "Public evidence indicates suspicion of manipulation, but no definitive primitive has been confirmed."
+      },
+      {
+        "question": "What attack mechanism is most consistent with reported behavior?",
+        "options": [
+          "Temporary reserve/price distortion followed by extraction swaps",
+          "Malicious proxy upgrade by admin",
+          "Forged Merkle claims",
+          "DNS hijack of frontend"
+        ],
+        "correct": 0,
+        "explanation": "The incident profile aligns with transient pricing distortion and opportunistic swap extraction."
+      },
+      {
+        "question": "What mitigation is most prudent while investigation is ongoing?",
+        "options": [
+          "Ignore until full certainty",
+          "Add TWAP/deviation circuit breakers and deep transaction-trace forensic review",
+          "Increase token supply",
+          "Disable all user withdrawals forever"
+        ],
+        "correct": 1,
+        "explanation": "Interim guardrails plus forensic reconstruction reduce immediate risk while root cause is finalized."
+      }
+    ]
+  },
+  "fluid-lending-2026": {
+    "technicalDesc": "Fluid's reward pipeline failed because control points in a two-step Merkle process were compromised simultaneously. The vulnerable pattern was assuming proposer/approver separation alone provided security, without additional quorum, budget, or anomaly constraints. The attacker proposed fraudulent Merkle roots allocating inflated rewards to attacker addresses, then approved the same roots using the second compromised key. Checks failed because each step validated cryptographic format but not independence of control or economic plausibility of payout totals. Once published, claims were executed through normal proof verification, making drains appear protocol-compliant. Auditors should require multi-party approval for root publication, enforce proposer-approver separation at infrastructure and organization levels, and add automated budget/inclusion sanity checks before claim windows open.",
+    "quiz": [
+      {
+        "question": "What was the core root cause in Fluid's reward exploit?",
+        "options": [
+          "Broken Merkle proof verifier",
+          "Compromise of both proposer and approver keys in a two-step pipeline",
+          "Bridge replay attack",
+          "Oracle decimal mismatch"
+        ],
+        "correct": 1,
+        "explanation": "Control of both roles removed the intended separation-of-duties safeguard."
+      },
+      {
+        "question": "How did the attacker pass technical validation?",
+        "options": [
+          "By submitting malformed proofs",
+          "By proposing forged roots and self-approving them before claiming",
+          "By reentering claim() repeatedly",
+          "By censoring validator blocks"
+        ],
+        "correct": 1,
+        "explanation": "With both keys, the attacker could complete the full publication path using valid signatures."
+      },
+      {
+        "question": "Which mitigation best addresses this failure mode?",
+        "options": [
+          "Single approver with longer key length",
+          "Multisig approval plus independent role custody and reward-budget sanity checks",
+          "Lower reward amount globally",
+          "Disable Merkle trees"
+        ],
+        "correct": 1,
+        "explanation": "Security must combine independent custody with quorum and economic validation safeguards."
+      }
+    ]
+  },
+  "drift-protocol-2026": {
+    "technicalDesc": "Drift's loss required three compounding failures: privileged admin control, permissive collateral onboarding, and disabled oracle safety rails. The vulnerable pattern was a single admin key able to call `initialize_spot_market` for a spoofed USDC mint and `update_oracle_guard_rails` to accept stale or manipulated Pyth prices. The attacker path was: compromise admin credentials, whitelist fake collateral, disable freshness/confidence checks, manipulate SOL spot on Serum to inflate Pyth TWAP, deposit worthless collateral, open max-leverage longs, and settle against insurance/LP inventory at the fake mark. Checks failed because authorization, token provenance, and oracle integrity were not independently enforced on-chain. Auditors should treat perpetuals admin surfaces as critical: multisig + timelock for market/oracle config, hardcoded collateral allowlists, and non-bypassable oracle staleness bounds.",
+    "quiz": [
+      {
+        "question": "What was the first enabling step in the Drift attack?",
+        "options": [
+          "Integer overflow in settlement math",
+          "Compromised admin key from spear-phishing",
+          "Reentrancy in deposit()",
+          "Bridge message forgery"
+        ],
+        "correct": 1,
+        "explanation": "Without admin privileges the attacker could not whitelist fake collateral or weaken oracle guard rails."
+      },
+      {
+        "question": "Why could Drift accept the attacker's collateral and pricing?",
+        "options": [
+          "Fake USDC mint was whitelisted and oracle guard rails were disabled",
+          "Users voted to accept the token via governance",
+          "Pyth was offline and defaulted to zero",
+          "Insurance fund auto-approved all deposits"
+        ],
+        "correct": 0,
+        "explanation": "Admin actions made worthless collateral valid and allowed manipulated oracle marks to pass validation."
+      },
+      {
+        "question": "Which mitigation best addresses the full attack chain?",
+        "options": [
+          "Increase max leverage only",
+          "Multisig + timelock admin, collateral allowlist, and mandatory oracle freshness/confidence bounds",
+          "Disable Serum permanently",
+          "Add UI warnings for large positions"
+        ],
+        "correct": 1,
+        "explanation": "The exploit combined privileged ops failure with oracle and collateral policy weaknesses; all three layers need hardening."
+      }
+    ]
+  },
+  "hyperbridge-2026": {
+    "technicalDesc": "Hyperbridge combined a cryptographic edge case with weak governance binding on bridge messages. The MMR verifier mishandled `leafCount=1`, allowing forged proof material to be discarded while a legitimate stored root was substituted. Separately, request-proof binding was incomplete: the commitment did not tightly couple proof bytes to the full PostRequest payload, so validated proof context could be replayed against different privileged actions. With `challengePeriod=0` and shallow source checks, the attacker escalated to token admin, obtained mint authority, and issued 1B fake DOT before swapping to ETH. Auditors should test MMR boundary cases (0/1 leaves), enforce payload-proof hash binding, require non-zero challenge windows, and isolate admin/mint role transitions behind timelocked multisig.",
+    "quiz": [
+      {
+        "question": "Which MMR edge case was central to Hyperbridge?",
+        "options": [
+          "leafCount=1 mishandling in proof verification",
+          "Missing nonce in ECDSA signatures",
+          "Keccak collision in root hash",
+          "Overflow in leaf index arithmetic only"
+        ],
+        "correct": 0,
+        "explanation": "The leafCount=1 path caused forged leaves to be dropped and replaced with a trusted stored root."
+      },
+      {
+        "question": "What governance weakness accelerated privilege escalation?",
+        "options": [
+          "challengePeriod=0 with shallow request authentication",
+          "Public mempool frontrunning",
+          "Unlimited token approvals",
+          "Missing ERC-20 decimals check"
+        ],
+        "correct": 0,
+        "explanation": "Zero challenge period and weak request binding let forged admin-change messages execute immediately."
+      },
+      {
+        "question": "Best mitigation bundle for this bridge class?",
+        "options": [
+          "Hide gateway address from docs",
+          "MMR boundary tests, proof-payload binding, non-zero challenge period, and timelocked admin changes",
+          "Disable all minting forever",
+          "Use only off-chain verification"
+        ],
+        "correct": 1,
+        "explanation": "Both proof verification correctness and governance delay/binding are required to prevent instant forged-admin mint paths."
+      }
+    ]
+  },
+  "rhea-finance-2026": {
+    "technicalDesc": "Rhea's margin engine trusted route-level slippage math that did not model token reuse across multi-hop swaps. The vulnerable pattern was validating each hop in isolation while allowing the same intermediate asset to re-enter the path, which let attacker-controlled Ref pools appear economically valid. Preparation took days: deploy fake pools, seed liquidity, craft cyclic/reused-token routes, then borrow debt assets and route them through those pools to distort effective prices. The bad routes triggered reserve depletion and cascading liquidations, draining about $18.4M before the attacker deleted 55 helper accounts for obfuscation. Checks failed because slippage protection measured local hop output rather than global path integrity against whitelisted liquidity venues. Auditors should require route whitelisting, detect reused intermediates, and add circuit breakers before liquidation cascades.",
+    "quiz": [
+      {
+        "question": "What logic bug did Rhea's slippage protection have?",
+        "options": [
+          "It ignored reused intermediate tokens in multi-step routes",
+          "It used stale Chainlink prices",
+          "It allowed unlimited reentrancy in repay()",
+          "It minted unbacked stablecoins directly"
+        ],
+        "correct": 0,
+        "explanation": "Reused intermediate tokens broke the assumption that per-hop slippage checks represented full route safety."
+      },
+      {
+        "question": "How did the attacker set up exploitable liquidity?",
+        "options": [
+          "By creating fake Ref Finance pools and injecting liquidity over several days",
+          "By compromising NEAR validator keys",
+          "By hijacking DNS for the Rhea frontend",
+          "By flash-loaning the entire NEAR supply"
+        ],
+        "correct": 0,
+        "explanation": "Fake pools and seeded liquidity made malicious routes pass slippage validation."
+      },
+      {
+        "question": "Which mitigation is most relevant for NEAR margin protocols?",
+        "options": [
+          "Disable all margin trading",
+          "Whitelist pools, detect reused intermediates in routes, and add liquidation circuit breakers",
+          "Increase UI slippage tolerance",
+          "Rotate frontend API keys monthly"
+        ],
+        "correct": 1,
+        "explanation": "Route integrity and liquidation containment directly address the observed exploit mechanics."
+      }
+    ]
+  }
+}

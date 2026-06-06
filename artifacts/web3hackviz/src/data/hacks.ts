@@ -478,8 +478,7 @@ export const hacks: Hack[] = [
       "On April 1, 2026, Drift Protocol suffered a $286M triple-vector attack: a fake collateral token accepted by the vault, a compromised admin key that disabled circuit breakers, and manipulated oracle prices used by the perpetuals engine.",
     longDesc:
       "Drift Protocol is Solana's largest perpetual futures DEX. On April 1, 2026 attackers executed a coordinated three-vector assault. First, a compromised admin wallet (stolen via a spear-phishing attack on a core team member) was used to whitelist a fake USDC-lookalike SPL token as valid collateral. Second, the admin key disabled Drift's oracle freshness circuit breaker. Third, the attacker seeded the Pyth oracle with a manipulated SOL/USD price via large spot market orders on Serum. The combination allowed depositing worthless collateral, opening maximum leveraged positions at a fake inflated SOL price, and then pocketing the difference when real prices were used for settlement.",
-    technicalDesc:
-      "Drift's ClearingHouse accepts collateral deposits keyed by the SPL token mint address. The compromised admin called `initialize_spot_market` with a freshly minted fake USDC token. The fake token had identical decimals and a spoofed symbol. Oracle freshness check was disabled via `update_oracle_guard_rails(max_age=u64::MAX)`. The attacker then deposited 10B fake USDC, opened 20x leveraged SOL longs at a Pyth price manipulated to $1,800 (real: $120), and when the perpetual engine settled using the manipulated Pyth price, profits were $286M against the insurance fund and liquidity pools.",
+    technicalDesc: "Drift's loss required three compounding failures: privileged admin control, permissive collateral onboarding, and disabled oracle safety rails. The vulnerable pattern was a single admin key able to call `initialize_spot_market` for a spoofed USDC mint and `update_oracle_guard_rails` to accept stale or manipulated Pyth prices. The attacker path was: compromise admin credentials, whitelist fake collateral, disable freshness/confidence checks, manipulate SOL spot on Serum to inflate Pyth TWAP, deposit worthless collateral, open max-leverage longs, and settle against insurance/LP inventory at the fake mark. Checks failed because authorization, token provenance, and oracle integrity were not independently enforced on-chain. Auditors should treat perpetuals admin surfaces as critical: multisig + timelock for market/oracle config, hardcoded collateral allowlists, and non-bypassable oracle staleness bounds.",
     impact: "$285 million",
     impactUSD: 285000000,
     contracts: [
@@ -585,15 +584,22 @@ export const hacks: Hack[] = [
     ],
     quiz: [
       {
-        question: "What was the first step that made the Drift Protocol attack possible?",
-        options: [
-          "Flash loan to manipulate the oracle",
-          "Spear-phishing compromise of an admin wallet seed phrase",
-          "Integer overflow in the collateral calculation",
-          "Reentrancy in the settlement function",
-        ],
+        question: "What was the first enabling step in the Drift attack?",
+        options: ["Integer overflow in settlement math", "Compromised admin key from spear-phishing", "Reentrancy in deposit()", "Bridge message forgery"],
         correct: 1,
-        explanation: "Without the compromised admin key, the attacker could not whitelist the fake token or disable oracle guard rails. The key was obtained via a malicious VSCode extension in a spear-phishing attack.",
+        explanation: "Without admin privileges the attacker could not whitelist fake collateral or weaken oracle guard rails.",
+      },
+      {
+        question: "Why could Drift accept the attacker's collateral and pricing?",
+        options: ["Fake USDC mint was whitelisted and oracle guard rails were disabled", "Users voted to accept the token via governance", "Pyth was offline and defaulted to zero", "Insurance fund auto-approved all deposits"],
+        correct: 0,
+        explanation: "Admin actions made worthless collateral valid and allowed manipulated oracle marks to pass validation.",
+      },
+      {
+        question: "Which mitigation best addresses the full attack chain?",
+        options: ["Increase max leverage only", "Multisig + timelock admin, collateral allowlist, and mandatory oracle freshness/confidence bounds", "Disable Serum permanently", "Add UI warnings for large positions"],
+        correct: 1,
+        explanation: "The exploit combined privileged ops failure with oracle and collateral policy weaknesses; all three layers need hardening.",
       },
     ],
   },
@@ -883,7 +889,7 @@ export const hacks: Hack[] = [
     type: ["Cryptography", "Bridge"],
     shortDesc: "MMR proof validation flaw allowed 1B fake DOT minting via leafCount=1 edge case, draining $2.5M.",
     longDesc: "On April 13, 2026, Hyperbridge's ISMP Token Gateway on Ethereum was exploited via a Merkle Mountain Range (MMR) proof validation bug. The attacker deployed orchestration contracts and exploited the HandlerV1.verifyPostRequests() function where leafCount=1 edge case caused the library to discard forged leaves and substitute legitimate stored roots. Combined with weak governance (challengePeriod=0) and insufficient request-proof binding, the attacker gained MINTER_ROLE and minted 1,000,000,000 fake DOT tokens, swapping them for 108.2 ETH before the gateway was frozen.",
-    technicalDesc: "The exploit targeted three vulnerabilities: (1) MMR library boundary validation failed when leafCount=1, allowing leaf_index >= leafCount; (2) proof-to-request binding was missing - commitment hash didn't cover both proof and request payload; (3) TokenGateway had challengePeriod=0 with shallow source checks. The attacker: (1) funded via Railgun/Synapse for obfuscation; (2) deployed helper contract as new token admin; (3) crafted PostRequest with MMR proof triggering leafCount=1 edge case; (4) called handleChangeAssetAdmin() bypassing shallow checks; (5) minted 1B DOT and swapped via Uniswap V4 PoolManager.",
+    technicalDesc: "Hyperbridge combined a cryptographic edge case with weak governance binding on bridge messages. The MMR verifier mishandled `leafCount=1`, allowing forged proof material to be discarded while a legitimate stored root was substituted. Separately, request-proof binding was incomplete: the commitment did not tightly couple proof bytes to the full PostRequest payload, so validated proof context could be replayed against different privileged actions. With `challengePeriod=0` and shallow source checks, the attacker escalated to token admin, obtained mint authority, and issued 1B fake DOT before swapping to ETH. Auditors should test MMR boundary cases (0/1 leaves), enforce payload-proof hash binding, require non-zero challenge windows, and isolate admin/mint role transitions behind timelocked multisig.",
     impact: "$2.5M (1B fake DOT minted)",
     impactUSD: 2500000,
     contracts: [
@@ -940,7 +946,26 @@ export const hacks: Hack[] = [
       { category: "Governance Security", description: "Apply full authenticate(request) modifier to all governance actions. Restore non-zero challengePeriod (minimum 1 hour recommended)." },
       { category: "Admin Safeguards", description: "Introduce time-lock or multi-signature approval for changeAdmin(). Separate MINTER_ROLE assignment from admin status." }
     ],
-    quiz: [{ question: "What MMR edge case did Hyperbridge exploit?", options: ["leafCount=0", "leafCount=1", "leafCount=2", "leafIndex overflow"], correct: 1, explanation: "The leafCount=1 edge case caused the library to discard forged leaves and substitute legitimate stored roots." }]
+    quiz: [
+      {
+        question: "Which MMR edge case was central to Hyperbridge?",
+        options: ["leafCount=1 mishandling in proof verification", "Missing nonce in ECDSA signatures", "Keccak collision in root hash", "Overflow in leaf index arithmetic only"],
+        correct: 0,
+        explanation: "The leafCount=1 path caused forged leaves to be dropped and replaced with a trusted stored root.",
+      },
+      {
+        question: "What governance weakness accelerated privilege escalation?",
+        options: ["challengePeriod=0 with shallow request authentication", "Public mempool frontrunning", "Unlimited token approvals", "Missing ERC-20 decimals check"],
+        correct: 0,
+        explanation: "Zero challenge period and weak request binding let forged admin-change messages execute immediately.",
+      },
+      {
+        question: "Best mitigation bundle for this bridge class?",
+        options: ["Hide gateway address from docs", "MMR boundary tests, proof-payload binding, non-zero challenge period, and timelocked admin changes", "Disable all minting forever", "Use only off-chain verification"],
+        correct: 1,
+        explanation: "Both proof verification correctness and governance delay/binding are required to prevent instant forged-admin mint paths.",
+      },
+    ]
   },
 
   // 11. Rhea Finance (April 16, 2026)
@@ -955,7 +980,7 @@ export const hacks: Hack[] = [
     type: ["Logic Error"],
     shortDesc: "Slippage protection failed to account for reused intermediate tokens in multi-step swaps, causing $18.4M drain.",
     longDesc: "On April 16, 2026, Rhea Finance (formerly Burrow Finance) on NEAR protocol suffered an $18.4M exploit targeting its margin trading functionality. The attacker spent days preparing by creating multiple fake token pools on Ref Finance and injecting liquidity, constructing malicious swap routes. The vulnerability was in the protocol's slippage protection mechanism, which failed to account for scenarios where intermediate tokens were reused during multi-step swaps. This allowed borrowed debt tokens to be routed into fake pools under attacker control, triggering widespread forced liquidations and draining the reserve pool.",
-    technicalDesc: "Rhea's margin trading includes slippage protection that sums expected outputs across swap steps. The flaw: when intermediate tokens were reused in multi-step swaps, the slippage calculation didn't properly account for token reuse, allowing manipulated swap routes to pass validation. The attacker: (1) created fake token pools on Ref Finance with injected liquidity; (2) constructed swap routes reusing intermediate tokens to bypass slippage checks; (3) borrowed debt tokens and routed them through fake pools; (4) triggered forced liquidations by draining reserve pool; (5) deleted 55 intermediary accounts to obfuscate trail.",
+    technicalDesc: "Rhea's margin engine trusted route-level slippage math that did not model token reuse across multi-hop swaps. The vulnerable pattern was validating each hop in isolation while allowing the same intermediate asset to re-enter the path, which let attacker-controlled Ref pools appear economically valid. Preparation took days: deploy fake pools, seed liquidity, craft cyclic/reused-token routes, then borrow debt assets and route them through those pools to distort effective prices. The bad routes triggered reserve depletion and cascading liquidations, draining about $18.4M before the attacker deleted 55 helper accounts for obfuscation. Checks failed because slippage protection measured local hop output rather than global path integrity against whitelisted liquidity venues. Auditors should require route whitelisting, detect reused intermediates, and add circuit breakers before liquidation cascades.",
     impact: "$18.4M",
     impactUSD: 18400000,
     contracts: [],
@@ -1000,7 +1025,26 @@ export const hacks: Hack[] = [
       { category: "Pool Verification", description: "Validate token pools used in margin trading routes. Implement whitelisting for approved pools." },
       { category: "Liquidation Guards", description: "Add circuit breakers to prevent cascading liquidations from single malicious routes." }
     ],
-    quiz: [{ question: "What flaw did Rhea Finance's slippage protection have?", options: ["Oracle manipulation", "Token reuse in multi-step swaps", "Reentrancy", "Integer overflow"], correct: 1, explanation: "Slippage protection failed to account for reused intermediate tokens in multi-step swaps." }]
+    quiz: [
+      {
+        question: "What logic bug did Rhea's slippage protection have?",
+        options: ["It ignored reused intermediate tokens in multi-step routes", "It used stale Chainlink prices", "It allowed unlimited reentrancy in repay()", "It minted unbacked stablecoins directly"],
+        correct: 0,
+        explanation: "Reused intermediate tokens broke the assumption that per-hop slippage checks represented full route safety.",
+      },
+      {
+        question: "How did the attacker set up exploitable liquidity?",
+        options: ["By creating fake Ref Finance pools and injecting liquidity over several days", "By compromising NEAR validator keys", "By hijacking DNS for the Rhea frontend", "By flash-loaning the entire NEAR supply"],
+        correct: 0,
+        explanation: "Fake pools and seeded liquidity made malicious routes pass slippage validation.",
+      },
+      {
+        question: "Which mitigation is most relevant for NEAR margin protocols?",
+        options: ["Disable all margin trading", "Whitelist pools, detect reused intermediates in routes, and add liquidation circuit breakers", "Increase UI slippage tolerance", "Rotate frontend API keys monthly"],
+        correct: 1,
+        explanation: "Route integrity and liquidation containment directly address the observed exploit mechanics.",
+      },
+    ]
   },
 
   // 13. Kelp DAO (April 18, 2026)
@@ -4110,7 +4154,7 @@ export const hacks: Hack[] = [
     type: ["Flash Loan", "Price Manipulation", "Logic Error"],
     shortDesc: "Flash-loan attacker burned tokens to a dead address to inflate pool reserves, exploiting stale reserve reads for a $1.665M drain on BSC.",
     longDesc: "On April 4, 2026, TMM on BNB Chain lost approximately $1.665M to a reserve manipulation attack. The attacker used flash loans to acquire large token balances, burned tokens directly to a dead address to skew the pool's reserve accounting, and exploited stale reserve values that were not updated atomically with the burn. The inflated reserves enabled swaps at manipulated prices, draining liquidity before the flash loan was repaid.",
-    technicalDesc: "The exploit combined three vectors: (1) flash loans for capital; (2) direct burns to 0xdead to manipulate visible pool token balances without triggering reserve sync; (3) stale getReserves() reads that still reflected pre-burn state. The attacker swapped against the distorted ratio, extracted value from the LP pool, and repaid the flash loan in a single transaction bundle.",
+    technicalDesc: "The root cause was a reserve-accounting desync: pool balances changed after a burn to 0xdead, but reserve state used for pricing was not atomically updated. The vulnerable pattern was relying on cached `getReserves()` during swap execution while allowing direct token balance changes that bypass reserve sync. The attacker used flash-loaned capital, burned tokens to distort balance-to-reserve ratios, then traded against stale reserves in the same transaction bundle. Validation failed because swap checks trusted stale reserve snapshots instead of current balances or post-mutation sync state. Standard slippage controls did not stop the exploit because the manipulated state existed intra-block and looked locally consistent. Auditors should hunt for reserve-versus-balance divergence paths, unsynced transfer/burn side effects, and missing invariant checks around AMM reserve updates.",
     impact: "$1.665M",
     impactUSD: 1665000,
     contracts: [],
@@ -4147,7 +4191,26 @@ export const hacks: Hack[] = [
       { category: "Flash Loan Guards", description: "Detect same-block reserve mutations and block swaps when reserves diverge from actual balances." },
       { category: "Invariant Checks", description: "Enforce constant-product or TWAP bounds on swaps to reject manipulated reserve ratios." }
     ],
-    quiz: [{ question: "What enabled TMM's reserve manipulation?", options: ["Oracle compromise", "Burn to dead address + stale pool reserves", "Private key leak", "Reentrancy"], correct: 1, explanation: "Burning tokens to a dead address skewed balances while stale getReserves() reads allowed swaps at manipulated ratios." }]
+    quiz: [
+      {
+        question: "What was the primary root cause in TMM?",
+        options: ["Compromised admin key", "Reserve desync after burn-induced balance mutation", "Oracle downtime", "Unchecked delegatecall"],
+        correct: 1,
+        explanation: "Burning to a dead address changed balances without synchronizing reserves, so pricing logic trusted stale reserve data.",
+      },
+      {
+        question: "How did the attacker realize profit in one transaction?",
+        options: ["Borrow flash liquidity, distort reserves, swap at stale prices, repay loan", "Mint governance tokens and vote treasury transfer", "Exploit reentrancy in withdraw()", "Hijack DNS and steal signatures"],
+        correct: 0,
+        explanation: "The exploit chained flash capital, burn-based distortion, stale-reserve swaps, and flash-loan repayment atomically.",
+      },
+      {
+        question: "Which mitigation is most effective for this class of AMM bug?",
+        options: ["Increase UI slippage defaults", "Block all flash loans globally", "Enforce atomic reserve sync and reserve-balance invariant checks", "Hide pool addresses from explorers"],
+        correct: 2,
+        explanation: "Atomic sync and hard invariants prevent swaps from executing when reserves and balances diverge.",
+      },
+    ]
   },
 
   // Dango (April 13-14, 2026)
@@ -4161,7 +4224,7 @@ export const hacks: Hack[] = [
     type: ["Logic Error", "Access Control"],
     shortDesc: "Missing positive-amount validation in insurance fund donation logic let an attacker move $1.9M ($410K bridged); white hat returned all funds.",
     longDesc: "Between April 13-14, 2026, Dango Protocol was exploited for approximately $1.9M through a flaw in its insurance fund donation mechanism. The donation function failed to validate that the donated amount was positive, allowing crafted transactions to drain insurance reserves. Roughly $410K was bridged cross-chain before the attacker, acting as a white hat, fully returned all stolen funds.",
-    technicalDesc: "The vulnerability was in the insurance fund donation path: the contract accepted donation parameters without enforcing amount > 0. The attacker crafted negative or zero-edge-case inputs that inverted accounting, crediting the attacker while debiting the insurance fund. Cross-chain bridging moved $410K off the primary chain before full recovery.",
+    technicalDesc: "Dango's loss came from missing amount-domain validation in insurance donation logic, where inputs were accepted without enforcing a positive amount. The vulnerable pattern was accounting code that allowed zero or negative values to flow into balance updates. The attacker crafted donation calls that inverted bookkeeping semantics, causing protocol reserves to decrease while attacker credit increased. Exploitation was straightforward: send malformed donation parameters, repeat drains, then bridge part of proceeds cross-chain. Checks failed because input validation and invariants were both incomplete, so nonsensical values were treated as legitimate state transitions. Auditors should review signed-versus-unsigned assumptions, test negative/zero boundaries in fee and donation paths, and assert that insurance funds cannot decrease except through explicitly authorized withdrawal logic.",
     impact: "$1.9M (fully returned)",
     impactUSD: 1900000,
     contracts: [],
@@ -4200,7 +4263,26 @@ export const hacks: Hack[] = [
       { category: "Invariant Testing", description: "Add fuzz tests ensuring insurance fund balance never decreases without authorized withdrawal." },
       { category: "Bug Bounty", description: "Maintain active bug bounty to incentivize white-hat disclosure over exploitation." }
     ],
-    quiz: [{ question: "What was Dango's vulnerability?", options: ["Oracle manipulation", "Missing positive amount check in insurance donation", "Private key leak", "Flash loan attack"], correct: 1, explanation: "The insurance fund donation function failed to validate positive amounts, allowing crafted inputs to drain reserves." }]
+    quiz: [
+      {
+        question: "What bug enabled the Dango incident?",
+        options: ["Missing positive-amount validation in donation accounting", "Outdated price oracle heartbeat", "Bridge validator key leak", "Signature malleability in ECDSA"],
+        correct: 0,
+        explanation: "The donation flow failed to require amount > 0, enabling malicious accounting inversion.",
+      },
+      {
+        question: "What attack mechanism drained protocol funds?",
+        options: ["Repeating malformed donation calls to credit attacker and debit insurance reserves", "Reentering claim() before state update", "Spoofing DNS records for frontend", "Hijacking sequencer ordering"],
+        correct: 0,
+        explanation: "The attacker abused malformed donation inputs to repeatedly shift value out of the insurance pool.",
+      },
+      {
+        question: "What is the best mitigation strategy?",
+        options: ["Add stricter UI form validation only", "Require amount > 0 plus invariant tests that reserve balance cannot decrease unexpectedly", "Disable bridging permanently", "Increase gas limit for donation calls"],
+        correct: 1,
+        explanation: "Contract-level validation and invariants are required; UI checks alone are bypassable.",
+      },
+    ]
   },
 
   // CoW Swap (April 14, 2026)
@@ -4215,7 +4297,7 @@ export const hacks: Hack[] = [
     type: ["Supply Chain", "Access Control"],
     shortDesc: "DNS hijack via Gandi/Traficom social engineering redirected CoW Swap frontend, stealing $1.2M — not a smart contract exploit.",
     longDesc: "On April 14, 2026, CoW Swap suffered a $1.2M theft through DNS registrar social engineering, not a smart contract vulnerability. Attackers compromised the domain registration chain involving Gandi and Traficom (.fi registry), redirecting users from the legitimate CoW Swap frontend to a phishing site. Users who interacted with the malicious interface approved token transfers that drained their wallets.",
-    technicalDesc: "This was an infrastructure attack, not an on-chain bug. The attacker socially engineered DNS registrar credentials (Gandi account and Traficom .fi registry access) to change nameserver records for CoW Swap domains. The phishing frontend mimicked the real UI and prompted users to sign malicious ERC-20 approvals and swap transactions, draining approximately $1.2M across affected wallets.",
+    technicalDesc: "This incident was a web-infrastructure compromise rather than a smart-contract flaw. The vulnerable pattern was over-trusting DNS and registrar security as a single control plane for transaction intent capture. Attackers socially engineered registrar and registry processes, changed name resolution, and redirected users to a convincing phishing frontend. Users then signed approvals and transaction payloads that were valid on-chain but malicious in intent, enabling token drains. Defensive checks failed because contracts cannot distinguish a signature captured on a hijacked domain from one signed on a legitimate UI, and registrar hardening controls were insufficient. Auditors should include off-chain threat modeling: registrar lock, DNSSEC, domain change monitoring, wallet-level transaction decoding, and emergency kill-switch communication plans for frontend compromise scenarios.",
     impact: "$1.2M",
     impactUSD: 1200000,
     contracts: [],
@@ -4252,7 +4334,26 @@ export const hacks: Hack[] = [
       { category: "Transaction Verification", description: "Users should verify contract addresses and use hardware wallets that display decoded calldata." },
       { category: "Domain Monitoring", description: "Monitor DNS records continuously and alert on any nameserver or A-record changes." }
     ],
-    quiz: [{ question: "What caused the CoW Swap incident?", options: ["Smart contract reentrancy", "DNS registrar social engineering", "Oracle manipulation", "Bridge key compromise"], correct: 1, explanation: "Attackers hijacked CoW Swap's DNS via Gandi/Traficom social engineering, redirecting users to a phishing frontend — not a contract bug." }]
+    quiz: [
+      {
+        question: "What was the real root cause in the CoW Swap case?",
+        options: ["AMM arithmetic overflow", "DNS/registrar social engineering leading to frontend hijack", "Bridge replay bug", "Proxy storage collision"],
+        correct: 1,
+        explanation: "The theft came from DNS hijack and phishing flow, not an on-chain contract bug.",
+      },
+      {
+        question: "How were user funds actually stolen?",
+        options: ["Users signed malicious approvals and transfers on a fake frontend", "Validators censored legitimate withdrawals", "A flash loan drained LP reserves", "Gas griefing forced failed swaps"],
+        correct: 0,
+        explanation: "The attacker harvested valid user signatures through a hijacked interface and executed token drains.",
+      },
+      {
+        question: "Which mitigation most directly reduces this risk?",
+        options: ["Registrar lock + DNSSEC + real-time DNS change alerts", "Raise pool swap fees", "Disable ERC-20 approvals", "Increase block confirmations"],
+        correct: 0,
+        explanation: "Hardening registrar and DNS controls is the direct defense against this attack vector.",
+      },
+    ]
   },
 
   // Grinex (April 16, 2026)
@@ -4266,7 +4367,7 @@ export const hacks: Hack[] = [
     type: ["Access Control"],
     shortDesc: "Grinex exchange hot wallets drained for $13.7M–$15M; exchange attributed the attack to foreign state actors.",
     longDesc: "On April 16, 2026, Russian cryptocurrency exchange Grinex suffered a hot wallet compromise resulting in losses estimated between $13.7M and $15M. The exchange publicly attributed the incident to foreign actors. Attackers gained access to hot wallet private keys and swept funds across multiple chains before the exchange could freeze remaining assets.",
-    technicalDesc: "This was an operational security failure, not a smart contract exploit. Attackers compromised Grinex's hot wallet infrastructure — likely via stolen credentials or insider access — and executed rapid outbound transfers from exchange-controlled wallets. The exchange attributed the breach to foreign state-sponsored actors and initiated internal security reviews.",
+    technicalDesc: "Grinex suffered an operational key-control failure in hot wallet infrastructure rather than a contract exploit. The vulnerable pattern was concentration of spend authority in internet-exposed signing systems with limited withdrawal friction. After obtaining key material or signer access, the attacker initiated rapid multi-chain transfers from exchange-controlled wallets. The attack succeeded because transactional controls were reactive: outflow detection and freeze actions occurred after significant value had already moved. Integrity checks failed at the custody layer, not at protocol logic, so on-chain transfers were valid but unauthorized from a business perspective. Auditors should inspect exchange security architecture, including HSM/MPC usage, withdrawal velocity limits, anomaly-triggered pause controls, and strict segregation between hot-wallet liquidity and long-term reserves.",
     impact: "$13.7M–$15M",
     impactUSD: 13700000,
     contracts: [],
@@ -4303,7 +4404,26 @@ export const hacks: Hack[] = [
       { category: "HSM / MPC", description: "Use hardware security modules or MPC for hot wallet key management instead of software keys." },
       { category: "Withdrawal Limits", description: "Enforce rate limits and anomaly detection on outbound hot wallet transfers." }
     ],
-    quiz: [{ question: "What was Grinex's vulnerability?", options: ["Smart contract bug", "Hot wallet infrastructure compromise", "Bridge exploit", "Flash loan"], correct: 1, explanation: "Attackers compromised Grinex hot wallet keys and drained $13.7M–$15M — an operational security failure, not a contract exploit." }]
+    quiz: [
+      {
+        question: "Which category best describes the Grinex root cause?",
+        options: ["Smart-contract reentrancy", "Operational hot-wallet key compromise", "Cross-chain proof forgery", "MEV sandwiching"],
+        correct: 1,
+        explanation: "The core failure was compromised wallet signing infrastructure, not contract code.",
+      },
+      {
+        question: "What was the attacker’s primary mechanism?",
+        options: ["Forging governance proposals", "Executing fast outbound transfers across chains using compromised custody access", "Minting unbacked wrapped assets", "Manipulating TWAP oracles"],
+        correct: 1,
+        explanation: "Once signing control was obtained, the attacker simply swept assets through valid transfer calls.",
+      },
+      {
+        question: "What mitigation is most important for similar exchanges?",
+        options: ["Use larger UI warning banners", "Store all funds in one hot wallet", "Adopt HSM/MPC plus withdrawal rate limits and anomaly auto-freeze", "Increase token decimals"],
+        correct: 2,
+        explanation: "Custody hardening and transfer controls reduce both key theft impact and time-to-containment.",
+      },
+    ]
   },
 
   // Volo Protocol (April 21, 2026)
@@ -4318,7 +4438,7 @@ export const hacks: Hack[] = [
     type: ["Access Control"],
     shortDesc: "Admin private key stolen via social engineering drained $3.5M on Sui; ~90% recovered, net loss ~$200K.",
     longDesc: "On April 21, 2026, Volo Protocol on Sui lost approximately $3.5M gross when an admin private key was compromised through social engineering. The attacker used the key to execute unauthorized protocol operations and drain vault assets. Through rapid response and negotiation, the protocol recovered roughly 90% of funds, leaving a net loss of approximately $200K.",
-    technicalDesc: "The attacker obtained an admin private key via social engineering (phishing or impersonation of a trusted party). With admin privileges on Sui, they called privileged protocol functions to withdraw or redirect vault assets totaling $3.5M. Post-incident recovery efforts reclaimed ~90% of stolen funds.",
+    technicalDesc: "Volo's exploit stemmed from admin key compromise through social-engineering, making privileged control the single point of failure. The vulnerable surface was privileged administrative functions capable of moving vault assets without layered authorization. After obtaining the key, the attacker executed authorized-by-key but unauthorized-by-intent admin withdrawals and asset redirects. Checks failed because the protocol trusted one credential path and lacked mandatory timelock or multisig friction for high-impact admin actions. Recovery was possible only after incident response and fund negotiation, not because on-chain controls blocked abuse. Auditors should prioritize role-risk mapping, enforce multi-party control for treasury-critical functions, and test whether any one compromised key can instantly execute irreversible asset movement.",
     impact: "$3.5M gross (~$200K net)",
     impactUSD: 3500000,
     contracts: [],
@@ -4357,7 +4477,26 @@ export const hacks: Hack[] = [
       { category: "Social Engineering Training", description: "Train team members to verify identity of any party requesting key access or sensitive operations." },
       { category: "Timelock", description: "Add timelock delays on admin withdrawals to allow detection and cancellation." }
     ],
-    quiz: [{ question: "How was Volo Protocol's admin key compromised?", options: ["Smart contract bug", "Social engineering", "Flash loan", "Oracle manipulation"], correct: 1, explanation: "The admin private key was obtained through social engineering, enabling $3.5M gross drain with ~90% later recovered." }]
+    quiz: [
+      {
+        question: "What was the direct root cause in Volo?",
+        options: ["Price oracle staleness", "Social-engineered admin key compromise", "Nonce reuse in signatures", "Integer underflow in vault math"],
+        correct: 1,
+        explanation: "The attacker gained admin private-key access and used privileged flows to drain funds.",
+      },
+      {
+        question: "How did the attacker move funds after compromise?",
+        options: ["By exploiting slippage checks", "By calling privileged admin withdrawal/redirection operations", "By poisoning keeper jobs", "By using a reentrancy loop"],
+        correct: 1,
+        explanation: "The exploit path was direct use of legitimate admin powers with stolen credentials.",
+      },
+      {
+        question: "Which mitigation best addresses this class of failure?",
+        options: ["Timelocked multisig for admin actions and strict signer operational security", "Disable token swaps", "Lower gas price on admin txs", "Use larger block confirmations"],
+        correct: 0,
+        explanation: "Multisig + timelock reduces single-key blast radius and gives response time.",
+      },
+    ]
   },
 
   // GiddyDeFi (April 23, 2026)
@@ -4371,7 +4510,7 @@ export const hacks: Hack[] = [
     type: ["Logic Error", "Access Control"],
     shortDesc: "EIP-712 signature replay on GiddyVaultV3: aggregator, fromToken, toToken, and amount were not signed, draining $1.3M.",
     longDesc: "On April 23, 2026, GiddyDeFi's GiddyVaultV3 on Ethereum lost $1.3M to an EIP-712 signature replay attack. The signed message omitted critical fields — aggregator, fromToken, toToken, and amount — allowing an attacker to reuse a valid signature with different swap parameters to drain vault assets.",
-    technicalDesc: "GiddyVaultV3 used EIP-712 typed data signatures to authorize swaps but failed to include aggregator address, fromToken, toToken, and amount in the signed struct. The attacker captured a legitimate signature and replayed it with modified parameters: different tokens, amounts, and aggregator routing, extracting $1.3M from the vault.",
+    technicalDesc: "The root cause was incomplete EIP-712 domain coverage: critical execution parameters were omitted from the signed struct. The vulnerable pattern was signature validation that checked authenticity of a message but not integrity of all mutable fields used at execution time. An attacker reused a valid signature while changing aggregator route, token pair, and amount, so signature recovery still passed. Replay succeeded because unsigned parameters remained attacker-controlled and nonce semantics did not protect altered payload variants. Security checks failed at schema design, not cryptography, since the hash did exactly what it was asked to sign. Auditors should diff every execution input against typed-data fields, require nonces/deadlines, and reject any architecture where meaningful calldata can vary outside the signed commitment.",
     impact: "$1.3M",
     impactUSD: 1300000,
     contracts: [],
@@ -4408,7 +4547,26 @@ export const hacks: Hack[] = [
       { category: "Nonce / Replay Protection", description: "Use per-signer nonces and reject reused signatures even with identical parameters." },
       { category: "Signature Audit", description: "Audit all EIP-712 schemas to ensure no mutable fields exist outside the signed struct." }
     ],
-    quiz: [{ question: "What EIP-712 flaw did GiddyDeFi have?", options: ["Missing nonce", "aggregator/fromToken/toToken/amount not in signed struct", "Wrong chain ID", "Expired deadline ignored"], correct: 1, explanation: "Critical swap parameters were not included in the EIP-712 signed message, enabling signature replay with modified values." }]
+    quiz: [
+      {
+        question: "What was the key root-cause flaw in GiddyVaultV3?",
+        options: ["Broken secp256k1 precompile", "Critical swap fields excluded from EIP-712 signed data", "Chain ID not available on Ethereum", "Unchecked external call return value"],
+        correct: 1,
+        explanation: "Aggregator, token addresses, and amount were not fully bound by the signature schema.",
+      },
+      {
+        question: "How did the replay attack work in practice?",
+        options: ["Attacker reused one valid signature while substituting unsigned swap parameters", "Attacker brute-forced a private key", "Attacker drained by repeated selfdestruct", "Attacker manipulated bridge relayers"],
+        correct: 0,
+        explanation: "Because key parameters were unsigned, modified executions still passed signature checks.",
+      },
+      {
+        question: "Best mitigation for EIP-712 authorization bugs?",
+        options: ["Use shorter signatures", "Include all execution fields plus nonce and deadline in typed data", "Move signing to frontend only", "Disable calldata encoding"],
+        correct: 1,
+        explanation: "Complete message binding prevents parameter substitution and replay variants.",
+      },
+    ]
   },
 
   // Purrlend (April 25, 2026)
@@ -4422,7 +4580,7 @@ export const hacks: Hack[] = [
     type: ["Access Control", "Bridge"],
     shortDesc: "Attacker added themselves as 2-of-3 multisig bridge signer and called mintUnbacked, draining $1.52M on HyperEVM/MegaETH.",
     longDesc: "On April 25, 2026, Purrlend on HyperEVM/MegaETH lost $1.52M when an attacker gained bridge multisig privileges and minted unbacked tokens. The attacker added themselves as a signer on the 2-of-3 multisig bridge role, then invoked mintUnbacked to create tokens without collateral backing and swapped them for real assets.",
-    technicalDesc: "The bridge used a 2-of-3 multisig for privileged operations including mintUnbacked. The attacker compromised or added a malicious signer to the multisig, meeting the 2-of-3 threshold. They then called mintUnbacked to create unbacked wrapped tokens and drained $1.52M through DEX swaps before the bridge was paused.",
+    technicalDesc: "Purrlend failed at privileged bridge governance: signer control changes and unbacked mint authority were insufficiently constrained. The vulnerable functions were signer-management flows and `mintUnbacked`, which could create claimable value without hard collateral checks. The attacker obtained effective 2-of-3 signing power, authorized unbacked minting, and immediately swapped minted assets for real liquidity. Controls failed because signer onboarding lacked timelock/governance friction and mint logic trusted signer quorum alone as proof of legitimacy. Once mint authority was abused, market liquidation converted synthetic value into real assets before intervention. Auditors should treat bridge signer topology as critical logic, verify signer-change guardrails, enforce per-epoch mint caps, and require on-chain collateral/proof validation even for quorum-approved mints.",
     impact: "$1.52M",
     impactUSD: 1520000,
     contracts: [],
@@ -4459,7 +4617,26 @@ export const hacks: Hack[] = [
       { category: "Mint Limits", description: "Cap mintUnbacked amounts and require collateral proof for large mints." },
       { category: "Monitoring", description: "Alert on any mintUnbacked call or new signer addition to bridge multisig." }
     ],
-    quiz: [{ question: "How did Purrlend's attacker mint unbacked tokens?", options: ["Flash loan", "Added self to 2-of-3 bridge multisig", "Reentrancy", "Oracle bug"], correct: 1, explanation: "The attacker became a 2-of-3 bridge multisig signer and called mintUnbacked to create unbacked tokens." }]
+    quiz: [
+      {
+        question: "What governance weakness was central to the Purrlend exploit?",
+        options: ["Permissionless lending market creation", "Unsafe signer control over bridge multisig and unbacked mint authority", "TWAP oracle lag", "Reentrancy in borrow()"],
+        correct: 1,
+        explanation: "Attacker-controlled signer authority enabled `mintUnbacked` misuse.",
+      },
+      {
+        question: "What attack sequence generated realized profit?",
+        options: ["Manipulate oracle then liquidate debt", "Gain multisig authority, mint unbacked tokens, dump via DEX", "Drain via DNS spoofing", "Replay permit signatures across chains"],
+        correct: 1,
+        explanation: "The attacker converted unauthorized mint capacity into market-sold assets.",
+      },
+      {
+        question: "Which mitigation is most robust?",
+        options: ["Hide signer addresses from public explorers", "Require timelocked signer changes and collateral/proof checks for minting", "Increase token symbol length", "Turn off swap routes temporarily"],
+        correct: 1,
+        explanation: "Signer governance controls and collateralized mint validation close both exploit stages.",
+      },
+    ]
   },
 
   // Aftermath Finance (April 29, 2026)
@@ -4474,7 +4651,7 @@ export const hacks: Hack[] = [
     type: ["Logic Error", "Math Bug"],
     shortDesc: "Negative integrator fee flaw in Aftermath perps allowed fee manipulation, draining $1.14M on Sui.",
     longDesc: "On April 29, 2026, Aftermath Finance on Sui lost $1.14M due to a negative integrator fee vulnerability in its perpetuals engine. The fee calculation logic failed to enforce non-negative integrator fees, allowing an attacker to set negative fees that credited their account while debiting the protocol's insurance fund.",
-    technicalDesc: "The perps integrator fee parameter accepted negative values without validation. When set to a negative fee, each trade credited the attacker's account with the absolute fee value while the protocol absorbed the loss. Repeated leveraged trades with manipulated negative fees drained $1.14M from Aftermath's perps insurance reserves.",
+    technicalDesc: "Aftermath's perps engine accepted negative integrator fees, turning a cost term into an attacker subsidy. The vulnerable pattern was signed fee arithmetic without domain constraints, allowing values below zero to propagate into payout calculations. The attacker configured negative fees, executed repetitive open/close trade cycles, and accumulated credits debited from protocol reserves. Checks failed because the system validated trade execution but did not enforce fee non-negativity or cap-derived balance invariants. As a result, each legitimate trade call produced illegitimate accounting outcomes that drained insurance funds over time. Auditors should enforce strict fee bounds, fuzz signed-number edge cases, and assert invariants such as fee flows never creating protocol-negative revenue from neutral trade activity.",
     impact: "$1.14M",
     impactUSD: 1140000,
     contracts: [],
@@ -4511,7 +4688,26 @@ export const hacks: Hack[] = [
       { category: "Invariant Checks", description: "Verify protocol balance never decreases due to fee calculations alone." },
       { category: "Parameter Governance", description: "Require governance approval for integrator fee changes above threshold." }
     ],
-    quiz: [{ question: "What flaw did Aftermath Finance's perps have?", options: ["Oracle manipulation", "Negative integrator fee without validation", "Reentrancy", "Bridge key leak"], correct: 1, explanation: "The integrator fee parameter accepted negative values, crediting the attacker on each trade while debiting the protocol." }]
+    quiz: [
+      {
+        question: "What was the mathematical root cause in Aftermath perps?",
+        options: ["Integrator fee accepted negative values", "Oracle median too slow", "Missed safeTransfer return check", "Improper decimals conversion only"],
+        correct: 0,
+        explanation: "Allowing negative fees inverted expected economics and paid the attacker per trade.",
+      },
+      {
+        question: "How did the attacker scale extraction?",
+        options: ["Single one-time withdrawal", "Repeated leveraged trade cycles to harvest negative-fee credits", "Bridge proof replay", "Multisig ownership takeover"],
+        correct: 1,
+        explanation: "The exploit was repeated execution of valid trades that generated invalid fee credits.",
+      },
+      {
+        question: "Most appropriate mitigation?",
+        options: ["Force all fees to 18 decimals", "Require fee >= 0 with hard caps and insurance-balance invariants", "Disable short positions permanently", "Increase block gas target"],
+        correct: 1,
+        explanation: "Bounded fee domains plus accounting invariants prevent negative-fee abuse.",
+      },
+    ]
   },
 
   // Sweat Foundation (April 29, 2026)
@@ -4526,7 +4722,7 @@ export const hacks: Hack[] = [
     type: ["Logic Error", "Access Control"],
     shortDesc: "SWEAT token contract vulnerability and custom drainer stole 13.71B SWEAT (~$2.5M) on NEAR; user balances restored.",
     longDesc: "On April 29, 2026, Sweat Foundation on NEAR suffered a $2.5M exploit targeting the SWEAT token contract. An attacker exploited a contract vulnerability combined with a custom drainer contract to extract 13.71 billion SWEAT tokens. The foundation subsequently restored affected user balances.",
-    technicalDesc: "The attacker exploited a flaw in the SWEAT token contract's transfer or approval logic, deploying a custom drainer contract to batch-extract tokens from accounts with lingering approvals or vulnerable state. A total of 13.71B SWEAT (~$2.5M) was drained before the contract was paused. User balances were later restored by the foundation.",
+    technicalDesc: "The SWEAT incident combined token-logic weakness with an automated drainer strategy that exploited approval and transfer semantics at scale. The vulnerable pattern was permissive token movement paths that let a helper contract batch-extract balances from exposed accounts or state configurations. The attacker deployed a custom drainer, targeted reachable balances through approval-compatible flows, and executed repeated pull operations to aggregate massive token outflow. Checks failed because privilege assumptions in token transfer pathways were too broad and high-velocity anomalous drains were not halted quickly enough. Even though restoration occurred later, prevention failed at authorization granularity and runtime monitoring. Auditors should review NEP-141 transfer/allowance edge cases, batch-drain abuse paths, and circuit-breaker triggers for abnormal fan-out transfers.",
     impact: "$2.5M (13.71B SWEAT, balances restored)",
     impactUSD: 2500000,
     contracts: [],
@@ -4565,7 +4761,26 @@ export const hacks: Hack[] = [
       { category: "Approval Hygiene", description: "Encourage users to revoke stale token approvals; implement permit expirations." },
       { category: "Circuit Breakers", description: "Add pause functionality and anomaly detection for large batch transfers." }
     ],
-    quiz: [{ question: "What was exploited in the Sweat Foundation incident?", options: ["Bridge key leak", "SWEAT token contract vuln + custom drainer", "Oracle manipulation", "Governance attack"], correct: 1, explanation: "A SWEAT token contract vulnerability was exploited via a custom drainer, extracting 13.71B SWEAT before balances were restored." }]
+    quiz: [
+      {
+        question: "Which description best matches the Sweat Foundation root cause?",
+        options: ["Pure oracle manipulation", "Token-contract authorization weakness abused by a custom drainer", "Bridge validator cartel attack", "UUPS storage collision"],
+        correct: 1,
+        explanation: "A token-level flaw plus a drainer contract enabled large-scale unauthorized extraction.",
+      },
+      {
+        question: "What was the attacker’s mechanism for scale?",
+        options: ["One oversized mint call", "Batch extraction via custom drainer against vulnerable/approved accounts", "Gas token refund exploit", "Miner bribery for censorship"],
+        correct: 1,
+        explanation: "The drainer automated repeated pull actions across many targets.",
+      },
+      {
+        question: "What mitigation would most reduce recurrence risk?",
+        options: ["Add stricter UI passwords", "Audit token auth logic, limit approval scope, and auto-pause on burst drains", "Rename the token contract", "Increase swap fees"],
+        correct: 1,
+        explanation: "Authorization hardening plus anomaly-based circuit breakers addresses both root cause and blast radius.",
+      },
+    ]
   },
 
   // Wasabi Protocol (April 30, 2026)
@@ -4579,7 +4794,7 @@ export const hacks: Hack[] = [
     type: ["Access Control", "Supply Chain"],
     shortDesc: "Compromised deployer key via exposed AWS Spring Boot Actuator heap dump enabled malicious UUPS upgrades, draining $5.9M across 4 chains.",
     longDesc: "On April 30, 2026, Wasabi Protocol lost $5.9M across four chains when an attacker compromised the deployer private key. The key was extracted from an exposed Spring Boot Actuator heap dump on an AWS-hosted backend. With deployer access and no multisig or timelock, the attacker pushed malicious UUPS proxy upgrades that drained protocol vaults.",
-    technicalDesc: "The attack chain: (1) Spring Boot Actuator /actuator/heapdump endpoint exposed on AWS without authentication; (2) heap dump contained deployer private key in memory; (3) attacker used key to upgrade UUPS proxy implementations to malicious contracts; (4) no multisig or timelock on upgrades allowed instant execution; (5) malicious implementations swept $5.9M across Ethereum, Arbitrum, Base, and Blast.",
+    technicalDesc: "Wasabi was compromised through backend exposure, where an unauthenticated Spring Boot Actuator heap dump leaked deployer secrets in memory. The vulnerable chain linked off-chain secret handling to on-chain upgrade authority, specifically UUPS `upgradeTo` control. The attacker retrieved the key from `/actuator/heapdump`, signed malicious upgrades, and replaced implementations with draining logic across multiple chains. Checks failed because upgrade governance depended on a single deployer path without multisig timelock, and infrastructure hardening did not restrict sensitive diagnostics endpoints. Contract-level permissions behaved as designed but were fed stolen credentials from an insecure operations layer. Auditors should include server-surface review, secret-in-memory exposure tests, and mandatory multi-party, delayed upgrade governance for any upgradeable proxy system.",
     impact: "$5.9M",
     impactUSD: 5900000,
     contracts: [],
@@ -4620,7 +4835,26 @@ export const hacks: Hack[] = [
       { category: "Upgrade Governance", description: "Require multisig and timelock on all UUPS proxy upgrades. Never store deployer keys in application memory." },
       { category: "Key Management", description: "Use HSM or KMS for signing keys. Never embed private keys in backend services." }
     ],
-    quiz: [{ question: "How was Wasabi Protocol's deployer key compromised?", options: ["Phishing email", "Spring Boot Actuator heap dump on AWS", "Smart contract bug", "DNS hijack"], correct: 1, explanation: "An exposed /actuator/heapdump endpoint leaked the deployer private key from JVM memory, enabling malicious UUPS upgrades." }]
+    quiz: [
+      {
+        question: "What was the initial compromise vector in Wasabi?",
+        options: ["Reentrancy in vault withdrawal", "Exposed Actuator heap dump leaking deployer key", "Bridge replay from L2", "Incorrect token decimals"],
+        correct: 1,
+        explanation: "The attacker first obtained key material from an exposed backend diagnostic endpoint.",
+      },
+      {
+        question: "How did that backend leak become an on-chain drain?",
+        options: ["By forging oracle signatures", "By performing malicious UUPS upgrades using stolen deployer authority", "By front-running liquidations", "By bypassing ERC-20 allowance checks"],
+        correct: 1,
+        explanation: "Stolen deployer credentials enabled direct proxy upgrades to attacker-controlled logic.",
+      },
+      {
+        question: "Which mitigation combination is strongest?",
+        options: ["Disable logs only", "Keep deployer key on app server but rotate weekly", "Lock down Actuator endpoints and enforce multisig timelocked upgrades", "Increase gas price for upgrades"],
+        correct: 2,
+        explanation: "You must secure both the backend secret surface and the upgrade governance pathway.",
+      },
+    ]
   },
 
   // Ekubo Protocol (May 5, 2026)
@@ -4634,7 +4868,7 @@ export const hacks: Hack[] = [
     type: ["Access Control", "Logic Error"],
     shortDesc: "Unauthenticated payCallback in Ekubo router extension let attacker drain ERC-20 approvals including 17 WBTC, totaling $1.4M.",
     longDesc: "On May 5, 2026, Ekubo Protocol on Ethereum and Arbitrum lost $1.4M when an attacker exploited an unauthenticated payCallback function in a router extension. Users who had approved the router had their ERC-20 tokens drained, including 17 WBTC, via crafted callback invocations that transferred approved balances to the attacker.",
-    technicalDesc: "The router extension's payCallback function lacked caller authentication, allowing anyone to invoke it with arbitrary parameters. The callback used existing user ERC-20 approvals to the router contract to transferFrom approved tokens to the attacker. 17 WBTC and other approved assets totaling $1.4M were drained across Ethereum and Arbitrum.",
+    technicalDesc: "Ekubo's router extension exposed an unauthenticated callback path that could trigger token pulls from user allowances. The vulnerable function pattern was `payCallback` executing `transferFrom`-style movements without strict caller verification. The attacker scanned for wallets with existing router approvals, invoked callback calls directly, and redirected approved assets to attacker addresses. Checks failed because callback trust assumptions were implicit: approval presence was treated as consent even when invocation origin was arbitrary. Unlimited or stale allowances amplified impact, turning one auth gap into multi-victim drainage across chains. Auditors should verify callback caller allowlists, ensure approval consumption is context-bound to active trades, and test hostile direct invocation of every externally callable settlement hook.",
     impact: "$1.4M (17 WBTC)",
     impactUSD: 1400000,
     contracts: [],
@@ -4671,7 +4905,26 @@ export const hacks: Hack[] = [
       { category: "Approval Minimization", description: "Use permit-based exact-amount approvals or ERC-20 allowance expirations instead of unlimited approvals." },
       { category: "User Education", description: "Prompt users to revoke stale approvals after swap completion." }
     ],
-    quiz: [{ question: "What flaw did Ekubo Protocol's router extension have?", options: ["Reentrancy", "Unauthenticated payCallback draining approvals", "Oracle bug", "Integer overflow"], correct: 1, explanation: "payCallback lacked caller authentication, allowing anyone to drain user ERC-20 approvals including 17 WBTC." }]
+    quiz: [
+      {
+        question: "What root cause made Ekubo users vulnerable?",
+        options: ["Incorrect block timestamp math", "Unauthenticated callback capable of spending approved tokens", "Merkle proof underflow", "Sequencer downtime"],
+        correct: 1,
+        explanation: "Anyone could invoke callback logic that consumed existing allowances.",
+      },
+      {
+        question: "How did the attacker select and drain victims?",
+        options: ["By compromising hardware wallets", "By scanning for live approvals, then triggering malicious callback-driven transfers", "By forcing users into liquidation", "By forging staking rewards"],
+        correct: 1,
+        explanation: "The exploit targeted accounts with lingering router approvals and abused callback execution.",
+      },
+      {
+        question: "Best mitigation for this design flaw?",
+        options: ["Add caller authentication and context checks to callback execution", "Raise transfer gas stipend", "Require larger approval amounts", "Disable token metadata"],
+        correct: 0,
+        explanation: "Callback functions must validate authorized caller and expected swap context before moving funds.",
+      },
+    ]
   },
 
   // TrustedVolumes (May 7, 2026)
@@ -4685,7 +4938,7 @@ export const hacks: Hack[] = [
     type: ["Access Control", "Logic Error"],
     shortDesc: "Permissionless registerAllowedOrderSigner and unvalidated inventory field in RFQ proxy drained $6.7M on Ethereum.",
     longDesc: "On May 7, 2026, TrustedVolumes on Ethereum lost $6.7M through two compounding flaws in its RFQ proxy. The registerAllowedOrderSigner function was permissionless, letting the attacker register themselves as an authorized signer. Combined with an unvalidated inventory field, the attacker crafted fraudulent RFQ orders that drained protocol inventory.",
-    technicalDesc: "Two vulnerabilities: (1) registerAllowedOrderSigner() was callable by anyone without admin gating, allowing self-registration as an order signer; (2) the inventory field in RFQ orders was not validated against on-chain balances. The attacker registered as signer, submitted orders with inflated inventory values, and extracted $6.7M from the protocol's RFQ settlement.",
+    technicalDesc: "TrustedVolumes combined two logic failures: unrestricted signer registration and weak RFQ inventory validation. The vulnerable functions were `registerAllowedOrderSigner` without access control and settlement paths trusting order-declared inventory fields. The attacker self-registered as an approved signer, forged orders with inflated inventory claims, and settled against protocol assets. Checks failed because authorization and state-consistency checks were separated but both incomplete, so a fabricated signer could feed fabricated liquidity into settlement logic. Since settlement consumed trusted signed data without hard on-chain reconciliation, losses scaled quickly. Auditors should test every signer-admission endpoint for RBAC, then verify signed-order fields are cross-checked against current balances, limits, and inventory ownership at execution time.",
     impact: "$6.7M",
     impactUSD: 6700000,
     contracts: [],
@@ -4722,7 +4975,26 @@ export const hacks: Hack[] = [
       { category: "Inventory Validation", description: "Validate RFQ inventory fields against on-chain token balances before settlement." },
       { category: "Order Verification", description: "Cross-check signed order parameters against live protocol state at settlement time." }
     ],
-    quiz: [{ question: "What two flaws did TrustedVolumes have?", options: ["Reentrancy + oracle bug", "Permissionless signer registration + unvalidated inventory", "Key leak + DNS hijack", "Flash loan + overflow"], correct: 1, explanation: "Anyone could register as an order signer, and the RFQ inventory field was not validated against on-chain balances." }]
+    quiz: [
+      {
+        question: "What paired weaknesses caused the TrustedVolumes drain?",
+        options: ["Oracle lag and liquidation bonus bug", "Permissionless signer registration plus unvalidated inventory fields", "Nonce collision and replay cache miss", "UUPS initializer misuse only"],
+        correct: 1,
+        explanation: "Anyone could become a signer and submit inventory claims that were not properly verified.",
+      },
+      {
+        question: "What was the attacker’s sequence?",
+        options: ["Self-authorize signer role, forge high-inventory orders, settle to extract assets", "Steal DNS credentials, phish wallets", "Flash-loan oracle manipulation, then liquidate", "Bridge VAA replay"],
+        correct: 0,
+        explanation: "The exploit chained authorization bypass with fraudulent order-state settlement.",
+      },
+      {
+        question: "Most effective mitigation?",
+        options: ["Require API key on frontend", "Gate signer registration and reconcile order inventory against on-chain balances", "Increase RFQ expiry windows", "Lower block gas limit"],
+        correct: 1,
+        explanation: "Both signer permissioning and hard inventory validation are needed to close this class.",
+      },
+    ]
   },
 
   // TAC Protocol (May 11, 2026)
@@ -4736,7 +5008,7 @@ export const hacks: Hack[] = [
     type: ["Access Control", "Bridge"],
     shortDesc: "Forged jetton wallet bypassed TAC sequencer code hash verification, draining $2.85M across TON and EVM.",
     longDesc: "On May 11, 2026, TAC Protocol lost $2.85M when an attacker deployed a forged jetton wallet that bypassed the sequencer's code hash verification. The fake wallet appeared valid to the cross-chain bridge but executed unauthorized token transfers, draining assets on both TON and connected EVM chains.",
-    technicalDesc: "TAC's sequencer verified jetton wallets by code hash but the check was bypassable via a forged wallet implementation that matched expected interface signatures while containing malicious transfer logic. The attacker deployed the forged wallet, passed sequencer validation, and initiated cross-chain transfers totaling $2.85M before detection.",
+    technicalDesc: "TAC's bridge trust model over-relied on code-hash style wallet verification that could be bypassed by crafted implementations. The vulnerable pattern was acceptance logic that proved interface or partial identity instead of strict canonical bytecode provenance. The attacker deployed a forged jetton wallet, passed sequencer validation, and initiated unauthorized cross-chain movements. Checks failed because verification did not bind wallet identity to an allowlisted deployment source and full immutable bytecode fingerprint. Once accepted as trusted, malicious transfer behavior executed within normal bridge flow and looked structurally valid. Auditors should validate bridge recipient/wallet authenticity with hard allowlists, factory provenance, and immutable hash checks, then adversarially test lookalike contracts designed to satisfy superficial validation criteria.",
     impact: "$2.85M",
     impactUSD: 2850000,
     contracts: [],
@@ -4773,7 +5045,26 @@ export const hacks: Hack[] = [
       { category: "Wallet Registry", description: "Maintain an on-chain registry of approved jetton wallet implementations." },
       { category: "Transfer Limits", description: "Apply rate limits and anomaly detection on cross-chain bridge transfers." }
     ],
-    quiz: [{ question: "How did TAC Protocol's attacker bypass verification?", options: ["Private key leak", "Forged jetton wallet bypassing code hash check", "Flash loan", "Governance attack"], correct: 1, explanation: "A forged jetton wallet passed the sequencer's code hash verification while executing malicious transfers." }]
+    quiz: [
+      {
+        question: "What root issue enabled TAC's forged wallet attack?",
+        options: ["Weak wallet authenticity verification model", "Missing compiler optimization flag", "Front-end typo in token symbol", "Expired LP token lock"],
+        correct: 0,
+        explanation: "Validation accepted a forged wallet that appeared compatible but contained malicious behavior.",
+      },
+      {
+        question: "How did the attacker pass trust checks?",
+        options: ["By brute-forcing validator keys", "By deploying a lookalike jetton wallet that bypassed code-hash checks", "By causing block reorgs", "By exploiting integer wraparound"],
+        correct: 1,
+        explanation: "A crafted wallet implementation satisfied insufficient authenticity checks.",
+      },
+      {
+        question: "Best mitigation for this bridge-validation class?",
+        options: ["Use longer wallet names", "Use factory provenance and strict allowlisted bytecode hashes", "Disable event logs", "Increase bridge fee"],
+        correct: 1,
+        explanation: "Trust should be anchored to canonical deploy paths and immutable bytecode allowlists.",
+      },
+    ]
   },
 
   // Transit Finance (May 13, 2026)
@@ -4787,7 +5078,7 @@ export const hacks: Hack[] = [
     type: ["Access Control", "Logic Error"],
     shortDesc: "Deprecated 2022 Transit Finance legacy contract exploited via lingering user approvals, draining $1.88M on TRON.",
     longDesc: "On May 13, 2026, Transit Finance lost $1.88M when an attacker exploited a deprecated 2022 legacy swap contract on TRON. Users who had not revoked token approvals to the old contract were drained via transferFrom calls, years after the contract was superseded by newer versions.",
-    technicalDesc: "Transit Finance migrated to new contracts but the 2022 legacy swap contract remained deployed on TRON with active user approvals. The attacker scanned for accounts with lingering approve() permissions and called transferFrom on the deprecated contract to sweep approved TRC-20 tokens, extracting $1.88M total.",
+    technicalDesc: "Transit Finance was exploited through technical debt: a deprecated 2022 contract remained callable with lingering user approvals. The vulnerable pattern was migration without deactivation, where legacy `transferFrom` capability preserved real spending authority years after replacement. The attacker scanned allowances to the obsolete contract, then swept approved balances from multiple users. Checks failed because deprecation was treated as social guidance rather than enforced revocation or contract kill-switch, and approval hygiene was not operationally completed. The on-chain behavior was valid under ERC/TRC allowance semantics, so the old contract became a latent drain surface. Auditors should inventory deprecated contracts, verify irreversible decommission paths, and monitor historical allowance exposure when planning upgrades or migration campaigns.",
     impact: "$1.88M",
     impactUSD: 1880000,
     contracts: [],
@@ -4824,7 +5115,26 @@ export const hacks: Hack[] = [
       { category: "Approval Revocation", description: "Prompt users to revoke approvals when migrating to new contract versions." },
       { category: "Approval Monitoring", description: "Monitor and alert on large transferFrom calls on deprecated contracts." }
     ],
-    quiz: [{ question: "Why could Transit Finance's legacy contract be exploited in 2026?", options: ["New bug introduced", "Users had lingering approvals to deprecated 2022 contract", "Bridge key leak", "Oracle manipulation"], correct: 1, explanation: "The deprecated 2022 contract remained functional with active user approvals that were never revoked." }]
+    quiz: [
+      {
+        question: "Why could a 2022 Transit contract still drain users in 2026?",
+        options: ["Consensus rollback", "Legacy contract stayed active with unrecalled user approvals", "ERC-20 standard changed", "Bridge validator outage"],
+        correct: 1,
+        explanation: "Approvals persisted on a still-functional deprecated contract.",
+      },
+      {
+        question: "What was the attacker’s practical drain method?",
+        options: ["Execute repeated transferFrom calls on approved victims via legacy contract", "Mint fake LP shares", "Replay zk proofs", "Steal front-end API keys only"],
+        correct: 0,
+        explanation: "Allowance-based transferFrom sweeps were enough because approvals remained live.",
+      },
+      {
+        question: "Most effective mitigation for future migrations?",
+        options: ["Mark old contracts as deprecated in docs", "Disable legacy functions and run enforced approval-revocation campaigns", "Increase bridge confirmations", "Rename function selectors"],
+        correct: 1,
+        explanation: "Hard deactivation plus revocation cleanup removes lingering spend authority.",
+      },
+    ]
   },
 
   // THORChain (May 15, 2026)
@@ -4838,7 +5148,7 @@ export const hacks: Hack[] = [
     type: ["Access Control", "Bridge"],
     shortDesc: "Malicious THORChain node progressively leaked GG20 TSS key material; unapplied patch led to $10.7M drain.",
     longDesc: "On May 15, 2026, THORChain lost $10.7M when a malicious node operator progressively leaked GG20 threshold signature scheme (TSS) key material. A known patch addressing TSS key isolation had not been applied network-wide, allowing the rogue node to reconstruct signing shares and authorize fraudulent outbound vault transfers.",
-    technicalDesc: "THORChain vaults use GG20 TSS for distributed signing. A malicious node exploited insufficient key material isolation to progressively leak TSS shares across signing rounds. An unapplied security patch would have prevented cross-round key exposure. Once sufficient shares were collected, the attacker reconstructed the vault signing key and initiated $10.7M in unauthorized outbound transfers.",
+    technicalDesc: "THORChain's root issue was TSS key-share leakage across signing rounds, compounded by delayed patch deployment. The vulnerable pattern was insufficient isolation and lifecycle hygiene for GG20 share material in a hostile validator environment. A malicious node participated in signing ceremonies, accumulated leaked fragments over time, and reconstructed enough signing authority for fraudulent outbound transfers. Checks failed at operational security governance: known defensive fixes were not uniformly enforced before participation. Once threshold signing guarantees were undermined, vault withdrawals appeared cryptographically valid to the system. Auditors should examine TSS implementation details, verify per-round share zeroization, enforce mandatory patch levels for validator admission, and model progressive share-harvest attacks rather than only single-round compromise scenarios.",
     impact: "$10.7M",
     impactUSD: 10700000,
     contracts: [],
@@ -4880,7 +5190,26 @@ export const hacks: Hack[] = [
       { category: "TSS Key Isolation", description: "Ensure TSS key material is zeroed after each signing round and never reused across rounds." },
       { category: "Node Vetting", description: "Strengthen node operator bonding requirements and continuous behavior monitoring." }
     ],
-    quiz: [{ question: "What enabled THORChain's $10.7M drain?", options: ["Smart contract reentrancy", "Malicious node leaking GG20 TSS key material with unapplied patch", "Flash loan", "DNS hijack"], correct: 1, explanation: "A malicious node progressively leaked GG20 TSS shares; a security patch that would have prevented this was not applied network-wide." }]
+    quiz: [
+      {
+        question: "What fundamentally broke in the THORChain incident?",
+        options: ["AMM pool invariant", "TSS share isolation across signing rounds", "ERC-20 approve race", "Frontend domain integrity"],
+        correct: 1,
+        explanation: "A malicious node could leak and accumulate GG20 share material over time.",
+      },
+      {
+        question: "How was value ultimately drained?",
+        options: ["Forged oracle prices", "Reconstructed signing authority produced valid fraudulent outbound transfers", "Liquidity mining reward inflation", "Cross-domain message replay"],
+        correct: 1,
+        explanation: "After collecting enough share data, fraudulent withdrawals were signed as if legitimate.",
+      },
+      {
+        question: "Best mitigation theme for validator/TSS systems?",
+        options: ["Lower validator bond requirements", "Enforce patch compliance and strict per-round key-share isolation", "Hide node IP addresses only", "Increase token supply"],
+        correct: 1,
+        explanation: "Operational patch discipline and cryptographic share hygiene are both required.",
+      },
+    ]
   },
 
   // Adshares Bridge (May 17, 2026)
@@ -4894,7 +5223,7 @@ export const hacks: Hack[] = [
     type: ["Bridge", "Logic Error"],
     shortDesc: "Adshares Bridge wrapTo accepted non-existent native txids, minting fake wADS; $628K stolen, ~86% returned.",
     longDesc: "On May 17, 2026, the Adshares Bridge on Ethereum lost $628K when an attacker called wrapTo with fabricated native transaction IDs that did not exist on the Adshares native chain. The bridge minted unbacked wADS wrapped tokens without verifying the source deposit, which were swapped for real assets. Approximately 86% of funds were later returned.",
-    technicalDesc: "The wrapTo function minted wADS tokens based on claimed native-chain transaction IDs without verifying those transactions actually occurred or contained matching deposit amounts. The attacker submitted wrapTo calls with non-existent txids, received unbacked wADS mints, and swapped them for ETH and stablecoins totaling $628K.",
+    technicalDesc: "Adshares Bridge minted wrapped assets from claimed native txids without proving those deposits existed. The vulnerable function was `wrapTo` accepting user-supplied transaction references as sufficient mint authorization. The attacker submitted fabricated txids, received unbacked wADS mint output, and sold those tokens for real market assets. Validation failed because source-chain existence, amount consistency, and confirmation depth were not enforced before mint issuance. Replay and fabrication surfaces remained open since txid linkage was trust-based rather than cryptographic-proof based. Auditors should verify bridge mint paths require objective source-chain proofs, immutable consumed-message tracking, and strict transaction-to-mint amount reconciliation with defensive mint caps.",
     impact: "$628K (~86% returned)",
     impactUSD: 628000,
     contracts: [],
@@ -4933,7 +5262,26 @@ export const hacks: Hack[] = [
       { category: "Txid Validation", description: "Cross-reference txids against native chain RPC with confirmation depth requirements." },
       { category: "Mint Limits", description: "Apply rate limits and caps on wrapTo minting per address and per time window." }
     ],
-    quiz: [{ question: "What flaw did Adshares Bridge's wrapTo have?", options: ["Private key leak", "Accepted non-existent native txids for minting", "Reentrancy", "Oracle manipulation"], correct: 1, explanation: "wrapTo minted wADS without verifying that the claimed native transaction IDs actually existed." }]
+    quiz: [
+      {
+        question: "What was the root validation failure in Adshares `wrapTo`?",
+        options: ["No slippage parameter", "No verification that referenced native txids actually existed", "Wrong token decimals", "Missing event emission"],
+        correct: 1,
+        explanation: "Mint authorization trusted fabricated transaction IDs without source-chain proof.",
+      },
+      {
+        question: "How did the attacker realize value from fake mints?",
+        options: ["Used unbacked wADS as collateral then defaulted", "Swapped unbacked minted wADS for real ETH/stablecoins", "Changed governance quorum", "Forced validator halt"],
+        correct: 1,
+        explanation: "The attacker converted counterfeit wrapped tokens into real assets via market liquidity.",
+      },
+      {
+        question: "Which mitigation is most direct?",
+        options: ["Require source-chain proof-of-deposit and consume-once tx tracking before mint", "Increase bridge UI warning text", "Disable token symbols", "Raise swap fee in all pools"],
+        correct: 0,
+        explanation: "Bridge mints must be cryptographically tied to verified source deposits.",
+      },
+    ]
   },
 
   // Verus-Ethereum Bridge (May 18, 2026)
@@ -4947,7 +5295,7 @@ export const hacks: Hack[] = [
     type: ["Bridge", "Logic Error"],
     shortDesc: "Missing source-amount validation in checkCCEValues let attacker mint unbacked bridged assets, draining $11.58M.",
     longDesc: "On May 18, 2026, the Verus-Ethereum Bridge lost $11.58M due to missing source-amount validation in the checkCCEValues function. The attacker submitted cross-chain export claims with inflated or mismatched source amounts that passed validation, minting unbacked bridged tokens on Ethereum that were swapped for real assets.",
-    technicalDesc: "checkCCEValues was responsible for validating that claimed cross-chain export amounts matched verified source-chain deposits. The function failed to enforce source-amount consistency, allowing the attacker to submit CCE (cross-chain export) claims with arbitrary destination amounts. Unbacked bridged tokens were minted on Ethereum and liquidated for $11.58M.",
+    technicalDesc: "The Verus-Ethereum bridge failed to enforce source-amount integrity in `checkCCEValues`, allowing claim inflation. The vulnerable pattern was partial validation of cross-chain export fields where destination mint amounts were not strictly bound to authenticated source deposits. The attacker submitted forged or inflated CCE claims that passed checks, minted excess wrapped assets, and liquidated them on Ethereum. Security checks failed because validation logic confirmed structure but not full economic equivalence between source and destination amounts. Without strict field-by-field reconciliation, legitimate message format became a vehicle for illegitimate value creation. Auditors should trace every bridge claim field through verification, require cryptographic proofs for amount and asset identity, and add invariants that total minted supply never exceeds proven inbound deposits.",
     impact: "$11.58M",
     impactUSD: 11580000,
     contracts: [],
@@ -4984,7 +5332,26 @@ export const hacks: Hack[] = [
       { category: "Cross-Chain Proofs", description: "Require cryptographic proofs of source-chain deposits with confirmation depth." },
       { category: "Mint Caps", description: "Apply per-transaction and daily mint limits on bridge token issuance." }
     ],
-    quiz: [{ question: "What did Verus-Ethereum Bridge's checkCCEValues fail to validate?", options: ["Destination address", "Source amount", "Gas price", "Block timestamp"], correct: 1, explanation: "Missing source-amount validation allowed forged cross-chain export claims to mint unbacked bridged tokens." }]
+    quiz: [
+      {
+        question: "What did `checkCCEValues` fail to enforce?",
+        options: ["Gas refund cap", "Source-chain amount consistency with destination mint", "Token symbol casing", "Block producer identity"],
+        correct: 1,
+        explanation: "Missing source-amount validation allowed inflated claim values to be minted.",
+      },
+      {
+        question: "What was the attack flow?",
+        options: ["Inflate CCE claim values, mint unbacked tokens, sell for real assets", "Spam mempool and front-run users", "Exploit nft metadata parser", "Hijack DNS and redirect wallets"],
+        correct: 0,
+        explanation: "The exploit transformed weak cross-chain validation into unbacked token issuance.",
+      },
+      {
+        question: "Most appropriate bridge mitigation?",
+        options: ["Increase lock period on LP positions", "Enforce cryptographic proof-backed amount reconciliation for every claim", "Disable wallet connect", "Use shorter claim IDs"],
+        correct: 1,
+        explanation: "Bridges must bind destination mint amounts to proven source deposits cryptographically.",
+      },
+    ]
   },
 
   // RetoSwap (May 20, 2026)
@@ -4998,7 +5365,7 @@ export const hacks: Hack[] = [
     type: ["Access Control", "Logic Error"],
     shortDesc: "Forged out-of-order ACK impersonating Haveno arbitrator released $2.7M in escrowed Monero trades.",
     longDesc: "On May 20, 2026, RetoSwap on the Monero/Haveno network lost $2.7M when an attacker forged an out-of-order acknowledgment (ACK) message impersonating a Haveno trade arbitrator. The forged ACK triggered premature escrow release, allowing the attacker to claim funds from multiple open trades without completing the payment side.",
-    technicalDesc: "Haveno P2P trades rely on arbitrator ACK messages to release escrowed XMR. The attacker forged ACK messages with manipulated sequence numbers (out-of-order) that impersonated a legitimate arbitrator's signature. The RetoSwap/Haveno client accepted the forged ACKs and released $2.7M in escrowed Monero to the attacker's wallets.",
+    technicalDesc: "RetoSwap's failure centered on message-authentication and ordering guarantees in escrow release signaling. The vulnerable pattern was trusting arbitrator ACK messages without robust anti-impersonation and strict monotonic sequence enforcement. The attacker forged out-of-order ACK payloads that appeared to come from a valid arbitrator context and triggered premature escrow releases. Checks failed because signature/identity binding and sequence validation were insufficiently coupled, so stale or malformed protocol states were accepted as release-authorizing. Once release conditions were bypassed, multiple trades could be settled in favor of the attacker without payment completion. Auditors should test authenticated message channels for replay/out-of-order handling, bind ACKs to immutable trade state, and require multi-party confirmation on high-value dispute releases.",
     impact: "$2.7M",
     impactUSD: 2700000,
     contracts: [],
@@ -5035,7 +5402,26 @@ export const hacks: Hack[] = [
       { category: "Sequence Validation", description: "Reject out-of-order ACK messages; enforce strict monotonic sequence numbering." },
       { category: "Multi-Arbitrator", description: "Require multiple arbitrator confirmations before escrow release on high-value trades." }
     ],
-    quiz: [{ question: "How did RetoSwap's attacker release escrowed funds?", options: ["Private key leak", "Forged out-of-order ACK impersonating arbitrator", "Smart contract bug", "51% attack"], correct: 1, explanation: "Forged arbitrator ACK messages with out-of-order sequence numbers triggered premature escrow release." }]
+    quiz: [
+      {
+        question: "What root weakness enabled RetoSwap escrow abuse?",
+        options: ["Weak ACK authenticity and ordering validation", "Unbounded flash loan liquidity", "Arithmetic overflow in collateral ratio", "ERC-20 permit nonce reuse only"],
+        correct: 0,
+        explanation: "Forged, out-of-order arbitrator-style ACKs were accepted as valid release signals.",
+      },
+      {
+        question: "How were funds unlocked without proper trade completion?",
+        options: ["By submitting forged arbitrator ACK messages with manipulated sequence timing", "By executing reentrancy in escrow payout", "By changing chain finality rules", "By minting governance shares"],
+        correct: 0,
+        explanation: "Premature release logic was triggered by crafted ACK messages that bypassed sequencing/auth checks.",
+      },
+      {
+        question: "Best mitigation for similar P2P escrow protocols?",
+        options: ["Increase trade sizes gradually", "Bind ACK signatures to trade state and enforce strict monotonic sequence checks", "Disable arbitrators entirely", "Shorten block intervals"],
+        correct: 1,
+        explanation: "State-bound signatures plus ordering enforcement prevent forged or replayed release commands.",
+      },
+    ]
   },
 
   // StablR (May 24, 2026)
@@ -5049,7 +5435,7 @@ export const hacks: Hack[] = [
     type: ["Access Control"],
     shortDesc: "1-of-3 multisig mint key compromise enabled $13.5M unbacked mint; $2.8M net extracted on Ethereum.",
     longDesc: "On May 24, 2026, StablR on Ethereum suffered a mint key compromise on its 1-of-3 multisig. The attacker minted $13.5M in unbacked stablecoins but only managed to extract $2.8M net before the protocol froze minting and blacklisted attacker addresses.",
-    technicalDesc: "StablR's stablecoin minting required only 1-of-3 multisig approval — a single compromised key was sufficient. The attacker used the compromised mint key to authorize unbacked stablecoin mints totaling $13.5M. Before full extraction, the protocol paused minting and blacklisted addresses, limiting net loss to $2.8M.",
+    technicalDesc: "StablR's core weakness was governance threshold design: mint authority was effectively single-key despite appearing multisig. The vulnerable pattern was 1-of-3 approval for high-impact mint operations, where any one compromised signer could create unbacked supply. The attacker used one stolen key to authorize large minting, then liquidated a portion before emergency controls activated. Checks failed because issuance trust relied on quorum size too small for the value at risk and lacked pre-mint risk throttles. Blacklisting and freeze tooling reduced net extraction but only after unauthorized supply was already created. Auditors should evaluate signer threshold adequacy against treasury risk, require multi-party mint approval, and add hard issuance velocity limits with automatic pause triggers.",
     impact: "$2.8M net ($13.5M unbacked minted)",
     impactUSD: 2800000,
     contracts: [],
@@ -5088,7 +5474,26 @@ export const hacks: Hack[] = [
       { category: "Mint Monitoring", description: "Real-time alerts on large mint events with automatic pause triggers." },
       { category: "Blacklist Capability", description: "Maintain ability to freeze and blacklist addresses holding unbacked mints." }
     ],
-    quiz: [{ question: "Why was StablR's mint so easily exploited?", options: ["Smart contract bug", "1-of-3 multisig — single key compromise sufficient", "Flash loan", "Oracle manipulation"], correct: 1, explanation: "Only 1 of 3 multisig signatures was required to mint, so a single compromised key enabled $13.5M unbacked minting." }]
+    quiz: [
+      {
+        question: "What was the structural root cause in StablR?",
+        options: ["Bridge message parser bug", "1-of-3 mint multisig threshold too weak", "Oracle decimal mismatch", "Unchecked call to transfer()"],
+        correct: 1,
+        explanation: "A single compromised signer could mint, making the effective trust model single-key.",
+      },
+      {
+        question: "How did the attacker convert compromised authority into loss?",
+        options: ["Minted unbacked stablecoins then liquidated what could be sold before freeze", "Stole LP NFTs and burned them", "Replayed permit signatures", "Forced chain halt"],
+        correct: 0,
+        explanation: "Unauthorized minting was monetized via market sales before containment.",
+      },
+      {
+        question: "Which mitigation best hardens mint governance?",
+        options: ["Use 2-of-3 (or higher) plus mint-rate caps and auto-pause alarms", "Make mint function private", "Increase metadata size", "Turn off events"],
+        correct: 0,
+        explanation: "Raising threshold and constraining issuance speed directly reduces single-key blast radius.",
+      },
+    ]
   },
 
   // SquidRouterModule (May 25, 2026)
@@ -5102,7 +5507,7 @@ export const hacks: Hack[] = [
     type: ["Access Control", "Logic Error"],
     shortDesc: "Fixed-string authentication flaw in Gnosis Safe module let attacker drain 86 wallets for $3.2M on Ethereum and Base.",
     longDesc: "On May 25, 2026, the SquidRouterModule Gnosis Safe module on Ethereum and Base was exploited for $3.2M across 86 wallets. A fixed-string authentication flaw in the module's authorization check allowed the attacker to bypass access control and execute transactions from any Safe that had the module enabled.",
-    technicalDesc: "The SquidRouterModule used a fixed-string comparison for authorization that could be bypassed via encoding tricks or predictable string matching. The attacker crafted module calls that passed the flawed auth check, then executed arbitrary transactions from 86 Gnosis Safes with the module enabled, draining $3.2M across Ethereum and Base.",
+    technicalDesc: "SquidRouterModule relied on fixed-string authorization semantics for privileged module execution in Gnosis Safe contexts. The vulnerable pattern was brittle string-based auth checks in place of cryptographic signer/role verification tied to transaction intent. The attacker crafted calls that satisfied the string predicate, then invoked module execution against many Safes with the module enabled. Checks failed because module-level trust was broad and reusable; once bypassed, each Safe inherited the same exploit surface with little per-wallet friction. This created systemic blast radius across 86 wallets rather than a single-account compromise. Auditors should reject string-comparison auth for modules, enforce signature-based intent validation, and model cross-tenant impact when a shared extension is enabled across many safes.",
     impact: "$3.2M (86 wallets)",
     impactUSD: 3200000,
     contracts: [],
@@ -5139,7 +5544,26 @@ export const hacks: Hack[] = [
       { category: "Safe Module Audit", description: "Audit all Gnosis Safe modules for access control before enabling on production Safes." },
       { category: "Module Disable", description: "Disable SquidRouterModule on all Safes immediately after vulnerability disclosure." }
     ],
-    quiz: [{ question: "What flaw did SquidRouterModule have?", options: ["Reentrancy", "Fixed-string authentication bypass", "Oracle bug", "Integer overflow"], correct: 1, explanation: "A fixed-string auth check in the Gnosis Safe module was bypassable, letting the attacker drain 86 wallets." }]
+    quiz: [
+      {
+        question: "What was the key authorization flaw in SquidRouterModule?",
+        options: ["Fixed-string auth check that could be bypassed", "Lack of reentrancy guard in ERC-20", "Expired oracle feed", "Incorrect chain ID in permit"],
+        correct: 0,
+        explanation: "String-based authorization was insufficient and allowed crafted bypass payloads.",
+      },
+      {
+        question: "Why did this bug affect many wallets at once?",
+        options: ["Because token supply was globally paused", "The same vulnerable module was enabled across multiple Safes", "All users shared one private key", "Bridge relayers were centralized"],
+        correct: 1,
+        explanation: "Shared module deployment created a high blast radius when auth bypass was discovered.",
+      },
+      {
+        question: "Best mitigation for safe-module authorization?",
+        options: ["Use fixed strings with stronger casing rules", "Require cryptographic intent verification and per-safe scoped permissions", "Disable transaction history", "Raise gas limits"],
+        correct: 1,
+        explanation: "Module calls should be authorized by signatures/roles, not string matching.",
+      },
+    ]
   },
 
   // SUPERFORTUNE AI (May 27, 2026)
@@ -5153,7 +5577,7 @@ export const hacks: Hack[] = [
     type: ["Access Control"],
     shortDesc: "Leaked signer private key redirected multisig GUA airdrop ($15.18M) to attacker lookalike address on Ethereum.",
     longDesc: "On May 27, 2026, SUPERFORTUNE AI lost $15.18M in GUA tokens on Ethereum when a multisig signer's private key was leaked. The attacker used the compromised signer to redirect the scheduled multisig airdrop distribution to a lookalike address controlled by the attacker, intercepting the entire allocation.",
-    technicalDesc: "The protocol used a multisig to authorize a GUA token airdrop. A signer's private key was leaked (likely via phishing or insecure storage). The attacker used the compromised signer to submit a modified airdrop transaction redirecting the recipient address to a lookalike contract or EOA, intercepting $15.18M in GUA tokens.",
+    technicalDesc: "SUPERFORTUNE AI was compromised through signer key leakage in a high-value multisig distribution workflow. The vulnerable pattern was relying on key possession and human review to protect recipient integrity in one-shot airdrop transactions. The attacker used compromised signing capability to alter recipient targets to a lookalike address while preserving plausibility. Controls failed because destination validation was not independently enforced on-chain and signing workflow checks did not reliably catch subtle address substitution. Once approved, token transfer execution was valid and irreversible, making response purely reactive. Auditors should demand address allowlists for distribution jobs, hardware-backed signer isolation, and multi-party out-of-band verification of recipient sets before any large treasury or airdrop execution.",
     impact: "$15.18M GUA",
     impactUSD: 15180000,
     contracts: [],
@@ -5190,7 +5614,26 @@ export const hacks: Hack[] = [
       { category: "Recipient Verification", description: "Display and verify airdrop recipient addresses on hardware device screens before signing." },
       { category: "Timelock", description: "Add timelock delays on large token distributions to allow cancellation of suspicious transactions." }
     ],
-    quiz: [{ question: "How did SUPERFORTUNE AI's airdrop get hijacked?", options: ["Smart contract bug", "Leaked signer key redirected airdrop to lookalike address", "Flash loan", "Oracle manipulation"], correct: 1, explanation: "A compromised multisig signer redirected the $15.18M GUA airdrop to an attacker-controlled lookalike address." }]
+    quiz: [
+      {
+        question: "What initiated the SUPERFORTUNE AI loss?",
+        options: ["Oracle price divergence", "Leaked multisig signer private key", "Bridge replay proof", "Token decimal truncation"],
+        correct: 1,
+        explanation: "Compromised signer access enabled malicious transaction preparation/approval.",
+      },
+      {
+        question: "How was the airdrop hijacked technically?",
+        options: ["By changing token total supply", "By redirecting recipient address to attacker-controlled lookalike destination", "By halting the mempool", "By reentering claim()"],
+        correct: 1,
+        explanation: "The attacker altered destination details while preserving transaction legitimacy.",
+      },
+      {
+        question: "Which mitigation best protects large airdrops?",
+        options: ["Use a shorter recipient list", "Enforce recipient allowlists and multi-party deterministic destination verification", "Disable events during distribution", "Increase transfer gas"],
+        correct: 1,
+        explanation: "Strong recipient controls and independent signer verification prevent address-redirection fraud.",
+      },
+    ]
   },
 
   // Polymarket (May 22, 2026)
@@ -5204,7 +5647,7 @@ export const hacks: Hack[] = [
     type: ["Access Control"],
     shortDesc: "Six-year-old ops wallet private key compromise drained $520K POL from rewards wallet — not a contract exploit.",
     longDesc: "On May 22, 2026, Polymarket lost $520K in POL tokens when a six-year-old operations wallet private key was compromised. The attacker drained POL from the protocol's rewards wallet. This was an operational security failure involving a legacy key, not a smart contract or UMA oracle exploit.",
-    technicalDesc: "Polymarket's rewards distribution wallet was controlled by a private key created approximately six years prior and not rotated. The attacker obtained this legacy key and transferred $520K in POL tokens from the rewards wallet. No smart contract vulnerability or UMA oracle manipulation was involved.",
+    technicalDesc: "Polymarket's incident was a key-lifecycle failure in an operational rewards wallet, not a smart-contract or oracle exploit. The vulnerable pattern was prolonged dependence on an old single private key without modern custody controls or periodic rotation. After key compromise, the attacker executed straightforward token transfers from the rewards wallet and drained available balance. Checks failed because wallet governance lacked multisig friction and historical key hygiene had not been enforced despite age and exposure risk. On-chain transactions were fully valid, so protocol logic offered no compensating control once key custody was lost. Auditors should evaluate operational wallet architecture, mandate key rotation and retirement schedules, and require multisig or MPC for any wallet with recurring treasury or rewards authority.",
     impact: "$520K POL",
     impactUSD: 520000,
     contracts: [],
@@ -5241,7 +5684,26 @@ export const hacks: Hack[] = [
       { category: "Multisig Ops", description: "Use multi-sig for all treasury and rewards wallets instead of single private keys." },
       { category: "Legacy Key Audit", description: "Audit and revoke all legacy keys from early project phases." }
     ],
-    quiz: [{ question: "What caused Polymarket's $520K loss?", options: ["UMA oracle exploit", "Six-year-old ops wallet key compromise", "Smart contract reentrancy", "DNS hijack"], correct: 1, explanation: "A legacy operations wallet private key from ~2020 was compromised, draining POL from the rewards wallet — not a contract exploit." }]
+    quiz: [
+      {
+        question: "What was the true root cause in Polymarket's incident?",
+        options: ["UMA oracle corruption", "Legacy ops wallet private key compromise", "AMM reserve skew", "Bridge fee miscalculation"],
+        correct: 1,
+        explanation: "The loss came from compromised wallet credentials, not oracle or contract logic.",
+      },
+      {
+        question: "How did funds leave the protocol?",
+        options: ["Through normal signed transfers from the compromised rewards wallet", "Through forced liquidations", "By minting synthetic assets", "By replaying finality proofs"],
+        correct: 0,
+        explanation: "Once key control was lost, standard transfer operations were enough to drain value.",
+      },
+      {
+        question: "Best long-term mitigation?",
+        options: ["Keep old keys but rotate API secrets", "Adopt multisig/MPC and strict key rotation-retirement policies", "Raise collateral factors", "Disable UMA resolution"],
+        correct: 1,
+        explanation: "Custody modernization and lifecycle policy are the direct controls for this failure type.",
+      },
+    ]
   },
 
   // DxSale (May 28-29, 2026)
@@ -5255,7 +5717,7 @@ export const hacks: Hack[] = [
     type: ["Logic Error", "Access Control"],
     shortDesc: "Legacy DxSale v1 locker unlockToken allowed repeat withdrawals after deployer ownership transfer, draining $7.3M.",
     longDesc: "On May 28-29, 2026, DxSale on BNB Chain lost $7.3M through its legacy v1 token locker contract. The attacker exploited unlockToken to repeatedly withdraw locked tokens, compounded by a deployer ownership transfer that removed admin safeguards. Users with tokens locked in the deprecated v1 contract were affected.",
-    technicalDesc: "The DxSale v1 locker unlockToken function lacked withdrawal state tracking, allowing the same lock to be unlocked multiple times. Additionally, deployer ownership was transferred to the attacker or an uncontrolled address, removing the ability to pause the contract. The attacker called unlockToken in a loop on vulnerable locks, extracting $7.3M.",
+    technicalDesc: "DxSale's legacy locker combined a state-machine flaw with governance fragility in ownership control. The vulnerable function was `unlockToken` lacking a consumed/withdrawn state guard, allowing repeated unlocks on the same lock record. The attacker repeatedly called unlock on already-served entries and multiplied withdrawals beyond intended lock balances. Impact grew because ownership transfer removed effective emergency controls, so the vulnerable contract could not be rapidly paused. Checks failed due to non-idempotent withdrawal logic and insufficient deprecation hardening for legacy contracts still holding user value. Auditors should test idempotency on unlock/claim paths, verify lock-state mutation correctness, and require multisig/timelock ownership controls before any authority transfer on fund-holding contracts.",
     impact: "$7.3M",
     impactUSD: 7300000,
     contracts: [],
@@ -5292,7 +5754,26 @@ export const hacks: Hack[] = [
       { category: "Contract Deprecation", description: "Migrate users from v1 to v2 lockers and disable v1 unlockToken functionality." },
       { category: "Ownership Protection", description: "Use multisig or timelock for ownership transfers on contracts holding user funds." }
     ],
-    quiz: [{ question: "What flaw did DxSale's v1 locker have?", options: ["Reentrancy only", "unlockToken repeat withdraw + deployer ownership transfer", "Oracle bug", "Flash loan"], correct: 1, explanation: "unlockToken allowed repeated withdrawals from the same lock, and deployer ownership transfer removed admin safeguards." }]
+    quiz: [
+      {
+        question: "What bug in DxSale v1 enabled repeated extraction?",
+        options: ["unlockToken lacked one-time withdrawal state enforcement", "Oracle timestamp drift", "Bridge gas accounting mismatch", "Missing ERC-721 receiver hook"],
+        correct: 0,
+        explanation: "Without a spent flag, the same lock could be unlocked multiple times.",
+      },
+      {
+        question: "Why did containment fail quickly?",
+        options: ["Network congestion only", "Ownership/control issues reduced ability to pause legacy contract", "Validators rejected pause transactions", "Wallet signatures expired"],
+        correct: 1,
+        explanation: "Administrative safeguards were weakened after ownership transfer, slowing response.",
+      },
+      {
+        question: "Most appropriate mitigation set?",
+        options: ["Add stronger UI lock labels", "Enforce idempotent unlock state + decommission legacy contracts + protected ownership", "Increase lock duration globally", "Lower chain confirmation depth"],
+        correct: 1,
+        explanation: "The fix must address both state-machine correctness and governance control.",
+      },
+    ]
   },
 
   // Gravity Bridge (May 30, 2026)
@@ -5306,7 +5787,7 @@ export const hacks: Hack[] = [
     type: ["Bridge", "Access Control"],
     shortDesc: "Gravity Bridge signing key compromise authorized fraudulent cross-chain transfers, draining $5.4M.",
     longDesc: "On May 30, 2026, Gravity Bridge between Ethereum and Cosmos lost $5.4M when bridge signing keys were compromised. The attacker used the stolen keys to sign fraudulent cross-chain transfer messages, minting or releasing unbacked assets on the destination chain before the bridge operators could halt operations.",
-    technicalDesc: "Gravity Bridge relies on validator signing keys to authorize cross-chain transfers between Cosmos and Ethereum. The attacker compromised one or more bridge signing keys and produced valid signatures for fraudulent transfer messages. These authorized the release of $5.4M in bridged assets without corresponding source-chain deposits.",
+    technicalDesc: "Gravity Bridge was compromised through signing-key custody failure, which undermined message authenticity assumptions. The vulnerable pattern was trust in validator signatures without sufficient resilience to key theft and without strong anomaly friction for large releases. The attacker generated valid signatures for fraudulent transfer payloads, causing destination-side release/mint actions without equivalent source deposits. Checks failed because cryptographic verification confirmed compromised credentials, so messages were valid-form but invalid-intent. Bridge safety therefore depended on signer hygiene and threshold robustness more than contract arithmetic. Auditors should inspect signer key storage, threshold policy, independent message sanity checks, and automated circuit breakers for sudden transfer-volume anomalies even when signatures verify correctly.",
     impact: "$5.4M",
     impactUSD: 5400000,
     contracts: [],
@@ -5343,7 +5824,26 @@ export const hacks: Hack[] = [
       { category: "Multi-Sig Bridge", description: "Require M-of-N validator signatures for all cross-chain transfers above threshold." },
       { category: "Transfer Monitoring", description: "Real-time monitoring with automatic halt on anomalous outbound transfer volumes." }
     ],
-    quiz: [{ question: "What caused Gravity Bridge's $5.4M loss?", options: ["Smart contract bug", "Bridge signing key compromise", "Flash loan", "Oracle manipulation"], correct: 1, explanation: "Compromised bridge signing keys allowed the attacker to authorize fraudulent cross-chain transfers." }]
+    quiz: [
+      {
+        question: "What was Gravity Bridge's root-cause category?",
+        options: ["Key-custody compromise of bridge signing authority", "Reentrancy in withdraw", "Liquidity oracle delay", "Governance quorum bug"],
+        correct: 0,
+        explanation: "Compromised signing keys allowed fraudulent but cryptographically valid bridge messages.",
+      },
+      {
+        question: "How did fraudulent transfers pass protocol checks?",
+        options: ["By bypassing signature verification completely", "By using stolen keys to produce signatures that verified as valid", "By rewriting chain history", "By exploiting frontend caching"],
+        correct: 1,
+        explanation: "Verification accepted attacker-signed messages because the keys themselves were compromised.",
+      },
+      {
+        question: "Best mitigation direction for this threat?",
+        options: ["HSM/MPC custody, stronger thresholding, and anomaly-based auto-halt", "Higher bridge UI contrast", "Disable event indexing", "Increase token logo resolution"],
+        correct: 0,
+        explanation: "Custody hardening and behavioral guardrails reduce both chance and impact of key compromise.",
+      },
+    ]
   },
 
   // Alephium Bridge (May 30, 2026)
@@ -5357,7 +5857,7 @@ export const hacks: Hack[] = [
     type: ["Bridge", "Supply Chain"],
     shortDesc: "Off-chain backend vulnerability forged Wormhole messages (not private key compromise), draining $815K.",
     longDesc: "On May 30, 2026, the Alephium Bridge on Ethereum and BNB Chain lost $815K when an attacker exploited an off-chain backend vulnerability to forge Wormhole cross-chain messages. Unlike typical bridge exploits, this did not involve private key compromise — the backend logic itself was manipulated to produce valid-appearing messages.",
-    technicalDesc: "The Alephium Bridge backend processed Wormhole message validation and relay. An off-chain vulnerability allowed the attacker to inject or forge Wormhole VAA (Verified Action Approvals) messages without compromising guardian private keys. The forged messages authorized token unlocks on Ethereum and BNB Chain totaling $815K.",
+    technicalDesc: "Alephium's bridge incident originated in off-chain backend validation logic rather than guardian private key theft. The vulnerable pattern was trusting backend-produced message attestations without end-to-end cryptographic enforcement at the final execution boundary. The attacker exploited backend handling, forged valid-appearing Wormhole-style messages, and triggered unauthorized unlocks on destination chains. Checks failed because backend acceptance criteria could be manipulated and on-chain safeguards did not independently reject forged attestations early enough. This turned infrastructure compromise into protocol-level asset release despite intact guardian key custody. Auditors should treat relayer/backends as part of the trust base, require strict on-chain guardian-signature verification, and adversarially test malformed or backend-forged message pathways.",
     impact: "$815K",
     impactUSD: 815000,
     contracts: [],
@@ -5394,7 +5894,26 @@ export const hacks: Hack[] = [
       { category: "Guardian Verification", description: "Always verify Wormhole guardian signatures on-chain, never trust backend-only validation." },
       { category: "Defense in Depth", description: "Require both on-chain guardian verification and backend checks for all cross-chain messages." }
     ],
-    quiz: [{ question: "How were Alephium Bridge's Wormhole messages forged?", options: ["Guardian private key leak", "Off-chain backend vulnerability", "Smart contract reentrancy", "Flash loan"], correct: 1, explanation: "An off-chain backend flaw forged Wormhole VAAs without compromising guardian private keys." }]
+    quiz: [
+      {
+        question: "What distinguishes Alephium Bridge's root cause from typical bridge hacks?",
+        options: ["It was caused by LP impermanent loss", "Forged messages came from backend-validation weakness, not guardian key theft", "It used only flash loans", "It required smart-contract selfdestruct"],
+        correct: 1,
+        explanation: "The attacker abused off-chain backend logic to forge transfer attestations.",
+      },
+      {
+        question: "How did the forged messages lead to loss?",
+        options: ["They triggered unauthorized token unlock/completion on destination chains", "They changed token metadata only", "They paused bridge operations", "They forced validators offline"],
+        correct: 0,
+        explanation: "Destination contracts accepted forged attestations and released value without real deposits.",
+      },
+      {
+        question: "Most effective mitigation for this architecture?",
+        options: ["Rely on backend checks only but add retries", "Enforce independent on-chain signature verification and harden backend pipeline", "Disable monitoring dashboards", "Increase bridge message size"],
+        correct: 1,
+        explanation: "Defense-in-depth requires both hardened backend logic and strict on-chain cryptographic checks.",
+      },
+    ]
   },
 
   // AROS (May 31, 2026)
@@ -5408,7 +5927,7 @@ export const hacks: Hack[] = [
     type: ["Price Manipulation"],
     shortDesc: "Suspected pool/token manipulation on BSC drained $295K; root cause unconfirmed per available sources.",
     longDesc: "On May 31, 2026, AROS on BNB Chain suffered a $295K loss in an incident suspected to involve pool or token price manipulation. Available sources have not confirmed the exact root cause. On-chain analysis suggests the attacker may have manipulated AMM pool reserves or token pricing to extract value from liquidity providers.",
-    technicalDesc: "Based on available on-chain evidence, the attack likely involved manipulation of AMM pool reserves or token transfer mechanics to distort swap pricing. The exact vulnerability vector remains unconfirmed. The attacker extracted approximately $295K before the protocol paused affected pools. Further investigation is ongoing.",
+    technicalDesc: "Available evidence points to a likely pool or token-mechanics manipulation, but the exact exploit primitive remains unconfirmed. The vulnerable pattern appears to be price formation sensitivity where reserves, transfer behavior, or pool accounting could be distorted for short-window extraction. The attacker staged liquidity and token movements to create temporary mispricing, then executed swaps that realized value before normal state reversion. Checks failed because guardrails such as robust TWAP enforcement, deviation circuit breakers, or deep sanity bounds were insufficient to halt abnormal conditions quickly. Since root cause is unresolved, treating any single mechanism as definitive would be premature. Auditors should reconstruct full transaction traces, test transfer-hook edge cases, and stress pool math against adversarial reserve-shift scenarios before finalizing remediation.",
     impact: "$295K",
     impactUSD: 295000,
     contracts: [],
@@ -5443,7 +5962,26 @@ export const hacks: Hack[] = [
       { category: "TWAP Protection", description: "Use time-weighted average pricing to resist single-block manipulation attacks." },
       { category: "Circuit Breakers", description: "Pause pools automatically when price deviates beyond threshold from oracle reference." }
     ],
-    quiz: [{ question: "What is the confirmed root cause of the AROS incident?", options: ["Confirmed reentrancy bug", "Root cause unconfirmed — suspected pool manipulation", "Private key leak", "Bridge exploit"], correct: 1, explanation: "Available sources have not confirmed the exact exploit vector; pool/token manipulation is suspected but unverified." }]
+    quiz: [
+      {
+        question: "What is currently confirmed about AROS root cause?",
+        options: ["Confirmed reentrancy in withdrawal", "Confirmed bridge key compromise", "Exact vector unconfirmed, with pool/token manipulation suspected", "Confirmed oracle signer collusion"],
+        correct: 2,
+        explanation: "Public evidence indicates suspicion of manipulation, but no definitive primitive has been confirmed.",
+      },
+      {
+        question: "What attack mechanism is most consistent with reported behavior?",
+        options: ["Temporary reserve/price distortion followed by extraction swaps", "Malicious proxy upgrade by admin", "Forged Merkle claims", "DNS hijack of frontend"],
+        correct: 0,
+        explanation: "The incident profile aligns with transient pricing distortion and opportunistic swap extraction.",
+      },
+      {
+        question: "What mitigation is most prudent while investigation is ongoing?",
+        options: ["Ignore until full certainty", "Add TWAP/deviation circuit breakers and deep transaction-trace forensic review", "Increase token supply", "Disable all user withdrawals forever"],
+        correct: 1,
+        explanation: "Interim guardrails plus forensic reconstruction reduce immediate risk while root cause is finalized.",
+      },
+    ]
   },
 
   // Fluid (May 27, 2026)
@@ -5457,7 +5995,7 @@ export const hacks: Hack[] = [
     type: ["Access Control"],
     shortDesc: "Attacker held both Merkle reward proposer and approver keys, authorizing fraudulent $215K reward claims on Ethereum.",
     longDesc: "On May 27, 2026, Fluid on Ethereum lost $215K when an attacker compromised both the Merkle reward proposer and approver private keys. With control of both roles in the two-step reward distribution pipeline, the attacker crafted and approved fraudulent Merkle reward claims without needing to compromise additional signers.",
-    technicalDesc: "Fluid's Merkle reward distribution uses a two-step process: a proposer submits reward merkle roots and an approver validates them. The attacker obtained both private keys, allowing them to propose fraudulent merkle trees with inflated reward allocations and then approve their own proposals. $215K in unauthorized rewards were claimed before detection.",
+    technicalDesc: "Fluid's reward pipeline failed because control points in a two-step Merkle process were compromised simultaneously. The vulnerable pattern was assuming proposer/approver separation alone provided security, without additional quorum, budget, or anomaly constraints. The attacker proposed fraudulent Merkle roots allocating inflated rewards to attacker addresses, then approved the same roots using the second compromised key. Checks failed because each step validated cryptographic format but not independence of control or economic plausibility of payout totals. Once published, claims were executed through normal proof verification, making drains appear protocol-compliant. Auditors should require multi-party approval for root publication, enforce proposer-approver separation at infrastructure and organization levels, and add automated budget/inclusion sanity checks before claim windows open.",
     impact: "$215K",
     impactUSD: 215000,
     contracts: [],
@@ -5496,7 +6034,26 @@ export const hacks: Hack[] = [
       { category: "Multi-Sig Approval", description: "Require M-of-N multi-sig for merkle root approval instead of a single approver key." },
       { category: "Reward Auditing", description: "Automated checks comparing proposed reward totals against expected distribution budgets." }
     ],
-    quiz: [{ question: "Why could Fluid's attacker authorize fraudulent rewards?", options: ["Smart contract bug", "Held both Merkle proposer and approver keys", "Flash loan", "Oracle manipulation"], correct: 1, explanation: "Compromising both the proposer and approver keys gave the attacker full control over the two-step reward pipeline." }]
+    quiz: [
+      {
+        question: "What was the core root cause in Fluid's reward exploit?",
+        options: ["Broken Merkle proof verifier", "Compromise of both proposer and approver keys in a two-step pipeline", "Bridge replay attack", "Oracle decimal mismatch"],
+        correct: 1,
+        explanation: "Control of both roles removed the intended separation-of-duties safeguard.",
+      },
+      {
+        question: "How did the attacker pass technical validation?",
+        options: ["By submitting malformed proofs", "By proposing forged roots and self-approving them before claiming", "By reentering claim() repeatedly", "By censoring validator blocks"],
+        correct: 1,
+        explanation: "With both keys, the attacker could complete the full publication path using valid signatures.",
+      },
+      {
+        question: "Which mitigation best addresses this failure mode?",
+        options: ["Single approver with longer key length", "Multisig approval plus independent role custody and reward-budget sanity checks", "Lower reward amount globally", "Disable Merkle trees"],
+        correct: 1,
+        explanation: "Security must combine independent custody with quorum and economic validation safeguards.",
+      },
+    ]
   }
 ];
 
