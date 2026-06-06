@@ -1,6 +1,7 @@
 "use client";
 import { Link } from "wouter";
 import { Hack, typeColors } from "@/data/hacks";
+import { formatHackChains } from "@/lib/hack-chains";
 import { getProgress } from "@/lib/progress";
 import { useState, useEffect } from "react";
 import { Play, Trophy, BookOpen, ExternalLink, TrendingDown } from "lucide-react";
@@ -42,7 +43,7 @@ export function HackCard({ hack }: Props) {
             <div className="text-lg font-mono font-bold text-red-400 glow-text">
               {formatImpact(hack.impactUSD)}
             </div>
-            <div className="text-[10px] text-muted-foreground">{hack.year} · {hack.chain}</div>
+            <div className="text-[10px] text-muted-foreground">{hack.year} · {formatHackChains(hack)}</div>
           </div>
         </div>
 

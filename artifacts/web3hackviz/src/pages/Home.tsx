@@ -1,6 +1,13 @@
 "use client";
 import { useState, useMemo } from "react";
 import { hacks, typeColors, availableYears } from "@/data/hacks";
+import { getHackSortDate } from "@/lib/hack-dates";
+import {
+  formatHackChains,
+  getAvailableChains,
+  hackMatchesChain,
+  hackMatchesChainSearch,
+} from "@/lib/hack-chains";
 import { HackCard } from "@/components/HackCard";
 import {
   Search,
@@ -24,8 +31,6 @@ const ALL_TYPES = [
   "Supply Chain",
 ];
 
-const ALL_CHAINS = ["Ethereum", "Solana", "BNB Chain", "Multi-chain", "Arbitrum", "Avalanche", "Optimism", "Fantom", "Sui", "NEAR"];
-
 function formatBig(n: number) {
   if (n >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
   if (n >= 1e6) return `$${(n / 1e6).toFixed(0)}M`;
@@ -39,32 +44,33 @@ export default function HomePage() {
   const [selectedChain, setSelectedChain] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest" | "highest" | "lowest" | "default">("newest");
 
+  const availableChains = useMemo(() => getAvailableChains(hacks), []);
+
   const filtered = useMemo(() => {
     let result = hacks.filter((h) => {
       const q = search.toLowerCase();
       const matchSearch =
         !q ||
         h.title.toLowerCase().includes(q) ||
-        h.chain.toLowerCase().includes(q) ||
+        formatHackChains(h).toLowerCase().includes(q) ||
+        hackMatchesChainSearch(h, q) ||
         h.type.some((t) => t.toLowerCase().includes(q)) ||
         h.shortDesc.toLowerCase().includes(q);
       const matchYear = !selectedYear || h.year === selectedYear;
       const matchType = !selectedType || h.type.includes(selectedType);
-      const matchChain = !selectedChain || h.chain === selectedChain;
+      const matchChain = hackMatchesChain(h, selectedChain);
       return matchSearch && matchYear && matchType && matchChain;
     });
 
     // Apply sorting
     if (sortOrder === "newest") {
-      result = [...result].sort((a, b) => {
-        if (b.year !== a.year) return b.year - a.year;
-        return b.impactUSD - a.impactUSD; // Sort by impact within same year
-      });
+      result = [...result].sort(
+        (a, b) => getHackSortDate(b) - getHackSortDate(a) || b.impactUSD - a.impactUSD,
+      );
     } else if (sortOrder === "oldest") {
-      result = [...result].sort((a, b) => {
-        if (a.year !== b.year) return a.year - b.year;
-        return a.impactUSD - b.impactUSD; // Sort by impact within same year
-      });
+      result = [...result].sort(
+        (a, b) => getHackSortDate(a) - getHackSortDate(b) || a.impactUSD - b.impactUSD,
+      );
     } else if (sortOrder === "highest") {
       result = [...result].sort((a, b) => b.impactUSD - a.impactUSD);
     } else if (sortOrder === "lowest") {
@@ -183,23 +189,31 @@ export default function HomePage() {
           />
         </div>
 
-        {/* Chain filter */}
-        <div className="flex gap-1.5 flex-wrap">
-          {[null, ...ALL_CHAINS].slice(0, 5).map((c) => (
-            <button
-              key={c ?? "all"}
-              onClick={() => setSelectedChain(c)}
-              className={`px-3 py-1.5 rounded text-xs font-medium border transition-all
-                ${
-                  selectedChain === c
-                    ? "bg-accent/20 border-accent/40 text-accent"
-                    : "border-border bg-muted/30 text-muted-foreground hover:border-border/80 hover:text-foreground"
-                }`}
-            >
-              {c ?? "All Chains"}
-            </button>
-          ))}
-        </div>
+      </div>
+
+      {/* Chain filter */}
+      <div className="flex flex-wrap gap-1.5 mb-6">
+        <button
+          onClick={() => setSelectedChain(null)}
+          className={`px-2.5 py-1 rounded text-[11px] font-medium border transition-all
+            ${!selectedChain ? "bg-muted border-border text-foreground" : "border-border/50 text-muted-foreground hover:text-foreground"}`}
+        >
+          All Chains
+        </button>
+        {availableChains.map((c) => (
+          <button
+            key={c}
+            onClick={() => setSelectedChain(selectedChain === c ? null : c)}
+            className={`px-2.5 py-1 rounded text-[11px] font-medium border transition-all
+              ${
+                selectedChain === c
+                  ? "bg-accent/20 border-accent/40 text-accent"
+                  : "border-border/40 text-muted-foreground hover:text-foreground opacity-70 hover:opacity-100"
+              }`}
+          >
+            {c}
+          </button>
+        ))}
       </div>
 
       {/* Type pills */}

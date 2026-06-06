@@ -1,6 +1,7 @@
 "use client";
 import { useParams, Link } from "wouter";
 import { hacksBySlug, typeColors } from "@/data/hacks";
+import { formatHackChains } from "@/lib/hack-chains";
 import { getProgress, setProgress } from "@/lib/progress";
 import { useState, useEffect } from "react";
 import { OverviewTab } from "@/components/detail/OverviewTab";
@@ -138,7 +139,7 @@ export default function HackDetailPage() {
                 </span>
               ))}
               <span className="text-[10px] text-muted-foreground border border-border/50 px-1.5 py-0.5 rounded">
-                {hack.year} · {hack.chain}
+                {hack.year} · {formatHackChains(hack)}
               </span>
             </div>
             <h1 className="text-2xl md:text-3xl font-bold text-foreground">

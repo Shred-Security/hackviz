@@ -1,6 +1,7 @@
 "use client";
 import { useLocation, Link } from "wouter";
 import { hacks } from "@/data/hacks";
+import { formatHackChains } from "@/lib/hack-chains";
 import { getProgress } from "@/lib/progress";
 import { useState, useEffect } from "react";
 import {
@@ -127,7 +128,7 @@ export function Sidebar() {
               {!collapsed && (
                 <span className="truncate leading-tight">
                   <span className="font-medium">{hack.title}</span>
-                  <span className="text-muted-foreground block text-[10px] truncate">{hack.year} · {hack.chain}</span>
+                  <span className="text-muted-foreground block text-[10px] truncate">{hack.year} · {formatHackChains(hack)}</span>
                 </span>
               )}
             </Link>

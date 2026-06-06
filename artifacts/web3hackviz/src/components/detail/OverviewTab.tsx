@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { Hack } from "@/data/hacks";
+import { formatHackChains, getHackChains } from "@/lib/hack-chains";
 import { ExternalLink, Code, FileText } from "lucide-react";
 
 export function OverviewTab({ hack }: { hack: Hack }) {
@@ -42,7 +43,11 @@ export function OverviewTab({ hack }: { hack: Hack }) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <InfoCard label="Impact" value={hack.impact} highlight />
         <InfoCard label="Year" value={String(hack.year)} />
-        <InfoCard label="Chain" value={hack.chain} />
+        <InfoCard
+          label="Chain"
+          value={formatHackChains(hack)}
+          detail={getHackChains(hack).length > 1 ? getHackChains(hack).join(", ") : undefined}
+        />
         <InfoCard label="Attack Types" value={hack.type.join(", ")} />
       </div>
 
@@ -76,11 +81,22 @@ export function OverviewTab({ hack }: { hack: Hack }) {
   );
 }
 
-function InfoCard({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+function InfoCard({
+  label,
+  value,
+  detail,
+  highlight,
+}: {
+  label: string;
+  value: string;
+  detail?: string;
+  highlight?: boolean;
+}) {
   return (
     <div className="rounded-lg border border-border/50 bg-card p-3">
       <div className="text-[10px] text-muted-foreground uppercase tracking-widest mb-1">{label}</div>
       <div className={`text-sm font-semibold ${highlight ? "text-red-400" : "text-foreground"}`}>{value}</div>
+      {detail && <div className="text-[10px] text-muted-foreground mt-1">{detail}</div>}
     </div>
   );
 }

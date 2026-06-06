@@ -59,6 +59,8 @@ export interface Hack {
   subtitle: string;
   year: number;
   chain: string;
+  /** Optional explicit chain tags for filtering when `chain` is compound or multi-chain. */
+  chains?: string[];
   type: string[];
   shortDesc: string;
   longDesc: string;
@@ -257,6 +259,7 @@ export const hacks: Hack[] = [
     subtitle: "U256 Shift-Left Overflow - Sui",
     year: 2025,
     chain: "Sui",
+    chains: ["Sui"],
     type: ["Math Bug", "Integer Overflow"],
     shortDesc: "Attacker exploited a u256 shift-left check flaw (checked_shlw) in the CLMM contract’s inter_mate library to mint astronomical liquidity positions.",
     longDesc: "On May 22, 2025, Cetus Protocol on Sui was drained of $223M. The attacker identified a vulnerability in the `inter_mate` library used for Concentrated Liquidity Market Maker (CLMM) math. Specifically, the `checked_shlw` function failed to properly guard against u256 overflows during shift-left operations. This allowed the attacker to supply a crafted liquidity amount that, when shifted, overflowed to a massive value, effectively allowing them to mint near-infinite liquidity positions with negligible deposits.",
@@ -312,7 +315,8 @@ export const hacks: Hack[] = [
     title: "GMX V1",
     subtitle: "Cross-contract Reentrancy - Arbitrum/Avalanche",
     year: 2025,
-    chain: "Arbitrum/Avalanche",
+    chain: "Arbitrum",
+    chains: ["Arbitrum", "Avalanche"],
     type: ["Reentrancy"],
     shortDesc: "Reentrancy guard introduced in a 2022 bug fix was bypassed, draining the GLP pool of $42M.",
     longDesc: "On July 9, 2025, GMX V1 was hit by a $42M exploit. An attacker discovered a way to bypass the reentrancy guards that were thought to have been fixed in 2022. By exploiting a cross-contract reentrancy vector, the attacker was able to manipulate the GLP pool logic and drain substantial assets.",
@@ -947,6 +951,7 @@ export const hacks: Hack[] = [
     subtitle: "Slippage Protection Logic Flaw",
     year: 2026,
     chain: "NEAR",
+    chains: ["NEAR"],
     type: ["Logic Error"],
     shortDesc: "Slippage protection failed to account for reused intermediate tokens in multi-step swaps, causing $18.4M drain.",
     longDesc: "On April 16, 2026, Rhea Finance (formerly Burrow Finance) on NEAR protocol suffered an $18.4M exploit targeting its margin trading functionality. The attacker spent days preparing by creating multiple fake token pools on Ref Finance and injecting liquidity, constructing malicious swap routes. The vulnerability was in the protocol's slippage protection mechanism, which failed to account for scenarios where intermediate tokens were reused during multi-step swaps. This allowed borrowed debt tokens to be routed into fake pools under attacker control, triggering widespread forced liquidations and draining the reserve pool.",
@@ -1005,7 +1010,8 @@ export const hacks: Hack[] = [
     title: "Kelp DAO",
     subtitle: "RPC Infrastructure Compromise",
     year: 2026,
-    chain: "Ethereum/LayerZero",
+    chain: "Ethereum",
+    chains: ["Ethereum", "Arbitrum", "Base", "Optimism"],
     type: ["Infrastructure", "Bridge"],
     shortDesc: "Compromised DVN oracle led to $292M RSeth drain via cross-chain message forgery.",
     longDesc: "On April 18, 2026, Kelp DAO suffered a catastrophic $292M exploit through a sophisticated LayerZero DVN (Decentralized Verification Network) compromise. Attackers gained control of an RPC node used by a DVN oracle, allowing them to forge cross-chain messages that appeared legitimate. This enabled the minting of unbacked rsETH tokens on the destination chain, which were then swapped for real assets. The attack highlighted critical vulnerabilities in cross-chain infrastructure and the risks of centralized oracle dependencies.",
@@ -4093,6 +4099,1405 @@ export const hacks: Hack[] = [
     ],
     quiz: [{ question: "What was Sonne Finance's vulnerability?", options: ["Reentrancy", "Known Compound fork precision loss", "Key leak", "Oracle bug"], correct: 1, explanation: "Known Compound v2 fork vulnerability in exchange rate calculation was not addressed when deploying new markets." }]
   },
+  // TMM (April 4, 2026)
+  {
+    id: "tmm-2026",
+    slug: "tmm-2026",
+    title: "TMM",
+    subtitle: "Reserve Manipulation via Burn + Stale Pool Reserves",
+    year: 2026,
+    chain: "BNB Chain",
+    type: ["Flash Loan", "Price Manipulation", "Logic Error"],
+    shortDesc: "Flash-loan attacker burned tokens to a dead address to inflate pool reserves, exploiting stale reserve reads for a $1.665M drain on BSC.",
+    longDesc: "On April 4, 2026, TMM on BNB Chain lost approximately $1.665M to a reserve manipulation attack. The attacker used flash loans to acquire large token balances, burned tokens directly to a dead address to skew the pool's reserve accounting, and exploited stale reserve values that were not updated atomically with the burn. The inflated reserves enabled swaps at manipulated prices, draining liquidity before the flash loan was repaid.",
+    technicalDesc: "The exploit combined three vectors: (1) flash loans for capital; (2) direct burns to 0xdead to manipulate visible pool token balances without triggering reserve sync; (3) stale getReserves() reads that still reflected pre-burn state. The attacker swapped against the distorted ratio, extracted value from the LP pool, and repaid the flash loan in a single transaction bundle.",
+    impact: "$1.665M",
+    impactUSD: 1665000,
+    contracts: [],
+    timeline: [
+      { id: "t1", phase: "Flash Loan", description: "Borrowed large token amounts via flash loan on BSC.", functionsCall: ["PancakeSwap.flashLoan()"], pseudocode: "// Seed capital for reserve manipulation" },
+      { id: "t2", phase: "Burn to Dead Address", description: "Burned tokens to dead address to skew pool balance accounting.", functionsCall: ["Token.transfer(0xdead, amount)"], pseudocode: "// Pool balance changes but reserves stale" },
+      { id: "t3", phase: "Stale Reserve Exploit", description: "Swapped against stale getReserves() values reflecting pre-burn state.", functionsCall: ["Pair.swap(out, attacker)"], pseudocode: "// Reserve ratio distorted\n// Swap extracts excess value" },
+      { id: "t4", phase: "Drain", description: "Extracted $1.665M from LP liquidity before repaying flash loan.", functionsCall: ["Pair.swap(repeat)", "FlashLoan.repay()"], pseudocode: "// Profit retained after repayment" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Flash loan funded", x: 50, y: 200 },
+        { id: "n2", type: "pool", label: "Flash Loan", detail: "BSC capital", x: 250, y: 100 },
+        { id: "n3", type: "pool", label: "TMM Pool", detail: "Stale reserves", x: 450, y: 200 },
+        { id: "n4", type: "result", label: "Attacker", detail: "$1.665M", x: 650, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n2", target: "n1", label: "Flash loan", animated: true },
+        { id: "e2", source: "n1", target: "n3", label: "Burn + swap", animated: true },
+        { id: "e3", source: "n3", target: "n4", label: "Drain" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Flash Loan\nCapital", type: "pool" },
+      { id: "b", label: "TMM Pool\nStale Reserves", type: "vault" },
+      { id: "c", label: "Attacker\n$1.665M", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 1.67, label: "Burn manipulation" },
+      { source: "b", target: "c", value: 1.67, label: "Swap drain" }
+    ],
+    mitigations: [
+      { category: "Reserve Sync", description: "Call sync() or update reserves atomically after any balance-changing operation including burns and direct transfers." },
+      { category: "Flash Loan Guards", description: "Detect same-block reserve mutations and block swaps when reserves diverge from actual balances." },
+      { category: "Invariant Checks", description: "Enforce constant-product or TWAP bounds on swaps to reject manipulated reserve ratios." }
+    ],
+    quiz: [{ question: "What enabled TMM's reserve manipulation?", options: ["Oracle compromise", "Burn to dead address + stale pool reserves", "Private key leak", "Reentrancy"], correct: 1, explanation: "Burning tokens to a dead address skewed balances while stale getReserves() reads allowed swaps at manipulated ratios." }]
+  },
+
+  // Dango (April 13-14, 2026)
+  {
+    id: "dango-2026",
+    slug: "dango-2026",
+    title: "Dango",
+    subtitle: "Insurance Fund Donation Missing Amount Check",
+    year: 2026,
+    chain: "Multi-chain",
+    type: ["Logic Error", "Access Control"],
+    shortDesc: "Missing positive-amount validation in insurance fund donation logic let an attacker move $1.9M ($410K bridged); white hat returned all funds.",
+    longDesc: "Between April 13-14, 2026, Dango Protocol was exploited for approximately $1.9M through a flaw in its insurance fund donation mechanism. The donation function failed to validate that the donated amount was positive, allowing crafted transactions to drain insurance reserves. Roughly $410K was bridged cross-chain before the attacker, acting as a white hat, fully returned all stolen funds.",
+    technicalDesc: "The vulnerability was in the insurance fund donation path: the contract accepted donation parameters without enforcing amount > 0. The attacker crafted negative or zero-edge-case inputs that inverted accounting, crediting the attacker while debiting the insurance fund. Cross-chain bridging moved $410K off the primary chain before full recovery.",
+    impact: "$1.9M (fully returned)",
+    impactUSD: 1900000,
+    contracts: [],
+    timeline: [
+      { id: "t1", phase: "Vulnerability Discovery", description: "Attacker identified missing positive-amount check in insurance fund donation.", functionsCall: [], pseudocode: "// donate() accepts amount without > 0 check" },
+      { id: "t2", phase: "Fund Drain", description: "Crafted donation transactions drained $1.9M from insurance fund.", functionsCall: ["InsuranceFund.donate(malicious_amount)"], pseudocode: "// Accounting inverted via invalid amount" },
+      { id: "t3", phase: "Cross-Chain Bridge", description: "Attacker bridged approximately $410K to another chain.", functionsCall: ["Bridge.transfer($410K)"], pseudocode: "// Partial funds moved cross-chain" },
+      { id: "t4", phase: "White Hat Return", description: "Attacker returned all $1.9M to the protocol as a white hat.", functionsCall: ["Attacker.returnFunds(all)"], pseudocode: "// Full recovery — no net loss" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "White Hat", detail: "Exploit + return", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "Insurance Fund", detail: "Missing amount check", x: 300, y: 200 },
+        { id: "n3", type: "bridge", label: "Bridge", detail: "$410K moved", x: 500, y: 100 },
+        { id: "n4", type: "result", label: "Full Return", detail: "$0 net loss", x: 700, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Exploit donation", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Bridge $410K" },
+        { id: "e3", source: "n1", target: "n4", label: "Return all funds" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Insurance\nFund", type: "vault" },
+      { id: "b", label: "Attacker\n$1.9M", type: "attacker" },
+      { id: "c", label: "Bridge\n$410K", type: "bridge" },
+      { id: "d", label: "Protocol\nRecovered", type: "vault" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 1.9, label: "Drain" },
+      { source: "b", target: "c", value: 0.41, label: "Bridged" },
+      { source: "b", target: "d", value: 1.9, label: "Returned" }
+    ],
+    mitigations: [
+      { category: "Input Validation", description: "Require amount > 0 on all donation and transfer functions. Revert on zero or negative values." },
+      { category: "Invariant Testing", description: "Add fuzz tests ensuring insurance fund balance never decreases without authorized withdrawal." },
+      { category: "Bug Bounty", description: "Maintain active bug bounty to incentivize white-hat disclosure over exploitation." }
+    ],
+    quiz: [{ question: "What was Dango's vulnerability?", options: ["Oracle manipulation", "Missing positive amount check in insurance donation", "Private key leak", "Flash loan attack"], correct: 1, explanation: "The insurance fund donation function failed to validate positive amounts, allowing crafted inputs to drain reserves." }]
+  },
+
+  // CoW Swap (April 14, 2026)
+  {
+    id: "cow-swap-2026",
+    slug: "cow-swap-2026",
+    title: "CoW Swap",
+    subtitle: "DNS Registrar Social Engineering",
+    year: 2026,
+    chain: "Ethereum",
+    chains: ["Ethereum"],
+    type: ["Supply Chain", "Access Control"],
+    shortDesc: "DNS hijack via Gandi/Traficom social engineering redirected CoW Swap frontend, stealing $1.2M — not a smart contract exploit.",
+    longDesc: "On April 14, 2026, CoW Swap suffered a $1.2M theft through DNS registrar social engineering, not a smart contract vulnerability. Attackers compromised the domain registration chain involving Gandi and Traficom (.fi registry), redirecting users from the legitimate CoW Swap frontend to a phishing site. Users who interacted with the malicious interface approved token transfers that drained their wallets.",
+    technicalDesc: "This was an infrastructure attack, not an on-chain bug. The attacker socially engineered DNS registrar credentials (Gandi account and Traficom .fi registry access) to change nameserver records for CoW Swap domains. The phishing frontend mimicked the real UI and prompted users to sign malicious ERC-20 approvals and swap transactions, draining approximately $1.2M across affected wallets.",
+    impact: "$1.2M",
+    impactUSD: 1200000,
+    contracts: [],
+    timeline: [
+      { id: "t1", phase: "Registrar Compromise", description: "Attacker socially engineered Gandi/Traficom to gain DNS control of CoW Swap domains.", functionsCall: [], pseudocode: "// Gandi account + Traficom .fi registry\n// Nameserver records changed" },
+      { id: "t2", phase: "DNS Hijack", description: "Legitimate CoW Swap domain redirected to attacker-controlled phishing frontend.", functionsCall: [], pseudocode: "// Users resolve to malicious IP\n// SSL cert on phishing site" },
+      { id: "t3", phase: "Phishing", description: "Fake frontend prompted users to approve tokens and sign malicious transactions.", functionsCall: ["ERC20.approve(attacker)", "Phishing.swap()"], pseudocode: "// UI mimics real CoW Swap\n// Drains approved tokens" },
+      { id: "t4", phase: "Fund Extraction", description: "Attacker swept $1.2M from users who interacted with the hijacked domain.", functionsCall: ["Attacker.transferFrom(victims)"], pseudocode: "// $1.2M total stolen\n// No smart contract bug" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "DNS social engineering", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "Gandi/Traficom", detail: "Registrar compromise", x: 250, y: 100 },
+        { id: "n3", type: "contract", label: "Phishing Frontend", detail: "Fake CoW Swap UI", x: 450, y: 200 },
+        { id: "n4", type: "result", label: "User Wallets", detail: "$1.2M drained", x: 650, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Social engineer" },
+        { id: "e2", source: "n2", target: "n3", label: "DNS redirect", animated: true },
+        { id: "e3", source: "n3", target: "n4", label: "Phish approvals", animated: true }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "User\nWallets", type: "vault" },
+      { id: "b", label: "Phishing\nFrontend", type: "attacker" },
+      { id: "c", label: "Attacker\n$1.2M", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 1.2, label: "Malicious approvals" },
+      { source: "b", target: "c", value: 1.2, label: "Sweep" }
+    ],
+    mitigations: [
+      { category: "DNS Security", description: "Enable DNSSEC, registry lock, and multi-factor authentication on all domain registrar accounts." },
+      { category: "Transaction Verification", description: "Users should verify contract addresses and use hardware wallets that display decoded calldata." },
+      { category: "Domain Monitoring", description: "Monitor DNS records continuously and alert on any nameserver or A-record changes." }
+    ],
+    quiz: [{ question: "What caused the CoW Swap incident?", options: ["Smart contract reentrancy", "DNS registrar social engineering", "Oracle manipulation", "Bridge key compromise"], correct: 1, explanation: "Attackers hijacked CoW Swap's DNS via Gandi/Traficom social engineering, redirecting users to a phishing frontend — not a contract bug." }]
+  },
+
+  // Grinex (April 16, 2026)
+  {
+    id: "grinex-2026",
+    slug: "grinex-2026",
+    title: "Grinex",
+    subtitle: "Hot Wallet Drain — Foreign Actor Attribution",
+    year: 2026,
+    chain: "Multi-chain",
+    type: ["Access Control"],
+    shortDesc: "Grinex exchange hot wallets drained for $13.7M–$15M; exchange attributed the attack to foreign state actors.",
+    longDesc: "On April 16, 2026, Russian cryptocurrency exchange Grinex suffered a hot wallet compromise resulting in losses estimated between $13.7M and $15M. The exchange publicly attributed the incident to foreign actors. Attackers gained access to hot wallet private keys and swept funds across multiple chains before the exchange could freeze remaining assets.",
+    technicalDesc: "This was an operational security failure, not a smart contract exploit. Attackers compromised Grinex's hot wallet infrastructure — likely via stolen credentials or insider access — and executed rapid outbound transfers from exchange-controlled wallets. The exchange attributed the breach to foreign state-sponsored actors and initiated internal security reviews.",
+    impact: "$13.7M–$15M",
+    impactUSD: 13700000,
+    contracts: [],
+    timeline: [
+      { id: "t1", phase: "Infrastructure Access", description: "Attackers gained access to Grinex hot wallet signing infrastructure.", functionsCall: [], pseudocode: "// Hot wallet key compromise\n// Attributed to foreign actors" },
+      { id: "t2", phase: "Multi-Chain Sweep", description: "Funds drained from hot wallets across multiple blockchain networks.", functionsCall: ["HotWallet.transfer(all_chains)"], pseudocode: "// Rapid outbound transfers\n// $13.7M–$15M extracted" },
+      { id: "t3", phase: "Detection", description: "Exchange detected anomalous outflows and initiated emergency response.", functionsCall: [], pseudocode: "// Remaining wallets frozen\n// Incident response activated" },
+      { id: "t4", phase: "Attribution", description: "Grinex publicly attributed the attack to foreign state actors.", functionsCall: [], pseudocode: "// Law enforcement notified\n// Security overhaul initiated" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Foreign Actors", detail: "Attributed by exchange", x: 50, y: 200 },
+        { id: "n2", type: "vault", label: "Grinex Hot Wallets", detail: "$13.7M–$15M", x: 350, y: 200 },
+        { id: "n3", type: "bridge", label: "Multi-Chain", detail: "Cross-chain sweep", x: 550, y: 200 },
+        { id: "n4", type: "result", label: "Attacker", detail: "Funds extracted", x: 750, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Key compromise", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Sweep funds" },
+        { id: "e3", source: "n3", target: "n4", label: "Extract", animated: true }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Grinex\nHot Wallets", type: "vault" },
+      { id: "b", label: "Multi-Chain\nSweep", type: "bridge" },
+      { id: "c", label: "Attacker\n$13.7M+", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 13.7, label: "Drain" },
+      { source: "b", target: "c", value: 13.7, label: "Extract" }
+    ],
+    mitigations: [
+      { category: "Cold Storage", description: "Keep majority of funds in multi-sig cold storage with minimal hot wallet balances." },
+      { category: "HSM / MPC", description: "Use hardware security modules or MPC for hot wallet key management instead of software keys." },
+      { category: "Withdrawal Limits", description: "Enforce rate limits and anomaly detection on outbound hot wallet transfers." }
+    ],
+    quiz: [{ question: "What was Grinex's vulnerability?", options: ["Smart contract bug", "Hot wallet infrastructure compromise", "Bridge exploit", "Flash loan"], correct: 1, explanation: "Attackers compromised Grinex hot wallet keys and drained $13.7M–$15M — an operational security failure, not a contract exploit." }]
+  },
+
+  // Volo Protocol (April 21, 2026)
+  {
+    id: "volo-protocol-2026",
+    slug: "volo-protocol-2026",
+    title: "Volo Protocol",
+    subtitle: "Admin Key Compromise via Social Engineering",
+    year: 2026,
+    chain: "Sui",
+    chains: ["Sui"],
+    type: ["Access Control"],
+    shortDesc: "Admin private key stolen via social engineering drained $3.5M on Sui; ~90% recovered, net loss ~$200K.",
+    longDesc: "On April 21, 2026, Volo Protocol on Sui lost approximately $3.5M gross when an admin private key was compromised through social engineering. The attacker used the key to execute unauthorized protocol operations and drain vault assets. Through rapid response and negotiation, the protocol recovered roughly 90% of funds, leaving a net loss of approximately $200K.",
+    technicalDesc: "The attacker obtained an admin private key via social engineering (phishing or impersonation of a trusted party). With admin privileges on Sui, they called privileged protocol functions to withdraw or redirect vault assets totaling $3.5M. Post-incident recovery efforts reclaimed ~90% of stolen funds.",
+    impact: "$3.5M gross (~$200K net)",
+    impactUSD: 3500000,
+    contracts: [],
+    timeline: [
+      { id: "t1", phase: "Social Engineering", description: "Attacker obtained admin private key via social engineering attack.", functionsCall: [], pseudocode: "// Phishing or impersonation\n// Admin key exfiltrated" },
+      { id: "t2", phase: "Unauthorized Operations", description: "Admin key used to execute privileged vault withdrawals on Sui.", functionsCall: ["Volo.admin_withdraw(all)"], pseudocode: "// $3.5M gross drained" },
+      { id: "t3", phase: "Recovery", description: "Protocol recovered approximately 90% of stolen funds.", functionsCall: [], pseudocode: "// Negotiation + on-chain recovery\n// ~$3.15M returned" },
+      { id: "t4", phase: "Net Loss", description: "Final net loss approximately $200K after recovery efforts.", functionsCall: [], pseudocode: "// Admin key rotated\n// Security review initiated" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Social engineering", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "Admin Key", detail: "Compromised", x: 250, y: 200 },
+        { id: "n3", type: "vault", label: "Volo Vault", detail: "$3.5M gross", x: 450, y: 200 },
+        { id: "n4", type: "result", label: "Net Loss", detail: "~$200K", x: 650, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Social engineer" },
+        { id: "e2", source: "n2", target: "n3", label: "Admin drain", animated: true },
+        { id: "e3", source: "n3", target: "n4", label: "90% recovered" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Volo Vault\n$3.5M", type: "vault" },
+      { id: "b", label: "Attacker\nDrained", type: "attacker" },
+      { id: "c", label: "Recovered\n~90%", type: "vault" },
+      { id: "d", label: "Net Loss\n~$200K", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 3.5, label: "Admin drain" },
+      { source: "b", target: "c", value: 3.15, label: "Recovered" },
+      { source: "b", target: "d", value: 0.2, label: "Net loss" }
+    ],
+    mitigations: [
+      { category: "Multi-Sig Admin", description: "Replace single admin keys with M-of-N multi-sig for all privileged operations." },
+      { category: "Social Engineering Training", description: "Train team members to verify identity of any party requesting key access or sensitive operations." },
+      { category: "Timelock", description: "Add timelock delays on admin withdrawals to allow detection and cancellation." }
+    ],
+    quiz: [{ question: "How was Volo Protocol's admin key compromised?", options: ["Smart contract bug", "Social engineering", "Flash loan", "Oracle manipulation"], correct: 1, explanation: "The admin private key was obtained through social engineering, enabling $3.5M gross drain with ~90% later recovered." }]
+  },
+
+  // GiddyDeFi (April 23, 2026)
+  {
+    id: "giddy-defi-2026",
+    slug: "giddy-defi-2026",
+    title: "GiddyDeFi",
+    subtitle: "EIP-712 Signature Replay — Unsigned Fields",
+    year: 2026,
+    chain: "Ethereum",
+    type: ["Logic Error", "Access Control"],
+    shortDesc: "EIP-712 signature replay on GiddyVaultV3: aggregator, fromToken, toToken, and amount were not signed, draining $1.3M.",
+    longDesc: "On April 23, 2026, GiddyDeFi's GiddyVaultV3 on Ethereum lost $1.3M to an EIP-712 signature replay attack. The signed message omitted critical fields — aggregator, fromToken, toToken, and amount — allowing an attacker to reuse a valid signature with different swap parameters to drain vault assets.",
+    technicalDesc: "GiddyVaultV3 used EIP-712 typed data signatures to authorize swaps but failed to include aggregator address, fromToken, toToken, and amount in the signed struct. The attacker captured a legitimate signature and replayed it with modified parameters: different tokens, amounts, and aggregator routing, extracting $1.3M from the vault.",
+    impact: "$1.3M",
+    impactUSD: 1300000,
+    contracts: [],
+    timeline: [
+      { id: "t1", phase: "Signature Capture", description: "Attacker obtained a valid EIP-712 signature from a legitimate vault operation.", functionsCall: [], pseudocode: "// Signature missing aggregator/tokens/amount" },
+      { id: "t2", phase: "Parameter Substitution", description: "Replayed signature with different fromToken, toToken, amount, and aggregator.", functionsCall: ["GiddyVaultV3.executeSwap(replayed_sig, malicious_params)"], pseudocode: "// Unsigned fields modified freely\n// Signature still validates" },
+      { id: "t3", phase: "Vault Drain", description: "Repeated replays extracted $1.3M from GiddyVaultV3.", functionsCall: ["GiddyVaultV3.executeSwap(repeat)"], pseudocode: "// Multiple swaps with same signature\n// $1.3M total drained" },
+      { id: "t4", phase: "Protocol Pause", description: "GiddyDeFi paused vault operations and patched signature schema.", functionsCall: ["GiddyVaultV3.pause()"], pseudocode: "// All fields now included in EIP-712 struct" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Signature replay", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "EIP-712 Signature", detail: "Missing fields", x: 250, y: 200 },
+        { id: "n3", type: "vault", label: "GiddyVaultV3", detail: "$1.3M", x: 450, y: 200 },
+        { id: "n4", type: "result", label: "Attacker", detail: "Drained", x: 650, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Capture signature" },
+        { id: "e2", source: "n2", target: "n3", label: "Replay with new params", animated: true },
+        { id: "e3", source: "n3", target: "n4", label: "Extract $1.3M" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Valid\nSignature", type: "vault" },
+      { id: "b", label: "GiddyVaultV3\nReplay", type: "vault" },
+      { id: "c", label: "Attacker\n$1.3M", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 1.3, label: "Replay" },
+      { source: "b", target: "c", value: 1.3, label: "Drain" }
+    ],
+    mitigations: [
+      { category: "Complete EIP-712 Struct", description: "Include all execution parameters (aggregator, fromToken, toToken, amount, nonce, deadline) in the signed typed data." },
+      { category: "Nonce / Replay Protection", description: "Use per-signer nonces and reject reused signatures even with identical parameters." },
+      { category: "Signature Audit", description: "Audit all EIP-712 schemas to ensure no mutable fields exist outside the signed struct." }
+    ],
+    quiz: [{ question: "What EIP-712 flaw did GiddyDeFi have?", options: ["Missing nonce", "aggregator/fromToken/toToken/amount not in signed struct", "Wrong chain ID", "Expired deadline ignored"], correct: 1, explanation: "Critical swap parameters were not included in the EIP-712 signed message, enabling signature replay with modified values." }]
+  },
+
+  // Purrlend (April 25, 2026)
+  {
+    id: "purrlend-2026",
+    slug: "purrlend-2026",
+    title: "Purrlend",
+    subtitle: "Multisig Bridge Role Added — mintUnbacked",
+    year: 2026,
+    chain: "HyperEVM/MegaETH",
+    type: ["Access Control", "Bridge"],
+    shortDesc: "Attacker added themselves as 2-of-3 multisig bridge signer and called mintUnbacked, draining $1.52M on HyperEVM/MegaETH.",
+    longDesc: "On April 25, 2026, Purrlend on HyperEVM/MegaETH lost $1.52M when an attacker gained bridge multisig privileges and minted unbacked tokens. The attacker added themselves as a signer on the 2-of-3 multisig bridge role, then invoked mintUnbacked to create tokens without collateral backing and swapped them for real assets.",
+    technicalDesc: "The bridge used a 2-of-3 multisig for privileged operations including mintUnbacked. The attacker compromised or added a malicious signer to the multisig, meeting the 2-of-3 threshold. They then called mintUnbacked to create unbacked wrapped tokens and drained $1.52M through DEX swaps before the bridge was paused.",
+    impact: "$1.52M",
+    impactUSD: 1520000,
+    contracts: [],
+    timeline: [
+      { id: "t1", phase: "Multisig Access", description: "Attacker added themselves as a signer on the 2-of-3 bridge multisig.", functionsCall: ["Bridge.addSigner(attacker)"], pseudocode: "// 2-of-3 threshold now reachable" },
+      { id: "t2", phase: "mintUnbacked", description: "Used multisig authority to mint unbacked bridge tokens.", functionsCall: ["Bridge.mintUnbacked(large_amount)"], pseudocode: "// No collateral backing required\n// Unbacked tokens created" },
+      { id: "t3", phase: "DEX Swap", description: "Swapped unbacked tokens for real assets on HyperEVM/MegaETH DEXs.", functionsCall: ["DEX.swap(unbacked, real_assets)"], pseudocode: "// $1.52M extracted" },
+      { id: "t4", phase: "Bridge Pause", description: "Purrlend paused bridge and revoked malicious signer.", functionsCall: ["Bridge.pause()", "Bridge.removeSigner(attacker)"], pseudocode: "// Multisig rotation initiated" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Multisig signer", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "2-of-3 Bridge", detail: "Signer added", x: 250, y: 200 },
+        { id: "n3", type: "bridge", label: "mintUnbacked", detail: "Unbacked tokens", x: 450, y: 200 },
+        { id: "n4", type: "result", label: "Attacker", detail: "$1.52M", x: 650, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Add signer" },
+        { id: "e2", source: "n2", target: "n3", label: "mintUnbacked", animated: true },
+        { id: "e3", source: "n3", target: "n4", label: "Swap & drain" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Bridge\nMultisig", type: "multisig" },
+      { id: "b", label: "Unbacked\nMint", type: "bridge" },
+      { id: "c", label: "Attacker\n$1.52M", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 1.52, label: "mintUnbacked" },
+      { source: "b", target: "c", value: 1.52, label: "DEX swap" }
+    ],
+    mitigations: [
+      { category: "Signer Governance", description: "Require timelock and existing signer approval to add new multisig members." },
+      { category: "Mint Limits", description: "Cap mintUnbacked amounts and require collateral proof for large mints." },
+      { category: "Monitoring", description: "Alert on any mintUnbacked call or new signer addition to bridge multisig." }
+    ],
+    quiz: [{ question: "How did Purrlend's attacker mint unbacked tokens?", options: ["Flash loan", "Added self to 2-of-3 bridge multisig", "Reentrancy", "Oracle bug"], correct: 1, explanation: "The attacker became a 2-of-3 bridge multisig signer and called mintUnbacked to create unbacked tokens." }]
+  },
+
+  // Aftermath Finance (April 29, 2026)
+  {
+    id: "aftermath-finance-2026",
+    slug: "aftermath-finance-2026",
+    title: "Aftermath Finance",
+    subtitle: "Negative Integrator Fee in Perps",
+    year: 2026,
+    chain: "Sui",
+    chains: ["Sui"],
+    type: ["Logic Error", "Math Bug"],
+    shortDesc: "Negative integrator fee flaw in Aftermath perps allowed fee manipulation, draining $1.14M on Sui.",
+    longDesc: "On April 29, 2026, Aftermath Finance on Sui lost $1.14M due to a negative integrator fee vulnerability in its perpetuals engine. The fee calculation logic failed to enforce non-negative integrator fees, allowing an attacker to set negative fees that credited their account while debiting the protocol's insurance fund.",
+    technicalDesc: "The perps integrator fee parameter accepted negative values without validation. When set to a negative fee, each trade credited the attacker's account with the absolute fee value while the protocol absorbed the loss. Repeated leveraged trades with manipulated negative fees drained $1.14M from Aftermath's perps insurance reserves.",
+    impact: "$1.14M",
+    impactUSD: 1140000,
+    contracts: [],
+    timeline: [
+      { id: "t1", phase: "Fee Parameter Discovery", description: "Attacker found integrator fee accepts negative values in perps engine.", functionsCall: [], pseudocode: "// integratorFee lacks >= 0 check" },
+      { id: "t2", phase: "Negative Fee Setup", description: "Configured negative integrator fee to receive credits on each trade.", functionsCall: ["Perps.setIntegratorFee(negative_value)"], pseudocode: "// Each trade credits attacker\n// Protocol debited" },
+      { id: "t3", phase: "Leveraged Trades", description: "Executed repeated perps trades to accumulate fee credits.", functionsCall: ["Perps.openPosition(repeat)", "Perps.closePosition(repeat)"], pseudocode: "// Fee credits compound\n// Insurance fund drained" },
+      { id: "t4", phase: "Extraction", description: "Withdrew $1.14M in accumulated credits from the protocol.", functionsCall: ["Perps.withdraw(credits)"], pseudocode: "// $1.14M total extracted" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Negative fee exploit", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "Integrator Fee", detail: "No >= 0 check", x: 250, y: 200 },
+        { id: "n3", type: "vault", label: "Perps Insurance", detail: "$1.14M", x: 450, y: 200 },
+        { id: "n4", type: "result", label: "Attacker", detail: "Drained", x: 650, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Set negative fee" },
+        { id: "e2", source: "n2", target: "n3", label: "Trade credits", animated: true },
+        { id: "e3", source: "n3", target: "n4", label: "Withdraw $1.14M" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Perps\nEngine", type: "vault" },
+      { id: "b", label: "Negative Fee\nCredits", type: "pool" },
+      { id: "c", label: "Attacker\n$1.14M", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 1.14, label: "Fee manipulation" },
+      { source: "b", target: "c", value: 1.14, label: "Withdraw" }
+    ],
+    mitigations: [
+      { category: "Fee Validation", description: "Enforce integratorFee >= 0 and maximum fee caps at the contract level." },
+      { category: "Invariant Checks", description: "Verify protocol balance never decreases due to fee calculations alone." },
+      { category: "Parameter Governance", description: "Require governance approval for integrator fee changes above threshold." }
+    ],
+    quiz: [{ question: "What flaw did Aftermath Finance's perps have?", options: ["Oracle manipulation", "Negative integrator fee without validation", "Reentrancy", "Bridge key leak"], correct: 1, explanation: "The integrator fee parameter accepted negative values, crediting the attacker on each trade while debiting the protocol." }]
+  },
+
+  // Sweat Foundation (April 29, 2026)
+  {
+    id: "sweat-foundation-2026",
+    slug: "sweat-foundation-2026",
+    title: "Sweat Foundation",
+    subtitle: "SWEAT Token Contract Vuln + Custom Drainer",
+    year: 2026,
+    chain: "NEAR",
+    chains: ["NEAR"],
+    type: ["Logic Error", "Access Control"],
+    shortDesc: "SWEAT token contract vulnerability and custom drainer stole 13.71B SWEAT (~$2.5M) on NEAR; user balances restored.",
+    longDesc: "On April 29, 2026, Sweat Foundation on NEAR suffered a $2.5M exploit targeting the SWEAT token contract. An attacker exploited a contract vulnerability combined with a custom drainer contract to extract 13.71 billion SWEAT tokens. The foundation subsequently restored affected user balances.",
+    technicalDesc: "The attacker exploited a flaw in the SWEAT token contract's transfer or approval logic, deploying a custom drainer contract to batch-extract tokens from accounts with lingering approvals or vulnerable state. A total of 13.71B SWEAT (~$2.5M) was drained before the contract was paused. User balances were later restored by the foundation.",
+    impact: "$2.5M (13.71B SWEAT, balances restored)",
+    impactUSD: 2500000,
+    contracts: [],
+    timeline: [
+      { id: "t1", phase: "Vulnerability Analysis", description: "Attacker identified flaw in SWEAT token contract transfer logic.", functionsCall: [], pseudocode: "// Token contract vuln identified\n// Custom drainer designed" },
+      { id: "t2", phase: "Drainer Deployment", description: "Deployed custom drainer contract on NEAR to batch-extract SWEAT.", functionsCall: ["deploy(drainer_contract)"], pseudocode: "// Targets accounts with approvals\n// Batch drain logic" },
+      { id: "t3", phase: "Token Extraction", description: "Drained 13.71B SWEAT tokens worth approximately $2.5M.", functionsCall: ["Drainer.drain(all_targets)"], pseudocode: "// 13.71B SWEAT extracted" },
+      { id: "t4", phase: "Restoration", description: "Sweat Foundation paused contract and restored user balances.", functionsCall: ["SWEAT.pause()", "Foundation.restore(balances)"], pseudocode: "// User balances made whole\n// Contract patched" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Custom drainer", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "SWEAT Token", detail: "Contract vuln", x: 250, y: 200 },
+        { id: "n3", type: "contract", label: "Custom Drainer", detail: "Batch extract", x: 450, y: 200 },
+        { id: "n4", type: "result", label: "13.71B SWEAT", detail: "$2.5M", x: 650, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Exploit vuln" },
+        { id: "e2", source: "n1", target: "n3", label: "Deploy drainer", animated: true },
+        { id: "e3", source: "n3", target: "n4", label: "Drain SWEAT" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "SWEAT Token\nContract", type: "vault" },
+      { id: "b", label: "Custom\nDrainer", type: "attacker" },
+      { id: "c", label: "13.71B SWEAT\n$2.5M", type: "drain" },
+      { id: "d", label: "Users\nRestored", type: "vault" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 2.5, label: "Exploit" },
+      { source: "b", target: "c", value: 2.5, label: "Drain" },
+      { source: "c", target: "d", value: 2.5, label: "Restored" }
+    ],
+    mitigations: [
+      { category: "Token Contract Audit", description: "Audit NEAR NEP-141 token implementations for transfer and approval edge cases." },
+      { category: "Approval Hygiene", description: "Encourage users to revoke stale token approvals; implement permit expirations." },
+      { category: "Circuit Breakers", description: "Add pause functionality and anomaly detection for large batch transfers." }
+    ],
+    quiz: [{ question: "What was exploited in the Sweat Foundation incident?", options: ["Bridge key leak", "SWEAT token contract vuln + custom drainer", "Oracle manipulation", "Governance attack"], correct: 1, explanation: "A SWEAT token contract vulnerability was exploited via a custom drainer, extracting 13.71B SWEAT before balances were restored." }]
+  },
+
+  // Wasabi Protocol (April 30, 2026)
+  {
+    id: "wasabi-protocol-2026",
+    slug: "wasabi-protocol-2026",
+    title: "Wasabi Protocol",
+    subtitle: "Deployer Key via Spring Boot Actuator Heap Dump",
+    year: 2026,
+    chain: "Multi-chain",
+    type: ["Access Control", "Supply Chain"],
+    shortDesc: "Compromised deployer key via exposed AWS Spring Boot Actuator heap dump enabled malicious UUPS upgrades, draining $5.9M across 4 chains.",
+    longDesc: "On April 30, 2026, Wasabi Protocol lost $5.9M across four chains when an attacker compromised the deployer private key. The key was extracted from an exposed Spring Boot Actuator heap dump on an AWS-hosted backend. With deployer access and no multisig or timelock, the attacker pushed malicious UUPS proxy upgrades that drained protocol vaults.",
+    technicalDesc: "The attack chain: (1) Spring Boot Actuator /actuator/heapdump endpoint exposed on AWS without authentication; (2) heap dump contained deployer private key in memory; (3) attacker used key to upgrade UUPS proxy implementations to malicious contracts; (4) no multisig or timelock on upgrades allowed instant execution; (5) malicious implementations swept $5.9M across Ethereum, Arbitrum, Base, and Blast.",
+    impact: "$5.9M",
+    impactUSD: 5900000,
+    contracts: [],
+    timeline: [
+      { id: "t1", phase: "Heap Dump Exposure", description: "Attacker accessed exposed Spring Boot Actuator heap dump on AWS backend.", functionsCall: ["GET /actuator/heapdump"], pseudocode: "// Unauthenticated actuator endpoint\n// Deployer key in JVM heap" },
+      { id: "t2", phase: "Key Extraction", description: "Parsed heap dump to recover deployer private key from memory.", functionsCall: [], pseudocode: "// Private key extracted from heap\n// Full deployer privileges obtained" },
+      { id: "t3", phase: "Malicious UUPS Upgrade", description: "Upgraded proxy implementations to attacker-controlled contracts on 4 chains.", functionsCall: ["UUPS.upgradeTo(maliciousImpl)"], pseudocode: "// No multisig or timelock\n// Instant upgrade executed" },
+      { id: "t4", phase: "Multi-Chain Drain", description: "Malicious implementations swept $5.9M from vaults across all deployed chains.", functionsCall: ["maliciousImpl.sweepAll()"], pseudocode: "// 4 chains drained\n// $5.9M total extracted" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Heap dump exploit", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "Spring Boot Actuator", detail: "Exposed heap dump", x: 250, y: 100 },
+        { id: "n3", type: "contract", label: "UUPS Proxies", detail: "No timelock", x: 450, y: 200 },
+        { id: "n4", type: "vault", label: "4-Chain Vaults", detail: "$5.9M", x: 650, y: 200 },
+        { id: "n5", type: "result", label: "Attacker", detail: "Drained", x: 850, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Heap dump", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Extract deployer key" },
+        { id: "e3", source: "n3", target: "n4", label: "Malicious upgrade", animated: true },
+        { id: "e4", source: "n4", target: "n5", label: "Sweep vaults" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "AWS Backend\nHeap Dump", type: "attacker" },
+      { id: "b", label: "UUPS\nUpgrades", type: "vault" },
+      { id: "c", label: "4-Chain\nVaults", type: "pool" },
+      { id: "d", label: "Attacker\n$5.9M", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 5.9, label: "Deployer key" },
+      { source: "b", target: "c", value: 5.9, label: "Upgrade" },
+      { source: "c", target: "d", value: 5.9, label: "Drain" }
+    ],
+    mitigations: [
+      { category: "Actuator Security", description: "Disable or restrict Spring Boot Actuator endpoints in production. Never expose /heapdump publicly." },
+      { category: "Upgrade Governance", description: "Require multisig and timelock on all UUPS proxy upgrades. Never store deployer keys in application memory." },
+      { category: "Key Management", description: "Use HSM or KMS for signing keys. Never embed private keys in backend services." }
+    ],
+    quiz: [{ question: "How was Wasabi Protocol's deployer key compromised?", options: ["Phishing email", "Spring Boot Actuator heap dump on AWS", "Smart contract bug", "DNS hijack"], correct: 1, explanation: "An exposed /actuator/heapdump endpoint leaked the deployer private key from JVM memory, enabling malicious UUPS upgrades." }]
+  },
+
+  // Ekubo Protocol (May 5, 2026)
+  {
+    id: "ekubo-protocol-2026",
+    slug: "ekubo-protocol-2026",
+    title: "Ekubo Protocol",
+    subtitle: "Unauthenticated payCallback — Approval Drain",
+    year: 2026,
+    chain: "Ethereum/Arbitrum",
+    type: ["Access Control", "Logic Error"],
+    shortDesc: "Unauthenticated payCallback in Ekubo router extension let attacker drain ERC-20 approvals including 17 WBTC, totaling $1.4M.",
+    longDesc: "On May 5, 2026, Ekubo Protocol on Ethereum and Arbitrum lost $1.4M when an attacker exploited an unauthenticated payCallback function in a router extension. Users who had approved the router had their ERC-20 tokens drained, including 17 WBTC, via crafted callback invocations that transferred approved balances to the attacker.",
+    technicalDesc: "The router extension's payCallback function lacked caller authentication, allowing anyone to invoke it with arbitrary parameters. The callback used existing user ERC-20 approvals to the router contract to transferFrom approved tokens to the attacker. 17 WBTC and other approved assets totaling $1.4M were drained across Ethereum and Arbitrum.",
+    impact: "$1.4M (17 WBTC)",
+    impactUSD: 1400000,
+    contracts: [],
+    timeline: [
+      { id: "t1", phase: "Approval Scanning", description: "Attacker scanned for users with active ERC-20 approvals to Ekubo router.", functionsCall: ["allowance scan"], pseudocode: "// Users with stale approvals\n// Including 17 WBTC holder" },
+      { id: "t2", phase: "payCallback Exploit", description: "Called unauthenticated payCallback to trigger approval-based transfers.", functionsCall: ["RouterExtension.payCallback(malicious_params)"], pseudocode: "// No caller auth check\n// transferFrom via approval" },
+      { id: "t3", phase: "Token Drain", description: "Drained approved tokens including 17 WBTC across Ethereum and Arbitrum.", functionsCall: ["ERC20.transferFrom(victim, attacker, amount)"], pseudocode: "// $1.4M total drained\n// Multiple victims" },
+      { id: "t4", phase: "Mitigation", description: "Ekubo patched payCallback with authentication and urged approval revocations.", functionsCall: ["RouterExtension.patch()"], pseudocode: "// Caller auth added\n// Users revoke approvals" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Approval drain", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "payCallback", detail: "No auth", x: 250, y: 200 },
+        { id: "n3", type: "vault", label: "User Approvals", detail: "17 WBTC+", x: 450, y: 200 },
+        { id: "n4", type: "result", label: "Attacker", detail: "$1.4M", x: 650, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Call payCallback", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "transferFrom" },
+        { id: "e3", source: "n3", target: "n4", label: "Drain approvals" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "User\nApprovals", type: "vault" },
+      { id: "b", label: "payCallback\nExploit", type: "attacker" },
+      { id: "c", label: "Attacker\n$1.4M", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 1.4, label: "transferFrom" },
+      { source: "b", target: "c", value: 1.4, label: "17 WBTC+" }
+    ],
+    mitigations: [
+      { category: "Callback Authentication", description: "Restrict payCallback to authorized callers only — verify msg.sender against expected router or pool." },
+      { category: "Approval Minimization", description: "Use permit-based exact-amount approvals or ERC-20 allowance expirations instead of unlimited approvals." },
+      { category: "User Education", description: "Prompt users to revoke stale approvals after swap completion." }
+    ],
+    quiz: [{ question: "What flaw did Ekubo Protocol's router extension have?", options: ["Reentrancy", "Unauthenticated payCallback draining approvals", "Oracle bug", "Integer overflow"], correct: 1, explanation: "payCallback lacked caller authentication, allowing anyone to drain user ERC-20 approvals including 17 WBTC." }]
+  },
+
+  // TrustedVolumes (May 7, 2026)
+  {
+    id: "trustedvolumes-2026",
+    slug: "trustedvolumes-2026",
+    title: "TrustedVolumes",
+    subtitle: "Permissionless Order Signer + Unvalidated Inventory",
+    year: 2026,
+    chain: "Ethereum",
+    type: ["Access Control", "Logic Error"],
+    shortDesc: "Permissionless registerAllowedOrderSigner and unvalidated inventory field in RFQ proxy drained $6.7M on Ethereum.",
+    longDesc: "On May 7, 2026, TrustedVolumes on Ethereum lost $6.7M through two compounding flaws in its RFQ proxy. The registerAllowedOrderSigner function was permissionless, letting the attacker register themselves as an authorized signer. Combined with an unvalidated inventory field, the attacker crafted fraudulent RFQ orders that drained protocol inventory.",
+    technicalDesc: "Two vulnerabilities: (1) registerAllowedOrderSigner() was callable by anyone without admin gating, allowing self-registration as an order signer; (2) the inventory field in RFQ orders was not validated against on-chain balances. The attacker registered as signer, submitted orders with inflated inventory values, and extracted $6.7M from the protocol's RFQ settlement.",
+    impact: "$6.7M",
+    impactUSD: 6700000,
+    contracts: [],
+    timeline: [
+      { id: "t1", phase: "Signer Registration", description: "Attacker called permissionless registerAllowedOrderSigner to authorize themselves.", functionsCall: ["RFQProxy.registerAllowedOrderSigner(attacker)"], pseudocode: "// No access control\n// Attacker now valid signer" },
+      { id: "t2", phase: "Forged RFQ Orders", description: "Crafted RFQ orders with unvalidated inflated inventory fields.", functionsCall: ["RFQProxy.submitOrder(forged_inventory)"], pseudocode: "// inventory field not checked\n// Against on-chain balance" },
+      { id: "t3", phase: "Settlement", description: "Orders settled against protocol inventory at fraudulent prices.", functionsCall: ["RFQProxy.settle(order)"], pseudocode: "// $6.7M extracted\n// Inventory depleted" },
+      { id: "t4", phase: "Protocol Response", description: "TrustedVolumes paused RFQ proxy and revoked attacker signer.", functionsCall: ["RFQProxy.pause()"], pseudocode: "// Access control added\n// Inventory validation patched" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Self-registered signer", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "registerAllowedOrderSigner", detail: "Permissionless", x: 250, y: 200 },
+        { id: "n3", type: "contract", label: "RFQ Proxy", detail: "Unvalidated inventory", x: 450, y: 200 },
+        { id: "n4", type: "result", label: "Attacker", detail: "$6.7M", x: 650, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Register signer" },
+        { id: "e2", source: "n2", target: "n3", label: "Submit forged orders", animated: true },
+        { id: "e3", source: "n3", target: "n4", label: "Settle & drain" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "RFQ Proxy\nInventory", type: "vault" },
+      { id: "b", label: "Forged\nOrders", type: "attacker" },
+      { id: "c", label: "Attacker\n$6.7M", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 6.7, label: "Forged inventory" },
+      { source: "b", target: "c", value: 6.7, label: "Settlement" }
+    ],
+    mitigations: [
+      { category: "Access Control", description: "Gate registerAllowedOrderSigner behind admin or governance-only role." },
+      { category: "Inventory Validation", description: "Validate RFQ inventory fields against on-chain token balances before settlement." },
+      { category: "Order Verification", description: "Cross-check signed order parameters against live protocol state at settlement time." }
+    ],
+    quiz: [{ question: "What two flaws did TrustedVolumes have?", options: ["Reentrancy + oracle bug", "Permissionless signer registration + unvalidated inventory", "Key leak + DNS hijack", "Flash loan + overflow"], correct: 1, explanation: "Anyone could register as an order signer, and the RFQ inventory field was not validated against on-chain balances." }]
+  },
+
+  // TAC Protocol (May 11, 2026)
+  {
+    id: "tac-protocol-2026",
+    slug: "tac-protocol-2026",
+    title: "TAC Protocol",
+    subtitle: "Forged Jetton Wallet Bypassed Code Hash Verification",
+    year: 2026,
+    chain: "TON/EVM",
+    type: ["Access Control", "Bridge"],
+    shortDesc: "Forged jetton wallet bypassed TAC sequencer code hash verification, draining $2.85M across TON and EVM.",
+    longDesc: "On May 11, 2026, TAC Protocol lost $2.85M when an attacker deployed a forged jetton wallet that bypassed the sequencer's code hash verification. The fake wallet appeared valid to the cross-chain bridge but executed unauthorized token transfers, draining assets on both TON and connected EVM chains.",
+    technicalDesc: "TAC's sequencer verified jetton wallets by code hash but the check was bypassable via a forged wallet implementation that matched expected interface signatures while containing malicious transfer logic. The attacker deployed the forged wallet, passed sequencer validation, and initiated cross-chain transfers totaling $2.85M before detection.",
+    impact: "$2.85M",
+    impactUSD: 2850000,
+    contracts: [],
+    timeline: [
+      { id: "t1", phase: "Forged Wallet Deploy", description: "Attacker deployed jetton wallet with malicious transfer logic.", functionsCall: ["deploy(forged_jetton_wallet)"], pseudocode: "// Matches interface but malicious internals" },
+      { id: "t2", phase: "Code Hash Bypass", description: "Forged wallet passed sequencer code hash verification check.", functionsCall: ["Sequencer.verifyCodeHash(wallet)"], pseudocode: "// Verification bypassed\n// Wallet accepted as valid" },
+      { id: "t3", phase: "Cross-Chain Transfer", description: "Initiated unauthorized transfers across TON and EVM chains.", functionsCall: ["Bridge.transfer($2.85M)"], pseudocode: "// TON → EVM bridge exploited\n// Assets drained" },
+      { id: "t4", phase: "Bridge Freeze", description: "TAC paused sequencer and updated code hash verification.", functionsCall: ["Sequencer.pause()"], pseudocode: "// Stricter verification deployed" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Forged wallet", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "Forged Jetton Wallet", detail: "Code hash bypass", x: 250, y: 200 },
+        { id: "n3", type: "bridge", label: "TAC Sequencer", detail: "Failed verification", x: 450, y: 200 },
+        { id: "n4", type: "result", label: "Attacker", detail: "$2.85M", x: 650, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Deploy forged wallet" },
+        { id: "e2", source: "n2", target: "n3", label: "Bypass code hash", animated: true },
+        { id: "e3", source: "n3", target: "n4", label: "Cross-chain drain" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Forged\nJetton Wallet", type: "attacker" },
+      { id: "b", label: "TAC\nSequencer", type: "bridge" },
+      { id: "c", label: "Attacker\n$2.85M", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 2.85, label: "Bypass verification" },
+      { source: "b", target: "c", value: 2.85, label: "Drain" }
+    ],
+    mitigations: [
+      { category: "Code Hash Verification", description: "Use allowlisted wallet code hashes rather than interface-matching checks. Verify full bytecode, not just selectors." },
+      { category: "Wallet Registry", description: "Maintain an on-chain registry of approved jetton wallet implementations." },
+      { category: "Transfer Limits", description: "Apply rate limits and anomaly detection on cross-chain bridge transfers." }
+    ],
+    quiz: [{ question: "How did TAC Protocol's attacker bypass verification?", options: ["Private key leak", "Forged jetton wallet bypassing code hash check", "Flash loan", "Governance attack"], correct: 1, explanation: "A forged jetton wallet passed the sequencer's code hash verification while executing malicious transfers." }]
+  },
+
+  // Transit Finance (May 13, 2026)
+  {
+    id: "transit-finance-2026",
+    slug: "transit-finance-2026",
+    title: "Transit Finance",
+    subtitle: "Deprecated 2022 Legacy Contract — Lingering Approvals",
+    year: 2026,
+    chain: "TRON",
+    type: ["Access Control", "Logic Error"],
+    shortDesc: "Deprecated 2022 Transit Finance legacy contract exploited via lingering user approvals, draining $1.88M on TRON.",
+    longDesc: "On May 13, 2026, Transit Finance lost $1.88M when an attacker exploited a deprecated 2022 legacy swap contract on TRON. Users who had not revoked token approvals to the old contract were drained via transferFrom calls, years after the contract was superseded by newer versions.",
+    technicalDesc: "Transit Finance migrated to new contracts but the 2022 legacy swap contract remained deployed on TRON with active user approvals. The attacker scanned for accounts with lingering approve() permissions and called transferFrom on the deprecated contract to sweep approved TRC-20 tokens, extracting $1.88M total.",
+    impact: "$1.88M",
+    impactUSD: 1880000,
+    contracts: [],
+    timeline: [
+      { id: "t1", phase: "Approval Scanning", description: "Attacker scanned TRON for users with active approvals to deprecated 2022 contract.", functionsCall: ["allowance scan"], pseudocode: "// Legacy contract still deployed\n// Users never revoked approvals" },
+      { id: "t2", phase: "transferFrom Sweep", description: "Called transferFrom on legacy contract to drain approved TRC-20 tokens.", functionsCall: ["LegacySwap.transferFrom(victim, attacker, amount)"], pseudocode: "// Deprecated contract still functional\n// Approvals still valid" },
+      { id: "t3", phase: "Multi-User Drain", description: "Swept approved tokens from multiple victims totaling $1.88M.", functionsCall: ["LegacySwap.transferFrom(repeat)"], pseudocode: "// Batch drain across victims" },
+      { id: "t4", phase: "User Advisory", description: "Transit Finance urged users to revoke legacy contract approvals.", functionsCall: [], pseudocode: "// Revoke approvals to 2022 contract\n// Migrate to current version" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Approval sweep", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "2022 Legacy Contract", detail: "Deprecated", x: 250, y: 200 },
+        { id: "n3", type: "vault", label: "User Approvals", detail: "Lingering", x: 450, y: 200 },
+        { id: "n4", type: "result", label: "Attacker", detail: "$1.88M", x: 650, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Scan approvals" },
+        { id: "e2", source: "n2", target: "n3", label: "transferFrom", animated: true },
+        { id: "e3", source: "n3", target: "n4", label: "Sweep $1.88M" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "User\nApprovals", type: "vault" },
+      { id: "b", label: "2022 Legacy\nContract", type: "vault" },
+      { id: "c", label: "Attacker\n$1.88M", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 1.88, label: "Lingering approvals" },
+      { source: "b", target: "c", value: 1.88, label: "transferFrom" }
+    ],
+    mitigations: [
+      { category: "Contract Deprecation", description: "Disable or self-destruct deprecated contracts. Add a kill switch that revokes all functionality." },
+      { category: "Approval Revocation", description: "Prompt users to revoke approvals when migrating to new contract versions." },
+      { category: "Approval Monitoring", description: "Monitor and alert on large transferFrom calls on deprecated contracts." }
+    ],
+    quiz: [{ question: "Why could Transit Finance's legacy contract be exploited in 2026?", options: ["New bug introduced", "Users had lingering approvals to deprecated 2022 contract", "Bridge key leak", "Oracle manipulation"], correct: 1, explanation: "The deprecated 2022 contract remained functional with active user approvals that were never revoked." }]
+  },
+
+  // THORChain (May 15, 2026)
+  {
+    id: "thorchain-2026",
+    slug: "thorchain-2026",
+    title: "THORChain",
+    subtitle: "Malicious Node + GG20 TSS Key Leak",
+    year: 2026,
+    chain: "Multi-chain",
+    type: ["Access Control", "Bridge"],
+    shortDesc: "Malicious THORChain node progressively leaked GG20 TSS key material; unapplied patch led to $10.7M drain.",
+    longDesc: "On May 15, 2026, THORChain lost $10.7M when a malicious node operator progressively leaked GG20 threshold signature scheme (TSS) key material. A known patch addressing TSS key isolation had not been applied network-wide, allowing the rogue node to reconstruct signing shares and authorize fraudulent outbound vault transfers.",
+    technicalDesc: "THORChain vaults use GG20 TSS for distributed signing. A malicious node exploited insufficient key material isolation to progressively leak TSS shares across signing rounds. An unapplied security patch would have prevented cross-round key exposure. Once sufficient shares were collected, the attacker reconstructed the vault signing key and initiated $10.7M in unauthorized outbound transfers.",
+    impact: "$10.7M",
+    impactUSD: 10700000,
+    contracts: [],
+    timeline: [
+      { id: "t1", phase: "Malicious Node", description: "Rogue node operator joined THORChain validator set.", functionsCall: ["Node.joinValidatorSet()"], pseudocode: "// Malicious operator\n// Participates in TSS ceremonies" },
+      { id: "t2", phase: "TSS Key Leak", description: "Progressively leaked GG20 TSS key material across signing rounds.", functionsCall: ["TSS.signingRound(leak_shares)"], pseudocode: "// Unapplied patch allowed\n// Cross-round key exposure" },
+      { id: "t3", phase: "Key Reconstruction", description: "Reconstructed sufficient TSS shares to sign vault outbound transactions.", functionsCall: ["TSS.reconstructKey()"], pseudocode: "// Vault signing key recovered\n// Full outbound authority" },
+      { id: "t4", phase: "Vault Drain", description: "Signed fraudulent outbound transfers draining $10.7M across chains.", functionsCall: ["Vault.outboundTransfer($10.7M)"], pseudocode: "// Multi-chain drain\n// Network halted" },
+      { id: "t5", phase: "Network Halt", description: "THORChain halted network and ejected malicious node.", functionsCall: ["Network.halt()"], pseudocode: "// Patch applied network-wide\n// TSS ceremony rotated" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Malicious Node", detail: "GG20 TSS leak", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "GG20 TSS", detail: "Unapplied patch", x: 250, y: 200 },
+        { id: "n3", type: "vault", label: "THORChain Vaults", detail: "$10.7M", x: 450, y: 200 },
+        { id: "n4", type: "bridge", label: "Multi-Chain", detail: "Outbound transfers", x: 650, y: 200 },
+        { id: "n5", type: "result", label: "Attacker", detail: "Drained", x: 850, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Leak TSS shares", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Reconstruct key" },
+        { id: "e3", source: "n3", target: "n4", label: "Sign outbound", animated: true },
+        { id: "e4", source: "n4", target: "n5", label: "$10.7M drain" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "GG20 TSS\nKey Leak", type: "attacker" },
+      { id: "b", label: "THORChain\nVaults", type: "vault" },
+      { id: "c", label: "Multi-Chain\nOutbound", type: "bridge" },
+      { id: "d", label: "Attacker\n$10.7M", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 10.7, label: "Key reconstruction" },
+      { source: "b", target: "c", value: 10.7, label: "Signed outbound" },
+      { source: "c", target: "d", value: 10.7, label: "Drain" }
+    ],
+    mitigations: [
+      { category: "Patch Management", description: "Enforce mandatory security patches across all nodes before allowing participation in TSS ceremonies." },
+      { category: "TSS Key Isolation", description: "Ensure TSS key material is zeroed after each signing round and never reused across rounds." },
+      { category: "Node Vetting", description: "Strengthen node operator bonding requirements and continuous behavior monitoring." }
+    ],
+    quiz: [{ question: "What enabled THORChain's $10.7M drain?", options: ["Smart contract reentrancy", "Malicious node leaking GG20 TSS key material with unapplied patch", "Flash loan", "DNS hijack"], correct: 1, explanation: "A malicious node progressively leaked GG20 TSS shares; a security patch that would have prevented this was not applied network-wide." }]
+  },
+
+  // Adshares Bridge (May 17, 2026)
+  {
+    id: "adshares-bridge-2026",
+    slug: "adshares-bridge-2026",
+    title: "Adshares Bridge",
+    subtitle: "wrapTo with Non-Existent Native Txids",
+    year: 2026,
+    chain: "Ethereum",
+    type: ["Bridge", "Logic Error"],
+    shortDesc: "Adshares Bridge wrapTo accepted non-existent native txids, minting fake wADS; $628K stolen, ~86% returned.",
+    longDesc: "On May 17, 2026, the Adshares Bridge on Ethereum lost $628K when an attacker called wrapTo with fabricated native transaction IDs that did not exist on the Adshares native chain. The bridge minted unbacked wADS wrapped tokens without verifying the source deposit, which were swapped for real assets. Approximately 86% of funds were later returned.",
+    technicalDesc: "The wrapTo function minted wADS tokens based on claimed native-chain transaction IDs without verifying those transactions actually occurred or contained matching deposit amounts. The attacker submitted wrapTo calls with non-existent txids, received unbacked wADS mints, and swapped them for ETH and stablecoins totaling $628K.",
+    impact: "$628K (~86% returned)",
+    impactUSD: 628000,
+    contracts: [],
+    timeline: [
+      { id: "t1", phase: "Txid Fabrication", description: "Attacker crafted wrapTo calls with non-existent native chain transaction IDs.", functionsCall: ["Bridge.wrapTo(fake_txid, amount)"], pseudocode: "// txid never existed on native chain\n// No deposit verification" },
+      { id: "t2", phase: "Fake wADS Mint", description: "Bridge minted wADS tokens without backing native deposits.", functionsCall: ["wADS.mint(attacker, amount)"], pseudocode: "// Unbacked wrapped tokens created" },
+      { id: "t3", phase: "Asset Swap", description: "Swapped fake wADS for real ETH and stablecoins.", functionsCall: ["DEX.swap(wADS, ETH)"], pseudocode: "// $628K extracted" },
+      { id: "t4", phase: "Partial Recovery", description: "Approximately 86% of stolen funds returned to the protocol.", functionsCall: [], pseudocode: "// ~$540K recovered\n// Bridge verification patched" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Fake txids", x: 50, y: 200 },
+        { id: "n2", type: "bridge", label: "wrapTo", detail: "No txid verification", x: 250, y: 200 },
+        { id: "n3", type: "pool", label: "wADS Mint", detail: "Unbacked", x: 450, y: 200 },
+        { id: "n4", type: "result", label: "Net Loss", detail: "~$88K", x: 650, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Fake txids", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Mint wADS" },
+        { id: "e3", source: "n3", target: "n4", label: "Swap (86% returned)" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Fake\nNative Txid", type: "attacker" },
+      { id: "b", label: "wADS\nMint", type: "bridge" },
+      { id: "c", label: "Attacker\n$628K", type: "drain" },
+      { id: "d", label: "Recovered\n~86%", type: "vault" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 0.63, label: "wrapTo" },
+      { source: "b", target: "c", value: 0.63, label: "Swap" },
+      { source: "c", target: "d", value: 0.54, label: "Returned" }
+    ],
+    mitigations: [
+      { category: "Deposit Verification", description: "Verify native-chain transaction existence and amount before minting wrapped tokens." },
+      { category: "Txid Validation", description: "Cross-reference txids against native chain RPC with confirmation depth requirements." },
+      { category: "Mint Limits", description: "Apply rate limits and caps on wrapTo minting per address and per time window." }
+    ],
+    quiz: [{ question: "What flaw did Adshares Bridge's wrapTo have?", options: ["Private key leak", "Accepted non-existent native txids for minting", "Reentrancy", "Oracle manipulation"], correct: 1, explanation: "wrapTo minted wADS without verifying that the claimed native transaction IDs actually existed." }]
+  },
+
+  // Verus-Ethereum Bridge (May 18, 2026)
+  {
+    id: "verus-ethereum-bridge-2026",
+    slug: "verus-ethereum-bridge-2026",
+    title: "Verus-Ethereum Bridge",
+    subtitle: "Missing Source-Amount Validation in checkCCEValues",
+    year: 2026,
+    chain: "Ethereum",
+    type: ["Bridge", "Logic Error"],
+    shortDesc: "Missing source-amount validation in checkCCEValues let attacker mint unbacked bridged assets, draining $11.58M.",
+    longDesc: "On May 18, 2026, the Verus-Ethereum Bridge lost $11.58M due to missing source-amount validation in the checkCCEValues function. The attacker submitted cross-chain export claims with inflated or mismatched source amounts that passed validation, minting unbacked bridged tokens on Ethereum that were swapped for real assets.",
+    technicalDesc: "checkCCEValues was responsible for validating that claimed cross-chain export amounts matched verified source-chain deposits. The function failed to enforce source-amount consistency, allowing the attacker to submit CCE (cross-chain export) claims with arbitrary destination amounts. Unbacked bridged tokens were minted on Ethereum and liquidated for $11.58M.",
+    impact: "$11.58M",
+    impactUSD: 11580000,
+    contracts: [],
+    timeline: [
+      { id: "t1", phase: "Validation Analysis", description: "Attacker identified missing source-amount check in checkCCEValues.", functionsCall: [], pseudocode: "// checkCCEValues skips source amount\n// Destination amount unchecked" },
+      { id: "t2", phase: "Forged CCE Claims", description: "Submitted cross-chain export claims with inflated amounts.", functionsCall: ["Bridge.submitCCE(inflated_amount)"], pseudocode: "// Source amount not validated\n// Claim accepted" },
+      { id: "t3", phase: "Unbacked Mint", description: "Bridge minted unbacked tokens on Ethereum from forged claims.", functionsCall: ["Bridge.mintWrapped(inflated_amount)"], pseudocode: "// No matching source deposit\n// Tokens minted anyway" },
+      { id: "t4", phase: "Liquidation", description: "Swapped minted tokens for real assets totaling $11.58M.", functionsCall: ["DEX.swap(all_minted)"], pseudocode: "// $11.58M extracted\n// Bridge paused" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "CCE forgery", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "checkCCEValues", detail: "Missing validation", x: 250, y: 200 },
+        { id: "n3", type: "bridge", label: "Verus-Eth Bridge", detail: "Unbacked mint", x: 450, y: 200 },
+        { id: "n4", type: "result", label: "Attacker", detail: "$11.58M", x: 650, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Forged CCE", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Pass validation" },
+        { id: "e3", source: "n3", target: "n4", label: "Mint & swap" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Forged CCE\nClaims", type: "attacker" },
+      { id: "b", label: "Bridge\nMint", type: "bridge" },
+      { id: "c", label: "Attacker\n$11.58M", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 11.58, label: "Unbacked mint" },
+      { source: "b", target: "c", value: 11.58, label: "Liquidation" }
+    ],
+    mitigations: [
+      { category: "Amount Validation", description: "Enforce strict source-amount matching in checkCCEValues against verified on-chain deposits." },
+      { category: "Cross-Chain Proofs", description: "Require cryptographic proofs of source-chain deposits with confirmation depth." },
+      { category: "Mint Caps", description: "Apply per-transaction and daily mint limits on bridge token issuance." }
+    ],
+    quiz: [{ question: "What did Verus-Ethereum Bridge's checkCCEValues fail to validate?", options: ["Destination address", "Source amount", "Gas price", "Block timestamp"], correct: 1, explanation: "Missing source-amount validation allowed forged cross-chain export claims to mint unbacked bridged tokens." }]
+  },
+
+  // RetoSwap (May 20, 2026)
+  {
+    id: "retoswap-2026",
+    slug: "retoswap-2026",
+    title: "RetoSwap",
+    subtitle: "Forged Out-of-Order ACK Impersonating Arbitrator",
+    year: 2026,
+    chain: "Monero/Haveno",
+    type: ["Access Control", "Logic Error"],
+    shortDesc: "Forged out-of-order ACK impersonating Haveno arbitrator released $2.7M in escrowed Monero trades.",
+    longDesc: "On May 20, 2026, RetoSwap on the Monero/Haveno network lost $2.7M when an attacker forged an out-of-order acknowledgment (ACK) message impersonating a Haveno trade arbitrator. The forged ACK triggered premature escrow release, allowing the attacker to claim funds from multiple open trades without completing the payment side.",
+    technicalDesc: "Haveno P2P trades rely on arbitrator ACK messages to release escrowed XMR. The attacker forged ACK messages with manipulated sequence numbers (out-of-order) that impersonated a legitimate arbitrator's signature. The RetoSwap/Haveno client accepted the forged ACKs and released $2.7M in escrowed Monero to the attacker's wallets.",
+    impact: "$2.7M",
+    impactUSD: 2700000,
+    contracts: [],
+    timeline: [
+      { id: "t1", phase: "Arbitrator Analysis", description: "Attacker studied Haveno arbitrator ACK message format and signing.", functionsCall: [], pseudocode: "// ACK message structure mapped\n// Arbitrator impersonation planned" },
+      { id: "t2", phase: "Forged ACK", description: "Crafted out-of-order ACK messages impersonating arbitrator.", functionsCall: ["forgeACK(arbitrator, out_of_order_seq)"], pseudocode: "// Forged arbitrator signature\n// Out-of-order sequence number" },
+      { id: "t3", phase: "Escrow Release", description: "Forged ACKs triggered premature escrow release on open trades.", functionsCall: ["Haveno.releaseEscrow(forged_ack)"], pseudocode: "// Escrow released without\n// Payment completion" },
+      { id: "t4", phase: "Fund Extraction", description: "Attacker claimed $2.7M in released Monero from multiple trades.", functionsCall: ["Attacker.claimEscrow(all_trades)"], pseudocode: "// $2.7M XMR extracted" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Forged ACK", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "Arbitrator ACK", detail: "Impersonated", x: 250, y: 200 },
+        { id: "n3", type: "vault", label: "Haveno Escrow", detail: "$2.7M XMR", x: 450, y: 200 },
+        { id: "n4", type: "result", label: "Attacker", detail: "Released", x: 650, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Forge ACK", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Out-of-order release" },
+        { id: "e3", source: "n3", target: "n4", label: "Claim escrow" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Haveno\nEscrow", type: "vault" },
+      { id: "b", label: "Forged\nArbitrator ACK", type: "attacker" },
+      { id: "c", label: "Attacker\n$2.7M", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 2.7, label: "Premature release" },
+      { source: "b", target: "c", value: 2.7, label: "Claim" }
+    ],
+    mitigations: [
+      { category: "ACK Verification", description: "Verify arbitrator signatures against a hardcoded allowlist of known arbitrator public keys." },
+      { category: "Sequence Validation", description: "Reject out-of-order ACK messages; enforce strict monotonic sequence numbering." },
+      { category: "Multi-Arbitrator", description: "Require multiple arbitrator confirmations before escrow release on high-value trades." }
+    ],
+    quiz: [{ question: "How did RetoSwap's attacker release escrowed funds?", options: ["Private key leak", "Forged out-of-order ACK impersonating arbitrator", "Smart contract bug", "51% attack"], correct: 1, explanation: "Forged arbitrator ACK messages with out-of-order sequence numbers triggered premature escrow release." }]
+  },
+
+  // StablR (May 24, 2026)
+  {
+    id: "stablr-2026",
+    slug: "stablr-2026",
+    title: "StablR",
+    subtitle: "1-of-3 Multisig Mint Key Compromise",
+    year: 2026,
+    chain: "Ethereum",
+    type: ["Access Control"],
+    shortDesc: "1-of-3 multisig mint key compromise enabled $13.5M unbacked mint; $2.8M net extracted on Ethereum.",
+    longDesc: "On May 24, 2026, StablR on Ethereum suffered a mint key compromise on its 1-of-3 multisig. The attacker minted $13.5M in unbacked stablecoins but only managed to extract $2.8M net before the protocol froze minting and blacklisted attacker addresses.",
+    technicalDesc: "StablR's stablecoin minting required only 1-of-3 multisig approval — a single compromised key was sufficient. The attacker used the compromised mint key to authorize unbacked stablecoin mints totaling $13.5M. Before full extraction, the protocol paused minting and blacklisted addresses, limiting net loss to $2.8M.",
+    impact: "$2.8M net ($13.5M unbacked minted)",
+    impactUSD: 2800000,
+    contracts: [],
+    timeline: [
+      { id: "t1", phase: "Key Compromise", description: "One of three multisig mint keys compromised.", functionsCall: [], pseudocode: "// 1-of-3 threshold\n// Single key sufficient" },
+      { id: "t2", phase: "Unbacked Mint", description: "Minted $13.5M in unbacked stablecoins using compromised key.", functionsCall: ["StablR.mint($13.5M)"], pseudocode: "// No collateral backing\n// 1 signature enough" },
+      { id: "t3", phase: "Partial Extraction", description: "Attacker liquidated $2.8M before protocol froze operations.", functionsCall: ["DEX.swap($2.8M)"], pseudocode: "// Remaining minted tokens frozen\n// Blacklist applied" },
+      { id: "t4", phase: "Protocol Freeze", description: "StablR paused minting and blacklisted attacker addresses.", functionsCall: ["StablR.pauseMint()", "StablR.blacklist(attacker)"], pseudocode: "// $10.7M unbacked contained\n// Multisig upgraded to 2-of-3" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Mint key", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "1-of-3 Mint Key", detail: "Single key enough", x: 250, y: 200 },
+        { id: "n3", type: "pool", label: "Unbacked Mint", detail: "$13.5M", x: 450, y: 200 },
+        { id: "n4", type: "result", label: "Net Extracted", detail: "$2.8M", x: 650, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Compromise key" },
+        { id: "e2", source: "n2", target: "n3", label: "Mint unbacked", animated: true },
+        { id: "e3", source: "n3", target: "n4", label: "Extract $2.8M" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Mint Key\nCompromised", type: "attacker" },
+      { id: "b", label: "Unbacked\n$13.5M Mint", type: "pool" },
+      { id: "c", label: "Extracted\n$2.8M", type: "drain" },
+      { id: "d", label: "Frozen\n$10.7M", type: "vault" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 13.5, label: "Mint" },
+      { source: "b", target: "c", value: 2.8, label: "Liquidated" },
+      { source: "b", target: "d", value: 10.7, label: "Blacklisted" }
+    ],
+    mitigations: [
+      { category: "Multisig Threshold", description: "Require M-of-N with M >= 2 for all mint operations. Never use 1-of-N for privileged actions." },
+      { category: "Mint Monitoring", description: "Real-time alerts on large mint events with automatic pause triggers." },
+      { category: "Blacklist Capability", description: "Maintain ability to freeze and blacklist addresses holding unbacked mints." }
+    ],
+    quiz: [{ question: "Why was StablR's mint so easily exploited?", options: ["Smart contract bug", "1-of-3 multisig — single key compromise sufficient", "Flash loan", "Oracle manipulation"], correct: 1, explanation: "Only 1 of 3 multisig signatures was required to mint, so a single compromised key enabled $13.5M unbacked minting." }]
+  },
+
+  // SquidRouterModule (May 25, 2026)
+  {
+    id: "squid-router-module-2026",
+    slug: "squid-router-module-2026",
+    title: "SquidRouterModule",
+    subtitle: "Gnosis Safe Module Fixed-String Auth Flaw",
+    year: 2026,
+    chain: "Ethereum/Base",
+    type: ["Access Control", "Logic Error"],
+    shortDesc: "Fixed-string authentication flaw in Gnosis Safe module let attacker drain 86 wallets for $3.2M on Ethereum and Base.",
+    longDesc: "On May 25, 2026, the SquidRouterModule Gnosis Safe module on Ethereum and Base was exploited for $3.2M across 86 wallets. A fixed-string authentication flaw in the module's authorization check allowed the attacker to bypass access control and execute transactions from any Safe that had the module enabled.",
+    technicalDesc: "The SquidRouterModule used a fixed-string comparison for authorization that could be bypassed via encoding tricks or predictable string matching. The attacker crafted module calls that passed the flawed auth check, then executed arbitrary transactions from 86 Gnosis Safes with the module enabled, draining $3.2M across Ethereum and Base.",
+    impact: "$3.2M (86 wallets)",
+    impactUSD: 3200000,
+    contracts: [],
+    timeline: [
+      { id: "t1", phase: "Auth Flaw Discovery", description: "Attacker identified fixed-string authentication bypass in SquidRouterModule.", functionsCall: [], pseudocode: "// Fixed-string auth comparison\n// Bypassable via encoding" },
+      { id: "t2", phase: "Safe Enumeration", description: "Identified 86 Gnosis Safes with SquidRouterModule enabled.", functionsCall: ["scanSafes(module)"], pseudocode: "// 86 targets found\n// Ethereum + Base" },
+      { id: "t3", phase: "Module Exploitation", description: "Bypassed auth and executed drain transactions from each Safe.", functionsCall: ["Module.execTransactionFromModule(safe, drain_tx)"], pseudocode: "// Auth check bypassed\n// Arbitrary TX from Safe" },
+      { id: "t4", phase: "Multi-Wallet Drain", description: "Drained $3.2M total across 86 compromised Safes.", functionsCall: ["Module.execTransactionFromModule(repeat x86)"], pseudocode: "// $3.2M aggregated\n// Module disabled" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Auth bypass", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "SquidRouterModule", detail: "Fixed-string auth", x: 250, y: 200 },
+        { id: "n3", type: "vault", label: "86 Gnosis Safes", detail: "Module enabled", x: 450, y: 200 },
+        { id: "n4", type: "result", label: "Attacker", detail: "$3.2M", x: 650, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Bypass auth", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Exec from 86 Safes" },
+        { id: "e3", source: "n3", target: "n4", label: "Drain" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "SquidRouter\nModule", type: "attacker" },
+      { id: "b", label: "86 Gnosis\nSafes", type: "multisig" },
+      { id: "c", label: "Attacker\n$3.2M", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 3.2, label: "Auth bypass" },
+      { source: "b", target: "c", value: 3.2, label: "86 wallets" }
+    ],
+    mitigations: [
+      { category: "Module Auth", description: "Use cryptographic signature verification instead of fixed-string comparisons for module authorization." },
+      { category: "Safe Module Audit", description: "Audit all Gnosis Safe modules for access control before enabling on production Safes." },
+      { category: "Module Disable", description: "Disable SquidRouterModule on all Safes immediately after vulnerability disclosure." }
+    ],
+    quiz: [{ question: "What flaw did SquidRouterModule have?", options: ["Reentrancy", "Fixed-string authentication bypass", "Oracle bug", "Integer overflow"], correct: 1, explanation: "A fixed-string auth check in the Gnosis Safe module was bypassable, letting the attacker drain 86 wallets." }]
+  },
+
+  // SUPERFORTUNE AI (May 27, 2026)
+  {
+    id: "superfortune-ai-2026",
+    slug: "superfortune-ai-2026",
+    title: "SUPERFORTUNE AI",
+    subtitle: "Signer Key Leak — Multisig Airdrop Redirect",
+    year: 2026,
+    chain: "Ethereum",
+    type: ["Access Control"],
+    shortDesc: "Leaked signer private key redirected multisig GUA airdrop ($15.18M) to attacker lookalike address on Ethereum.",
+    longDesc: "On May 27, 2026, SUPERFORTUNE AI lost $15.18M in GUA tokens on Ethereum when a multisig signer's private key was leaked. The attacker used the compromised signer to redirect the scheduled multisig airdrop distribution to a lookalike address controlled by the attacker, intercepting the entire allocation.",
+    technicalDesc: "The protocol used a multisig to authorize a GUA token airdrop. A signer's private key was leaked (likely via phishing or insecure storage). The attacker used the compromised signer to submit a modified airdrop transaction redirecting the recipient address to a lookalike contract or EOA, intercepting $15.18M in GUA tokens.",
+    impact: "$15.18M GUA",
+    impactUSD: 15180000,
+    contracts: [],
+    timeline: [
+      { id: "t1", phase: "Key Leak", description: "Multisig signer's private key leaked via insecure storage or phishing.", functionsCall: [], pseudocode: "// Signer key compromised\n// Multisig threshold reachable" },
+      { id: "t2", phase: "Airdrop Hijack", description: "Compromised signer submitted modified airdrop with lookalike recipient.", functionsCall: ["Multisig.submitAirdrop(lookalike_address)"], pseudocode: "// Recipient redirected\n// Looks legitimate in UI" },
+      { id: "t3", phase: "Multisig Approval", description: "Modified airdrop transaction approved via compromised signer vote.", functionsCall: ["Multisig.approve(txHash)"], pseudocode: "// Threshold met with\n// compromised signer" },
+      { id: "t4", phase: "GUA Interception", description: "$15.18M GUA tokens sent to attacker lookalike address.", functionsCall: ["GUA.transfer(lookalike, $15.18M)"], pseudocode: "// Full airdrop intercepted\n// Real recipients receive nothing" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Leaked signer key", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "Multisig Signer", detail: "Compromised", x: 250, y: 200 },
+        { id: "n3", type: "contract", label: "GUA Airdrop", detail: "$15.18M", x: 450, y: 200 },
+        { id: "n4", type: "result", label: "Lookalike Address", detail: "Intercepted", x: 650, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Use leaked key" },
+        { id: "e2", source: "n2", target: "n3", label: "Redirect airdrop", animated: true },
+        { id: "e3", source: "n3", target: "n4", label: "$15.18M GUA" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "GUA Airdrop\n$15.18M", type: "vault" },
+      { id: "b", label: "Compromised\nSigner", type: "attacker" },
+      { id: "c", label: "Lookalike\nAddress", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 15.18, label: "Redirected" },
+      { source: "b", target: "c", value: 15.18, label: "Intercepted" }
+    ],
+    mitigations: [
+      { category: "Signer Security", description: "Store multisig signer keys in hardware wallets with air-gapped signing for high-value distributions." },
+      { category: "Recipient Verification", description: "Display and verify airdrop recipient addresses on hardware device screens before signing." },
+      { category: "Timelock", description: "Add timelock delays on large token distributions to allow cancellation of suspicious transactions." }
+    ],
+    quiz: [{ question: "How did SUPERFORTUNE AI's airdrop get hijacked?", options: ["Smart contract bug", "Leaked signer key redirected airdrop to lookalike address", "Flash loan", "Oracle manipulation"], correct: 1, explanation: "A compromised multisig signer redirected the $15.18M GUA airdrop to an attacker-controlled lookalike address." }]
+  },
+
+  // Polymarket (May 22, 2026)
+  {
+    id: "polymarket-uma-2026",
+    slug: "polymarket-uma-2026",
+    title: "Polymarket",
+    subtitle: "Ops Wallet Private Key Compromise",
+    year: 2026,
+    chain: "Polygon",
+    type: ["Access Control"],
+    shortDesc: "Six-year-old ops wallet private key compromise drained $520K POL from rewards wallet — not a contract exploit.",
+    longDesc: "On May 22, 2026, Polymarket lost $520K in POL tokens when a six-year-old operations wallet private key was compromised. The attacker drained POL from the protocol's rewards wallet. This was an operational security failure involving a legacy key, not a smart contract or UMA oracle exploit.",
+    technicalDesc: "Polymarket's rewards distribution wallet was controlled by a private key created approximately six years prior and not rotated. The attacker obtained this legacy key and transferred $520K in POL tokens from the rewards wallet. No smart contract vulnerability or UMA oracle manipulation was involved.",
+    impact: "$520K POL",
+    impactUSD: 520000,
+    contracts: [],
+    timeline: [
+      { id: "t1", phase: "Legacy Key Exposure", description: "Six-year-old ops wallet private key compromised.", functionsCall: [], pseudocode: "// Key never rotated\n// Created ~2020" },
+      { id: "t2", phase: "Rewards Wallet Access", description: "Attacker accessed Polymarket rewards wallet on Polygon.", functionsCall: ["RewardsWallet.transfer(POL)"], pseudocode: "// $520K POL available\n// No multisig protection" },
+      { id: "t3", phase: "POL Drain", description: "Transferred $520K POL to attacker-controlled address.", functionsCall: ["POL.transfer(attacker, $520K)"], pseudocode: "// Full rewards wallet drained" },
+      { id: "t4", phase: "Key Rotation", description: "Polymarket rotated all ops keys and migrated to multisig.", functionsCall: [], pseudocode: "// Legacy keys revoked\n// Multisig implemented" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Legacy key", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "Ops Wallet Key", detail: "6 years old", x: 250, y: 200 },
+        { id: "n3", type: "vault", label: "Rewards Wallet", detail: "$520K POL", x: 450, y: 200 },
+        { id: "n4", type: "result", label: "Attacker", detail: "Drained", x: 650, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Compromise key" },
+        { id: "e2", source: "n2", target: "n3", label: "Access wallet", animated: true },
+        { id: "e3", source: "n3", target: "n4", label: "Drain POL" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Rewards\nWallet", type: "vault" },
+      { id: "b", label: "Legacy Ops\nKey", type: "attacker" },
+      { id: "c", label: "Attacker\n$520K POL", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 0.52, label: "Key access" },
+      { source: "b", target: "c", value: 0.52, label: "POL drain" }
+    ],
+    mitigations: [
+      { category: "Key Rotation", description: "Rotate all operational wallet keys on a regular schedule. Deprecate keys older than 12 months." },
+      { category: "Multisig Ops", description: "Use multi-sig for all treasury and rewards wallets instead of single private keys." },
+      { category: "Legacy Key Audit", description: "Audit and revoke all legacy keys from early project phases." }
+    ],
+    quiz: [{ question: "What caused Polymarket's $520K loss?", options: ["UMA oracle exploit", "Six-year-old ops wallet key compromise", "Smart contract reentrancy", "DNS hijack"], correct: 1, explanation: "A legacy operations wallet private key from ~2020 was compromised, draining POL from the rewards wallet — not a contract exploit." }]
+  },
+
+  // DxSale (May 28-29, 2026)
+  {
+    id: "dxsale-2026",
+    slug: "dxsale-2026",
+    title: "DxSale",
+    subtitle: "Legacy v1 Locker Repeat Withdraw + Ownership Transfer",
+    year: 2026,
+    chain: "BNB Chain",
+    type: ["Logic Error", "Access Control"],
+    shortDesc: "Legacy DxSale v1 locker unlockToken allowed repeat withdrawals after deployer ownership transfer, draining $7.3M.",
+    longDesc: "On May 28-29, 2026, DxSale on BNB Chain lost $7.3M through its legacy v1 token locker contract. The attacker exploited unlockToken to repeatedly withdraw locked tokens, compounded by a deployer ownership transfer that removed admin safeguards. Users with tokens locked in the deprecated v1 contract were affected.",
+    technicalDesc: "The DxSale v1 locker unlockToken function lacked withdrawal state tracking, allowing the same lock to be unlocked multiple times. Additionally, deployer ownership was transferred to the attacker or an uncontrolled address, removing the ability to pause the contract. The attacker called unlockToken in a loop on vulnerable locks, extracting $7.3M.",
+    impact: "$7.3M",
+    impactUSD: 7300000,
+    contracts: [],
+    timeline: [
+      { id: "t1", phase: "V1 Contract Analysis", description: "Attacker identified unlockToken repeat-withdraw flaw in legacy v1 locker.", functionsCall: [], pseudocode: "// unlockToken lacks state tracking\n// Same lock withdrawable multiple times" },
+      { id: "t2", phase: "Ownership Transfer", description: "Deployer ownership transferred, removing admin pause capability.", functionsCall: ["Locker.transferOwnership(attacker)"], pseudocode: "// Admin controls lost\n// Contract cannot be paused" },
+      { id: "t3", phase: "Repeat Withdraw", description: "Called unlockToken repeatedly on same locks to multiply withdrawals.", functionsCall: ["Locker.unlockToken(repeat)"], pseudocode: "// Each call releases tokens\n// No spent-flag check" },
+      { id: "t4", phase: "Extraction", description: "Extracted $7.3M from legacy v1 locked token pools.", functionsCall: ["Locker.unlockToken(all_locks)"], pseudocode: "// $7.3M total drained\n// v1 contract deprecated" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Repeat withdraw", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "v1 Locker", detail: "unlockToken flaw", x: 250, y: 200 },
+        { id: "n3", type: "vault", label: "Locked Tokens", detail: "$7.3M", x: 450, y: 200 },
+        { id: "n4", type: "result", label: "Attacker", detail: "Drained", x: 650, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Ownership transfer" },
+        { id: "e2", source: "n2", target: "n3", label: "Repeat unlockToken", animated: true },
+        { id: "e3", source: "n3", target: "n4", label: "$7.3M drain" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "v1 Locker\nLocked Tokens", type: "vault" },
+      { id: "b", label: "unlockToken\nRepeat", type: "attacker" },
+      { id: "c", label: "Attacker\n$7.3M", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 7.3, label: "Repeat unlock" },
+      { source: "b", target: "c", value: 7.3, label: "Extract" }
+    ],
+    mitigations: [
+      { category: "Withdrawal State", description: "Track unlock state per lock ID. Revert if a lock has already been fully withdrawn." },
+      { category: "Contract Deprecation", description: "Migrate users from v1 to v2 lockers and disable v1 unlockToken functionality." },
+      { category: "Ownership Protection", description: "Use multisig or timelock for ownership transfers on contracts holding user funds." }
+    ],
+    quiz: [{ question: "What flaw did DxSale's v1 locker have?", options: ["Reentrancy only", "unlockToken repeat withdraw + deployer ownership transfer", "Oracle bug", "Flash loan"], correct: 1, explanation: "unlockToken allowed repeated withdrawals from the same lock, and deployer ownership transfer removed admin safeguards." }]
+  },
+
+  // Gravity Bridge (May 30, 2026)
+  {
+    id: "gravity-bridge-2026",
+    slug: "gravity-bridge-2026",
+    title: "Gravity Bridge",
+    subtitle: "Bridge Signing Key Compromise",
+    year: 2026,
+    chain: "Ethereum/Cosmos",
+    type: ["Bridge", "Access Control"],
+    shortDesc: "Gravity Bridge signing key compromise authorized fraudulent cross-chain transfers, draining $5.4M.",
+    longDesc: "On May 30, 2026, Gravity Bridge between Ethereum and Cosmos lost $5.4M when bridge signing keys were compromised. The attacker used the stolen keys to sign fraudulent cross-chain transfer messages, minting or releasing unbacked assets on the destination chain before the bridge operators could halt operations.",
+    technicalDesc: "Gravity Bridge relies on validator signing keys to authorize cross-chain transfers between Cosmos and Ethereum. The attacker compromised one or more bridge signing keys and produced valid signatures for fraudulent transfer messages. These authorized the release of $5.4M in bridged assets without corresponding source-chain deposits.",
+    impact: "$5.4M",
+    impactUSD: 5400000,
+    contracts: [],
+    timeline: [
+      { id: "t1", phase: "Key Compromise", description: "Bridge signing keys compromised via operational security failure.", functionsCall: [], pseudocode: "// Validator/bridge signing key\n// Extracted from infrastructure" },
+      { id: "t2", phase: "Forged Signatures", description: "Attacker signed fraudulent cross-chain transfer messages.", functionsCall: ["Bridge.signTransfer(forged_msg)"], pseudocode: "// Valid signatures on\n// unauthorized transfers" },
+      { id: "t3", phase: "Asset Release", description: "Forged signatures authorized release of bridged assets on destination chain.", functionsCall: ["Bridge.releaseAssets($5.4M)"], pseudocode: "// Ethereum + Cosmos affected\n// Unbacked releases" },
+      { id: "t4", phase: "Bridge Halt", description: "Gravity Bridge operators halted bridge and rotated signing keys.", functionsCall: ["Bridge.halt()", "Bridge.rotateKeys()"], pseudocode: "// Signing ceremony restarted\n// Fraudulent messages invalidated" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Signing keys", x: 50, y: 200 },
+        { id: "n2", type: "bridge", label: "Gravity Bridge", detail: "Key compromise", x: 250, y: 200 },
+        { id: "n3", type: "vault", label: "Bridged Assets", detail: "$5.4M", x: 450, y: 200 },
+        { id: "n4", type: "result", label: "Attacker", detail: "Released", x: 650, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Compromise keys" },
+        { id: "e2", source: "n2", target: "n3", label: "Forge signatures", animated: true },
+        { id: "e3", source: "n3", target: "n4", label: "Release assets" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Bridge Signing\nKeys", type: "attacker" },
+      { id: "b", label: "Gravity\nBridge", type: "bridge" },
+      { id: "c", label: "Attacker\n$5.4M", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 5.4, label: "Forged signatures" },
+      { source: "b", target: "c", value: 5.4, label: "Asset release" }
+    ],
+    mitigations: [
+      { category: "Key Security", description: "Use HSM or MPC for bridge signing keys. Never store keys in application servers." },
+      { category: "Multi-Sig Bridge", description: "Require M-of-N validator signatures for all cross-chain transfers above threshold." },
+      { category: "Transfer Monitoring", description: "Real-time monitoring with automatic halt on anomalous outbound transfer volumes." }
+    ],
+    quiz: [{ question: "What caused Gravity Bridge's $5.4M loss?", options: ["Smart contract bug", "Bridge signing key compromise", "Flash loan", "Oracle manipulation"], correct: 1, explanation: "Compromised bridge signing keys allowed the attacker to authorize fraudulent cross-chain transfers." }]
+  },
+
+  // Alephium Bridge (May 30, 2026)
+  {
+    id: "alephium-bridge-2026",
+    slug: "alephium-bridge-2026",
+    title: "Alephium Bridge",
+    subtitle: "Forged Wormhole Messages via Backend Vuln",
+    year: 2026,
+    chain: "Ethereum/BNB Chain",
+    type: ["Bridge", "Supply Chain"],
+    shortDesc: "Off-chain backend vulnerability forged Wormhole messages (not private key compromise), draining $815K.",
+    longDesc: "On May 30, 2026, the Alephium Bridge on Ethereum and BNB Chain lost $815K when an attacker exploited an off-chain backend vulnerability to forge Wormhole cross-chain messages. Unlike typical bridge exploits, this did not involve private key compromise — the backend logic itself was manipulated to produce valid-appearing messages.",
+    technicalDesc: "The Alephium Bridge backend processed Wormhole message validation and relay. An off-chain vulnerability allowed the attacker to inject or forge Wormhole VAA (Verified Action Approvals) messages without compromising guardian private keys. The forged messages authorized token unlocks on Ethereum and BNB Chain totaling $815K.",
+    impact: "$815K",
+    impactUSD: 815000,
+    contracts: [],
+    timeline: [
+      { id: "t1", phase: "Backend Vuln Discovery", description: "Attacker found off-chain backend flaw in Wormhole message processing.", functionsCall: [], pseudocode: "// Backend validation bypass\n// Not a guardian key issue" },
+      { id: "t2", phase: "Message Forgery", description: "Forged Wormhole VAA messages via backend vulnerability.", functionsCall: ["Backend.forgeVAA(malicious_payload)"], pseudocode: "// Valid-appearing VAAs created\n// Without guardian signatures" },
+      { id: "t3", phase: "Token Unlock", description: "Forged messages authorized token unlocks on Ethereum and BNB Chain.", functionsCall: ["Wormhole.completeTransfer(forged_vaa)"], pseudocode: "// $815K unlocked\n// No real source deposit" },
+      { id: "t4", phase: "Backend Patch", description: "Alephium patched backend and paused bridge pending audit.", functionsCall: ["Bridge.pause()"], pseudocode: "// Backend hardened\n// Message validation fixed" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Backend exploit", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "Bridge Backend", detail: "Vuln in validation", x: 250, y: 200 },
+        { id: "n3", type: "bridge", label: "Wormhole", detail: "Forged VAAs", x: 450, y: 200 },
+        { id: "n4", type: "result", label: "Attacker", detail: "$815K", x: 650, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Exploit backend", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Forge VAAs" },
+        { id: "e3", source: "n3", target: "n4", label: "Unlock tokens" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Bridge\nBackend", type: "attacker" },
+      { id: "b", label: "Forged\nWormhole VAAs", type: "bridge" },
+      { id: "c", label: "Attacker\n$815K", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 0.82, label: "Forge messages" },
+      { source: "b", target: "c", value: 0.82, label: "Unlock" }
+    ],
+    mitigations: [
+      { category: "Backend Security", description: "Harden off-chain bridge backends with strict input validation and independent VAA signature verification." },
+      { category: "Guardian Verification", description: "Always verify Wormhole guardian signatures on-chain, never trust backend-only validation." },
+      { category: "Defense in Depth", description: "Require both on-chain guardian verification and backend checks for all cross-chain messages." }
+    ],
+    quiz: [{ question: "How were Alephium Bridge's Wormhole messages forged?", options: ["Guardian private key leak", "Off-chain backend vulnerability", "Smart contract reentrancy", "Flash loan"], correct: 1, explanation: "An off-chain backend flaw forged Wormhole VAAs without compromising guardian private keys." }]
+  },
+
+  // AROS (May 31, 2026)
+  {
+    id: "aros-2026",
+    slug: "aros-2026",
+    title: "AROS",
+    subtitle: "Suspected Pool/Token Manipulation",
+    year: 2026,
+    chain: "BNB Chain",
+    type: ["Price Manipulation"],
+    shortDesc: "Suspected pool/token manipulation on BSC drained $295K; root cause unconfirmed per available sources.",
+    longDesc: "On May 31, 2026, AROS on BNB Chain suffered a $295K loss in an incident suspected to involve pool or token price manipulation. Available sources have not confirmed the exact root cause. On-chain analysis suggests the attacker may have manipulated AMM pool reserves or token pricing to extract value from liquidity providers.",
+    technicalDesc: "Based on available on-chain evidence, the attack likely involved manipulation of AMM pool reserves or token transfer mechanics to distort swap pricing. The exact vulnerability vector remains unconfirmed. The attacker extracted approximately $295K before the protocol paused affected pools. Further investigation is ongoing.",
+    impact: "$295K",
+    impactUSD: 295000,
+    contracts: [],
+    timeline: [
+      { id: "t1", phase: "Preparation", description: "Attacker likely acquired tokens and studied AROS pool mechanics on BSC.", functionsCall: [], pseudocode: "// Root cause unconfirmed\n// Pool manipulation suspected" },
+      { id: "t2", phase: "Price Manipulation", description: "Suspected manipulation of pool reserves or token pricing.", functionsCall: ["Pool.manipulate()"], pseudocode: "// AMM reserve distortion\n// Exact method unconfirmed" },
+      { id: "t3", phase: "Value Extraction", description: "Extracted $295K via distorted swap pricing.", functionsCall: ["Pool.swap(extract)"], pseudocode: "// $295K drained from LPs" },
+      { id: "t4", phase: "Investigation", description: "AROS paused pools; root cause analysis ongoing.", functionsCall: ["AROS.pause()"], pseudocode: "// Incident under investigation\n// No confirmed exploit vector" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Suspected manipulation", x: 50, y: 200 },
+        { id: "n2", type: "pool", label: "AROS Pool", detail: "Reserve distortion", x: 300, y: 200 },
+        { id: "n3", type: "result", label: "Attacker", detail: "$295K", x: 550, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Manipulate pool", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Extract value" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "AROS Pool\nBSC", type: "pool" },
+      { id: "b", label: "Suspected\nManipulation", type: "attacker" },
+      { id: "c", label: "Attacker\n$295K", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 0.3, label: "Manipulate" },
+      { source: "b", target: "c", value: 0.3, label: "Extract" }
+    ],
+    mitigations: [
+      { category: "Pool Monitoring", description: "Monitor AMM pools for anomalous reserve changes and large single-block price swings." },
+      { category: "TWAP Protection", description: "Use time-weighted average pricing to resist single-block manipulation attacks." },
+      { category: "Circuit Breakers", description: "Pause pools automatically when price deviates beyond threshold from oracle reference." }
+    ],
+    quiz: [{ question: "What is the confirmed root cause of the AROS incident?", options: ["Confirmed reentrancy bug", "Root cause unconfirmed — suspected pool manipulation", "Private key leak", "Bridge exploit"], correct: 1, explanation: "Available sources have not confirmed the exact exploit vector; pool/token manipulation is suspected but unverified." }]
+  },
+
+  // Fluid (May 27, 2026)
+  {
+    id: "fluid-lending-2026",
+    slug: "fluid-lending-2026",
+    title: "Fluid",
+    subtitle: "Dual Merkle Reward Key Compromise",
+    year: 2026,
+    chain: "Ethereum",
+    type: ["Access Control"],
+    shortDesc: "Attacker held both Merkle reward proposer and approver keys, authorizing fraudulent $215K reward claims on Ethereum.",
+    longDesc: "On May 27, 2026, Fluid on Ethereum lost $215K when an attacker compromised both the Merkle reward proposer and approver private keys. With control of both roles in the two-step reward distribution pipeline, the attacker crafted and approved fraudulent Merkle reward claims without needing to compromise additional signers.",
+    technicalDesc: "Fluid's Merkle reward distribution uses a two-step process: a proposer submits reward merkle roots and an approver validates them. The attacker obtained both private keys, allowing them to propose fraudulent merkle trees with inflated reward allocations and then approve their own proposals. $215K in unauthorized rewards were claimed before detection.",
+    impact: "$215K",
+    impactUSD: 215000,
+    contracts: [],
+    timeline: [
+      { id: "t1", phase: "Dual Key Compromise", description: "Attacker obtained both Merkle reward proposer and approver private keys.", functionsCall: [], pseudocode: "// Both roles compromised\n// Full reward pipeline control" },
+      { id: "t2", phase: "Fraudulent Merkle Root", description: "Proposed merkle tree with inflated reward allocations to attacker addresses.", functionsCall: ["Rewards.proposeMerkleRoot(forged_tree)"], pseudocode: "// Attacker addresses over-rewarded\n// Proposer key used" },
+      { id: "t3", phase: "Self-Approval", description: "Approved own fraudulent merkle root using compromised approver key.", functionsCall: ["Rewards.approveMerkleRoot(forged_tree)"], pseudocode: "// Both steps by same attacker\n// No independent review" },
+      { id: "t4", phase: "Reward Claim", description: "Claimed $215K in fraudulent Merkle rewards.", functionsCall: ["Rewards.claim(forged_proof)"], pseudocode: "// $215K extracted\n// Keys rotated" }
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Both keys", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "Proposer Key", detail: "Compromised", x: 250, y: 100 },
+        { id: "n3", type: "contract", label: "Approver Key", detail: "Compromised", x: 250, y: 300 },
+        { id: "n4", type: "vault", label: "Merkle Rewards", detail: "$215K", x: 500, y: 200 },
+        { id: "n5", type: "result", label: "Attacker", detail: "Claimed", x: 700, y: 200 }
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Propose forged root" },
+        { id: "e2", source: "n1", target: "n3", label: "Approve own root" },
+        { id: "e3", source: "n2", target: "n4", label: "Submit", animated: true },
+        { id: "e4", source: "n4", target: "n5", label: "Claim rewards" }
+      ]
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Proposer +\nApprover Keys", type: "attacker" },
+      { id: "b", label: "Merkle Reward\nPipeline", type: "vault" },
+      { id: "c", label: "Attacker\n$215K", type: "drain" }
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 0.22, label: "Forge + approve" },
+      { source: "b", target: "c", value: 0.22, label: "Claim" }
+    ],
+    mitigations: [
+      { category: "Role Separation", description: "Ensure proposer and approver keys are held by different individuals with independent key management." },
+      { category: "Multi-Sig Approval", description: "Require M-of-N multi-sig for merkle root approval instead of a single approver key." },
+      { category: "Reward Auditing", description: "Automated checks comparing proposed reward totals against expected distribution budgets." }
+    ],
+    quiz: [{ question: "Why could Fluid's attacker authorize fraudulent rewards?", options: ["Smart contract bug", "Held both Merkle proposer and approver keys", "Flash loan", "Oracle manipulation"], correct: 1, explanation: "Compromising both the proposer and approver keys gave the attacker full control over the two-step reward pipeline." }]
+  }
 ];
 
 export const hacksBySlug = Object.fromEntries(hacks.map((h) => [h.slug, h]));
