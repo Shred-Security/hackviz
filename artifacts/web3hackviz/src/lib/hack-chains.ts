@@ -29,6 +29,7 @@ const HACK_CHAIN_TAGS: Record<string, string[]> = {
   "grinex-2026": ["Ethereum", "TRON"],
   "wasabi-protocol-2026": ["Ethereum", "Arbitrum", "Base", "Blast"],
   "thorchain-2026": ["Bitcoin", "Ethereum", "BNB Chain", "Base"],
+  "raydium-2026": ["Solana"],
 };
 
 const CHAIN_DISPLAY_ORDER = [

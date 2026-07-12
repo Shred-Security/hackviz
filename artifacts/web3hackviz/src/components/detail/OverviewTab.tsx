@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Hack } from "@/data/hacks";
 import { formatHackChains, getHackChains } from "@/lib/hack-chains";
-import { ExternalLink, Code, FileText } from "lucide-react";
+import { ExternalLink, Code, FileText, ArrowRightLeft } from "lucide-react";
 
 export function OverviewTab({ hack }: { hack: Hack }) {
   const [technical, setTechnical] = useState(false);
@@ -74,6 +74,41 @@ export function OverviewTab({ hack }: { hack: Hack }) {
                 </a>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Transactions */}
+      {hack.transactions && hack.transactions.length > 0 && (
+        <div className="rounded-lg border border-border/50 bg-card p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <ArrowRightLeft className="w-3.5 h-3.5 text-cyan-400" />
+            <h2 className="text-sm font-semibold text-foreground">Attack Transactions</h2>
+          </div>
+          <div className="space-y-2">
+            {hack.transactions.map((t) => {
+              const explorerUrl = t.chain === "solana"
+                ? `https://solscan.io/tx/${t.hash}`
+                : `https://etherscan.io/tx/${t.hash}`;
+              return (
+                <div key={t.hash} className="flex items-center justify-between gap-3 py-2 border-b border-border/30 last:border-0">
+                  <div>
+                    <div className="text-xs font-medium text-foreground">{t.label}</div>
+                    <div className="text-[10px] font-mono text-muted-foreground truncate max-w-[360px]">
+                      {t.hash}
+                    </div>
+                  </div>
+                  <a
+                    href={explorerUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-[11px] text-primary hover:underline shrink-0"
+                  >
+                    Explorer <ExternalLink className="w-2.5 h-2.5" />
+                  </a>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

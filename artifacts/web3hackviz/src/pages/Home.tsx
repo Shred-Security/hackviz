@@ -29,6 +29,7 @@ const ALL_TYPES = [
   "Math Bug",
   "Integer Overflow",
   "Supply Chain",
+  "Logic Error",
 ];
 
 function formatBig(n: number) {

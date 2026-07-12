@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { Hack } from "@/data/hacks";
-import { Play, Pause, SkipBack, SkipForward, ChevronRight, Code } from "lucide-react";
+import { Play, Pause, SkipBack, SkipForward, ChevronRight, Code, ExternalLink } from "lucide-react";
 
 export function TimelineTab({ hack }: { hack: Hack }) {
   const [currentStep, setCurrentStep] = useState(0);
@@ -144,6 +144,33 @@ export function TimelineTab({ hack }: { hack: Hack }) {
             <pre className="bg-black/40 border border-border/50 rounded p-3 text-xs font-mono text-green-300 overflow-x-auto leading-relaxed whitespace-pre-wrap">
               {step.pseudocode}
             </pre>
+          </div>
+        )}
+
+        {step.txns && step.txns.length > 0 && (
+          <div className="mt-3">
+            <div className="text-[10px] text-muted-foreground uppercase tracking-widest mb-2">Transactions</div>
+            <div className="space-y-1.5">
+              {step.txns.map((t) => {
+                const isSolana = t.chain === "solana" || t.hash.length >= 80;
+                const explorerUrl = isSolana
+                  ? `https://solscan.io/tx/${t.hash}`
+                  : `https://etherscan.io/tx/${t.hash}`;
+                return (
+                  <a
+                    key={t.hash}
+                    href={explorerUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 py-1.5 px-2 rounded bg-muted/40 border border-border/30 hover:border-primary/30 transition-colors group"
+                  >
+                    <span className="text-[11px] text-foreground font-medium">{t.label}</span>
+                    <span className="text-[10px] font-mono text-muted-foreground truncate max-w-[300px]">{t.hash}</span>
+                    <ExternalLink className="w-2.5 h-2.5 text-muted-foreground group-hover:text-primary shrink-0 ml-auto" />
+                  </a>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

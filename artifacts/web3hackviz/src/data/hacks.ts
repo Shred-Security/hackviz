@@ -1,3 +1,9 @@
+export interface TransactionRef {
+  hash: string;
+  label: string;
+  chain?: string;
+}
+
 export interface TimelineStep {
   id: string;
   phase: string;
@@ -5,6 +11,7 @@ export interface TimelineStep {
   functionsCall: string[];
   pseudocode: string;
   timestamp?: string;
+  txns?: TransactionRef[];
 }
 
 export interface AttackFlowNode {
@@ -68,6 +75,7 @@ export interface Hack {
   impact: string;
   impactUSD: number;
   contracts: Array<{ label: string; address: string; url: string }>;
+  transactions?: TransactionRef[];
   timeline: TimelineStep[];
   attackFlow: { nodes: AttackFlowNode[]; edges: AttackFlowEdge[] };
   tokenFlowNodes: TokenFlowNode[];
@@ -6054,7 +6062,191 @@ export const hacks: Hack[] = [
         explanation: "Security must combine independent custody with quorum and economic validation safeguards.",
       },
     ]
-  }
+  },
+
+  // Raydium (June 10, 2026)
+  {
+    id: "raydium-2026",
+    slug: "raydium-2026",
+    title: "Raydium",
+    subtitle: "Missing LP Mint Validation - Legacy AMM V3",
+    year: 2026,
+    chain: "Solana",
+    chains: ["Solana"],
+    type: ["Access Control", "Logic Error"],
+    shortDesc:
+      "A missing LP mint validation check in Raydium's legacy AMM V3 program allowed an attacker to substitute a fake mint, manipulate the redemption calculation, and drain ~$1.34M from four pools within seconds.",
+    longDesc:
+      "On June 10, 2026, four pools on Raydium's legacy AMM v3 program on Solana were exploited for approximately $1.34M. The withdrawal handler did not verify that a caller-supplied LP Mint account matched the pool's stored counterpart, so the attacker substituted a controlled account to manipulate the payout calculation. By creating a fake LP Mint with supply=1 and burning 1 token, the attacker received 100% of each pool's reserves. The same technique drained all four pools — RAY/USDC, RAY/wSOL, RAY/SRM, and RAY/Sollet ETH — within approximately 15 seconds. The legacy program had been live and unchanged since its last upgrade on January 3, 2023, approximately 1,254 days before the exploit.",
+    technicalDesc:
+      "The vulnerable program (27haf8L6oxUeXrHrgEgsexjSY5hbVUWEmvv9Nyxg8vQv) was not open-sourced, and its executable data was closed after the attack. Analysis is based on bytecode reconstructed from the program's last upgrade buffer. In the withdrawal handler, the LP Mint account passed by the caller was not bound to the pool's recorded `amm.lp_mint`. The handler checked bindings for the pool state, PDA authority, both vaults, and user accounts — but not for the LP Mint at slot 5. Because the LP Mint account was unbound, an attacker could substitute a Mint account they fully controlled. Setting its total supply to 1 and minting 1 token yielded a payout ratio of 1/1 = 100% of each reserve. The formula `coin_out = total_coin * withdraw_amount / lp_supply` computed `total_coin * 1 / 1 = total_coin`, draining the entire pool. By contrast, all other Raydium mainnet programs use a virtual supply mechanism for proportion checks and correctly verify the LP mint along with all other relevant account information.",
+    impact: "$1.34 million",
+    impactUSD: 1340000,
+    contracts: [
+      {
+        label: "Raydium Legacy AMM V3 (Exploited)",
+        address: "27haf8L6oxUeXrHrgEgsexjSY5hbVUWEmvv9Nyxg8vQv",
+        url: "https://solscan.io/account/27haf8L6oxUeXrHrgEgsexjSY5hbVUWEmvv9Nyxg8vQv",
+      },
+      {
+        label: "Attacker Wallet",
+        address: "4WnPebowR4HHfumvNPaDjG6Pa5Hi1jxLm6xmmBq33QVk",
+        url: "https://solscan.io/account/4WnPebowR4HHfumvNPaDjG6Pa5Hi1jxLm6xmmBq33QVk",
+      },
+    ],
+    transactions: [
+      {
+        hash: "1csN6vZKFKpeJEcwZhoiM99xoRJVY7EC3P28CE6kHYrKyrVfj2L5Sf5HfhxeBGxSsuhtFvWmkhVYXtyUAQH3s7s",
+        label: "RAY/USDC Pool Drain (~893,700 USDC + ~66,837 RAY)",
+        chain: "solana",
+      },
+    ],
+    timeline: [
+      {
+        id: "t1",
+        phase: "Fake Mint Creation",
+        description:
+          "Attacker creates a fake LP Mint account on Solana with decimals=0 and total supply=0.",
+        functionsCall: ["SystemProgram.create_account()", "Token.createInitializeMintInstruction()"],
+        pseudocode:
+          "// Fake LP Mint: decimals=0, supply=0\n// No authority restrictions — attacker controls it",
+        timestamp: "June 10, 2026",
+      },
+      {
+        id: "t2",
+        phase: "Token Account Setup",
+        description:
+          "Attacker initializes a Token account bound to the fake LP Mint, then mints exactly 1 token into it as the Mint authority, pinning the supply to 1.",
+        functionsCall: ["Token.createInitializeAccountInstruction()", "Mint.mintTo(1)"],
+        pseudocode:
+          "// Attacker owns the mint authority\n// mintTo(attacker_token_account, 1)\n// lp_mint.supply = 1",
+      },
+      {
+        id: "t3",
+        phase: "Withdrawal Exploit — RAY/USDC",
+        description:
+          "Attacker calls the withdrawal function passing the fake LP Mint in the expected account slot. With withdraw_amount=1 and lp_supply=1, the handler computes total_coin * 1 / 1 = 100% of reserves (~893,700 USDC + ~66,837 RAY).",
+        functionsCall: ["RaydiumAmmV3.withdraw(coin_amount=MAX, pc_amount=MAX)"],
+        pseudocode:
+          "// coin_out = total_coin * withdraw_amount / lp_mint.supply\n// coin_out = 893700 * 1 / 1 = 893,700 USDC\n// pc_out   = 66837 * 1 / 1 = 66,837 RAY\n// Full pool reserves drained",
+        txns: [
+          {
+            hash: "1csN6vZKFKpeJEcwZhoiM99xoRJVY7EC3P28CE6kHYrKyrVfj2L5Sf5HfhxeBGxSsuhtFvWmkhVYXtyUAQH3s7s",
+            label: "RAY/USDC drain",
+            chain: "solana",
+          },
+        ],
+      },
+      {
+        id: "t4",
+        phase: "Repeat — 3 More Pools",
+        description:
+          "Attacker repeats the exact same pattern against three more pools within approximately 15 seconds: RAY/wSOL (~5,603 wSOL + ~74,720 RAY), RAY/SRM (~10,692 SRM + ~8,622 RAY), and RAY/Sollet ETH (~16 Sollet ETH + ~5,038 RAY).",
+        functionsCall: ["RaydiumAmmV3.withdraw()", "RaydiumAmmV3.withdraw()", "RaydiumAmmV3.withdraw()"],
+        pseudocode:
+          "// Same attack vector × 3 more pools\n// Total drained: ~150,177 RAY + ~5,603 SOL + ~893,700 USDC\n// All within ~15 seconds",
+      },
+      {
+        id: "t5",
+        phase: "Program Closure",
+        description:
+          "The exploited legacy program's executable data (ProgramData) was closed the same day. Raydium confirmed full compensation via treasury.",
+        functionsCall: [],
+        pseudocode:
+          "// Legacy AMM V3 program closed\n// No propagation risk — self-contained logic flaw\n// Raydium treasury to compensate affected users",
+      },
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Created fake LP Mint", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "Fake LP Mint", detail: "supply=1, attacker-controlled", x: 250, y: 100 },
+        { id: "n3", type: "contract", label: "Legacy AMM V3", detail: "No LP mint validation", x: 450, y: 200 },
+        { id: "n4", type: "pool", label: "RAY/USDC Pool", detail: "~$893K reserves", x: 650, y: 100 },
+        { id: "n5", type: "pool", label: "3 More Pools", detail: "~$447K combined", x: 650, y: 300 },
+        { id: "n6", type: "result", label: "Attacker", detail: "$1.34M drained", x: 850, y: 200 },
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Create fake mint + mint 1 token" },
+        { id: "e2", source: "n2", target: "n3", label: "Substitute in withdraw slot", animated: true },
+        { id: "e3", source: "n3", target: "n4", label: "100% payout (1/1 ratio)" },
+        { id: "e4", source: "n3", target: "n5", label: "Repeat × 3 pools" },
+        { id: "e5", source: "n4", target: "n6", label: "Drain", animated: true },
+        { id: "e6", source: "n5", target: "n6", label: "Drain", animated: true },
+      ],
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Fake LP Mint\n(supply=1)", type: "attacker" },
+      { id: "b", label: "Legacy AMM V3\n(Unbound Check)", type: "vault" },
+      { id: "c", label: "RAY/USDC Pool\n~893K USDC", type: "pool" },
+      { id: "d", label: "RAY/wSOL, RAY/SRM,\nRAY/Sollet ETH", type: "pool" },
+      { id: "e", label: "Attacker Wallet\n$1.34M", type: "drain" },
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 0.001, label: "Fake mint substituted" },
+      { source: "b", target: "c", value: 0.894, label: "100% withdrawal" },
+      { source: "b", target: "d", value: 0.447, label: "100% × 3 pools" },
+      { source: "c", target: "e", value: 0.894, label: "Drained" },
+      { source: "d", target: "e", value: 0.447, label: "Drained" },
+    ],
+    mitigations: [
+      {
+        category: "Account Validation",
+        description:
+          "Every caller-supplied account must be bound to its canonical counterpart stored in pool state. Reject any LP Mint whose key does not match the pool's stored `amm.lp_mint`.",
+        code: "require!(amm_lp_mint_info.key == &amm.lp_mint, ErrorCode::InvalidLpMint);",
+      },
+      {
+        category: "Virtual Supply Mechanism",
+        description:
+          "Use a virtual supply internally rather than reading from an externally supplied Mint account. This eliminates the trust boundary entirely.",
+      },
+      {
+        category: "Legacy Program Deprecation",
+        description:
+          "Actively sunset and close deprecated programs. Idle liquidity in legacy deployments creates attack surface with no active monitoring.",
+      },
+      {
+        category: "Bytecode Verification",
+        description:
+          "Open-source program bytecode or maintain verifiable build pipelines so the community can audit programs even after upgrades.",
+      },
+    ],
+    quiz: [
+      {
+        question: "What was the single missing check that enabled the Raydium exploit?",
+        options: [
+          "Reentrancy guard on the withdraw function",
+          "Binding the caller-supplied LP Mint to the pool's stored amm.lp_mint",
+          "Rate limiting on withdrawal frequency",
+          "Oracle price validation before payout",
+        ],
+        correct: 1,
+        explanation: "The withdrawal handler read lp_supply from a caller-supplied Mint account without verifying it matched the pool's canonical LP Mint. This allowed substitution of a fake mint with supply=1.",
+      },
+      {
+        question: "Why did a fake LP Mint with supply=1 drain 100% of reserves?",
+        options: [
+          "The contract had a reentrancy bug that doubled the payout",
+          "The payout formula total_coin * withdraw_amount / lp_supply computed total_coin * 1 / 1 = total_coin",
+          "The attacker used a flash loan to inflate the pool balance",
+          "The oracle reported an incorrect token price",
+        ],
+        correct: 1,
+        explanation: "With withdraw_amount=1 and lp_supply=1 (from the fake mint), the proportional calculation returned the entire reserve balance.",
+      },
+      {
+        question: "How does Raydium's current (non-legacy) program prevent this attack class?",
+        options: [
+          "It uses time-locked withdrawals with a 24-hour delay",
+          "It uses a virtual supply mechanism and correctly verifies the LP mint and all other accounts",
+          "It requires multi-sig approval for every withdrawal",
+          "It uses Chainlink oracles to validate LP token prices",
+        ],
+        correct: 1,
+        explanation: "Raydium's current programs use virtual supply for proportion checks and bind all caller-supplied accounts to their canonical counterparts in pool state.",
+      },
+    ],
+  },
 ];
 
 export const hacksBySlug = Object.fromEntries(hacks.map((h) => [h.slug, h]));
@@ -6070,6 +6262,9 @@ export const typeColors: Record<string, string> = {
   "Integer Overflow": "text-cyan-400 border-cyan-400/30 bg-cyan-400/10",
   "Supply Chain": "text-green-400 border-green-400/30 bg-green-400/10",
   "Price Manipulation": "text-pink-400 border-pink-400/30 bg-pink-400/10",
+  "Logic Error": "text-amber-400 border-amber-400/30 bg-amber-400/10",
+  "Infrastructure": "text-slate-400 border-slate-400/30 bg-slate-400/10",
+  "Cryptography": "text-violet-400 border-violet-400/30 bg-violet-400/10",
 };
 
 export const availableYears: number[] = Array.from(
