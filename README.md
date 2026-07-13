@@ -107,3 +107,9 @@ An interactive educational platform featuring:
 ## Disclaimer
 
 This platform is for **defensive learning only**. All data is sourced from public post-mortems, block explorers, and published security research. The goal is to help auditors and developers understand attack patterns to build more secure protocols.
+
+## About Shred Security
+
+Shred Security is a research-driven security firm specializing in smart contract auditing, threat modeling, and blockchain security.
+
+For review engagements, deployment war rooms, or full protocol audits, you can reach us at [shredsec.xyz](https://shredsec.xyz).
