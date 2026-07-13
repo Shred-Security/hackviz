@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./attached_assets/HackvizLogo.png" alt="HackViz" width="520">
+</p>
+
 # HackViz
 
 Interactive visualization platform for studying real-world Web3 security exploits. Built for security researchers, auditors, and developers to understand attack patterns and build more secure protocols.
