@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { Hack } from "@/data/hacks";
 import { Play, Pause, SkipBack, SkipForward, ChevronRight, Code, ExternalLink } from "lucide-react";
+import { getExplorerTxUrl } from "@/lib/utils";
 
 export function TimelineTab({ hack }: { hack: Hack }) {
   const [currentStep, setCurrentStep] = useState(0);
@@ -152,10 +153,7 @@ export function TimelineTab({ hack }: { hack: Hack }) {
             <div className="text-[10px] text-muted-foreground uppercase tracking-widest mb-2">Transactions</div>
             <div className="space-y-1.5">
               {step.txns.map((t) => {
-                const isSolana = t.chain === "solana" || t.hash.length >= 80;
-                const explorerUrl = isSolana
-                  ? `https://solscan.io/tx/${t.hash}`
-                  : `https://etherscan.io/tx/${t.hash}`;
+                const explorerUrl = getExplorerTxUrl(t.hash, t.chain || hack.chain);
                 return (
                   <a
                     key={t.hash}

@@ -425,6 +425,9 @@ export function TokenFlowTab({ hack }: { hack: Hack }) {
           .attr("fill", "#666")
           .text("Error loading token flow visualization");
       }
+      return () => {
+        if (timerRef.current) timerRef.current.stop();
+      };
     }
   }, [hack]);
 

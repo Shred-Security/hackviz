@@ -1,34 +1,11 @@
 "use client";
 import { useState } from "react";
 import { Hack } from "@/data/hacks";
-import { CheckSquare, ChevronDown, ChevronUp, Shield, Code2, AlertTriangle } from "lucide-react";
-
-const GLOBAL_CHECKLIST = [
-  { id: "cei", label: "Checks-Effects-Interactions", desc: "Update all state before any external call." },
-  { id: "reentrancy", label: "Reentrancy Guard", desc: "Use nonReentrant modifier on all state-changing functions." },
-  { id: "access", label: "Access Control", desc: "Every privileged function needs an explicit role check." },
-  { id: "oracle", label: "Oracle Safeguards", desc: "Check freshness, confidence band, and circuit breakers for all price feeds." },
-  { id: "arithmetic", label: "Safe Arithmetic", desc: "Use checked math or validate ranges before operations." },
-  { id: "bridge", label: "Bridge Message Auth", desc: "Verify msg.sender is the trusted relayer AND source chain/address." },
-  { id: "multisig", label: "Multi-Sig Administration", desc: "No single key should control privileged protocol functions." },
-  { id: "formal", label: "Formal Verification", desc: "Use Certora/Halmos to prove critical invariants hold for all inputs." },
-  { id: "upgrade", label: "Upgrade Safety", desc: "Proxy upgrades require governance timelock and multi-sig approval." },
-  { id: "supplychain", label: "Supply-Chain Hardening", desc: "Pin all front-end assets with SRI hashes. Audit NPM dependencies." },
-];
+import { ChevronDown, ChevronUp, Shield, Code2, AlertTriangle } from "lucide-react";
 
 export function LessonsTab({ hack }: { hack: Hack }) {
-  const [checked, setChecked] = useState<Set<string>>(new Set());
   const [expandedMit, setExpandedMit] = useState<number | null>(0);
   const [whatIfEnabled, setWhatIfEnabled] = useState<Set<string>>(new Set());
-
-  const toggleCheck = (id: string) => {
-    setChecked((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
 
   const toggleWhatIf = (id: string) => {
     setWhatIfEnabled((prev) => {
@@ -132,57 +109,6 @@ export function LessonsTab({ hack }: { hack: Hack }) {
             ? `⚠️ Partial mitigations may reduce impact but the core attack vector remains. Enable all mitigations to fully prevent the exploit.`
             : `🔴 Without mitigations, the ${hack.title} attack proceeds as documented — ${hack.impact} drained.`
           }
-        </div>
-      </div>
-
-      {/* Global Audit Checklist */}
-      <div>
-        <div className="flex items-center gap-2 mb-4">
-          <CheckSquare className="w-4 h-4 text-cyan-400" />
-          <h2 className="text-sm font-semibold text-foreground">Universal Smart Contract Audit Checklist</h2>
-          <span className="ml-auto text-xs text-muted-foreground">
-            {checked.size}/{GLOBAL_CHECKLIST.length} items
-          </span>
-        </div>
-
-        <div className="w-full h-1 bg-muted rounded-full mb-4 overflow-hidden">
-          <div
-            className="h-full rounded-full transition-all"
-            style={{
-              width: `${(checked.size / GLOBAL_CHECKLIST.length) * 100}%`,
-              background: "linear-gradient(90deg, rgba(0,255,255,0.8), rgba(0,255,128,0.8))",
-            }}
-          />
-        </div>
-
-        <div className="space-y-2">
-          {GLOBAL_CHECKLIST.map((item) => (
-            <label
-              key={item.id}
-              className="flex items-start gap-3 cursor-pointer p-3 rounded-lg border border-border/30 hover:bg-muted/20 transition-colors"
-            >
-              <button
-                onClick={() => toggleCheck(item.id)}
-                className={`w-4 h-4 rounded border-2 shrink-0 mt-0.5 transition-all flex items-center justify-center
-                  ${checked.has(item.id)
-                    ? "bg-cyan-400 border-cyan-400"
-                    : "border-border hover:border-cyan-400/50"
-                  }`}
-              >
-                {checked.has(item.id) && (
-                  <svg className="w-2.5 h-2.5 text-black" fill="currentColor" viewBox="0 0 12 12">
-                    <path d="M10 3L5 8.5 2 5.5" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                )}
-              </button>
-              <div>
-                <div className={`text-xs font-medium ${checked.has(item.id) ? "line-through text-muted-foreground" : "text-foreground"}`}>
-                  {item.label}
-                </div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">{item.desc}</div>
-              </div>
-            </label>
-          ))}
         </div>
       </div>
     </div>

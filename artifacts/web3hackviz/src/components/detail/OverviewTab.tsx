@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Hack } from "@/data/hacks";
 import { formatHackChains, getHackChains } from "@/lib/hack-chains";
 import { ExternalLink, Code, FileText, ArrowRightLeft } from "lucide-react";
+import { getExplorerTxUrl } from "@/lib/utils";
 
 export function OverviewTab({ hack }: { hack: Hack }) {
   const [technical, setTechnical] = useState(false);
@@ -87,9 +88,7 @@ export function OverviewTab({ hack }: { hack: Hack }) {
           </div>
           <div className="space-y-2">
             {hack.transactions.map((t) => {
-              const explorerUrl = t.chain === "solana"
-                ? `https://solscan.io/tx/${t.hash}`
-                : `https://etherscan.io/tx/${t.hash}`;
+              const explorerUrl = getExplorerTxUrl(t.hash, t.chain || hack.chain);
               return (
                 <div key={t.hash} className="flex items-center justify-between gap-3 py-2 border-b border-border/30 last:border-0">
                   <div>

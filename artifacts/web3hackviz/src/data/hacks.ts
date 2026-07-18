@@ -6247,6 +6247,273 @@ export const hacks: Hack[] = [
       },
     ],
   },
+
+  // Ostium (July 16, 2026)
+  {
+    id: "ostium-2026",
+    slug: "ostium-2026",
+    title: "Ostium",
+    subtitle: "Compromised Oracle Signer + Keeper Key — $24M USDC",
+    year: 2026,
+    chain: "Arbitrum",
+    chains: ["Arbitrum"],
+    type: ["Access Control", "Oracle Manipulation"],
+    shortDesc:
+      "An attacker who obtained both an authorized oracle-signer key and a PriceUpKeep forwarder submitted future-dated signed price reports, opening and closing synthetic positions against them to drain $23.75M USDC from Ostium's OLP vault in 8 transactions.",
+    longDesc:
+      "On July 16, 2026, Ostium, a platform for synthetic trading of stocks, commodities, forex, and crypto on Arbitrum, was exploited for approximately $23.75M in USDC. The attacker obtained legitimate credentials for both an authorized oracle-signer key and a registered PriceUpKeep forwarder — the keeper role responsible for fulfilling pending orders. Using this combination, they submitted future-dated, correctly signed price reports and repeatedly opened and closed positions against them. This allowed them to appear to generate trading profits from the system's view without any real market exposure. The exploit was carried out over 8 transactions, with the largest single payout (~$11.86M) executed in one atomic batch that looped through open-and-close cycles. All 8 transactions routed through the same contract pair (Ostium: Trading → Ostium: Private PriceUpKeep) and paid out to the same wallet.",
+    technicalDesc:
+      "Ostium's oracle system authorizes price data by verifying the signer's identity against an authorized list — it validates WHO signed, not WHETHER the price is accurate. The verifier takes a price report, derives the signer from the signature, and checks inclusion in the authorized set. The attacker who held both an authorized oracle-signer key and a registered PriceUpKeep forwarder (the keeper role responsible for fulfilling pending orders) exploited this design: they submitted a future-dated, correctly signed price report and then repeatedly opened and closed positions against it. From the system's perspective, the attacker appeared to generate legitimate trading profits. In reality, there was no real market exposure — the prices were manufactured. Both the signer and forwarder roles are meant to be granted only by Ostium governance/timelock and are not self-assignable. The exploit worked because the attacker obtained legitimate credentials for each role, not because of a flaw in Ostium's trading logic itself. The OLP vault (0x20d419a8e12c45f88fda7c5760bb6923cee27f98) was the source of all drained funds.",
+    impact: "$23.75 million",
+    impactUSD: 23750000,
+    contracts: [
+      {
+        label: "Ostium OLP Vault",
+        address: "0x20d419a8e12c45f88fda7c5760bb6923cee27f98",
+        url: "https://arbiscan.io/address/0x20d419a8e12c45f88fda7c5760bb6923cee27f98",
+      },
+      {
+        label: "Ostium PriceUpKeep",
+        address: "0xb71ec9ebd8145dacacf6724363143cb5667a3d36",
+        url: "https://arbiscan.io/address/0xb71ec9ebd8145dacacf6724363143cb5667a3d36",
+      },
+      {
+        label: "Attacker Wallet",
+        address: "0x321df194646029e7a6193ea05573d4b9c398bfd9",
+        url: "https://arbiscan.io/address/0x321df194646029e7a6193ea05573d4b9c398bfd9",
+      },
+    ],
+    transactions: [
+      {
+        hash: "0x4b7ff5de823dd7af29cf1a6602a84d7b6eee354edcbaf0427fd5e691d3d80951",
+        label: "Drain #1 — 898 USDC (test tx)",
+        chain: "arbitrum",
+      },
+      {
+        hash: "0x359f8c05b86a4409d60cfba02084334313fd94b19f74a294fb7fc4ea7d4870e0",
+        label: "Drain #2 — 11.86M USDC (largest, atomic loop)",
+        chain: "arbitrum",
+      },
+      {
+        hash: "0x56e4139a2f51e99933479becee21812dd2ec656128f6f3593a7fa225e2f24adc",
+        label: "Drain #3 — 13,480 USDC",
+        chain: "arbitrum",
+      },
+      {
+        hash: "0x397daa6c23c87670f949a970961b1014e966cc40301a99b55c3c1908dd61418e",
+        label: "Drain #4 — 13,480 USDC",
+        chain: "arbitrum",
+      },
+      {
+        hash: "0xd9f91cc3eaec695f45bffad3a068fa52e1625ed44bfcc47d6ac3938f78d9061d",
+        label: "Drain #5 — 4.49M USDC",
+        chain: "arbitrum",
+      },
+      {
+        hash: "0x3b04639ab9b40760b2138e7bfa7eccc9657f3a767a5c414dbb1b3632ed71f3bf",
+        label: "Drain #6 — 3.59M USDC",
+        chain: "arbitrum",
+      },
+      {
+        hash: "0x6c254483fa47a14622662e792bc3728ab3c408a33d3cbb5712434ba96f5ecdc2",
+        label: "Drain #7 — 2.7M USDC",
+        chain: "arbitrum",
+      },
+      {
+        hash: "0xfaf6d3d4d7f1a75bfc11fb4d36d0525791546267fda1cdd371703ce03ae8ba8c",
+        label: "Drain #8 — 1.08M USDC",
+        chain: "arbitrum",
+      },
+    ],
+    timeline: [
+      {
+        id: "t1",
+        phase: "Credential Acquisition",
+        description:
+          "Attacker obtains legitimate credentials for both an authorized oracle-signer key and a registered PriceUpKeep forwarder — the keeper role responsible for fulfilling pending orders. Both roles are granted by Ostium governance/timelock.",
+        functionsCall: [],
+        pseudocode:
+          "// Both roles are governance-granted, not self-assignable\n// Attacker obtained: oracle-signer key + PriceUpKeep forwarder\n// Method of acquisition unknown (likely social engineering or insider)",
+        timestamp: "Before July 16, 2026",
+      },
+      {
+        id: "t2",
+        phase: "Future-Dated Price Report",
+        description:
+          "Using the compromised signer key, attacker submits a future-dated, correctly signed price report to the oracle system. The verifier only checks signer identity, not price accuracy.",
+        functionsCall: ["PriceUpKeep.performUpkeep(signedPriceReport)"],
+        pseudocode:
+          "// Oracle verifier:\n// 1. Derive signer from signature\n// 2. Check signer is in authorized set\n// 3. Accept price — NO validation of price accuracy\n// Future-dated report accepted because signature is valid",
+      },
+      {
+        id: "t3",
+        phase: "Test Transaction",
+        description:
+          "Attacker executes a small test withdrawal of 898 USDC to confirm the exploit works before scaling up.",
+        functionsCall: ["OstiumTrading.openPosition()", "OstiumTrading.closePosition()"],
+        pseudocode:
+          "// Small test: 898 USDC\n// Open position → close position → profit from fake price\n// Confirms system accepts manufactured trades",
+        txns: [
+          {
+            hash: "0x4b7ff5de823dd7af29cf1a6602a84d7b6eee354edcbaf0427fd5e691d3d80951",
+            label: "Test drain (898 USDC)",
+          },
+        ],
+      },
+      {
+        id: "t4",
+        phase: "Mass Exploitation — Atomic Loop",
+        description:
+          "Attacker executes the largest single payout (~$11.86M) in one atomic batch that loops through open-and-close cycles against the future-dated price, extracting maximum value per transaction.",
+        functionsCall: [
+          "OstiumTrading.openPosition() × N",
+          "OstiumTrading.closePosition() × N",
+        ],
+        pseudocode:
+          "// Single atomic tx loops:\n// for i in range(N):\n//   open_position(size_i)  → filled at fake future price\n//   close_position(size_i) → settled at fake future price\n//   profit = (fake_close - fake_open) × size\n// OLP vault pays out the 'profit' in real USDC\n// Total: ~$11.86M in one batch",
+        txns: [
+          {
+            hash: "0x359f8c05b86a4409d60cfba02084334313fd94b19f74a294fb7fc4ea7d4870e0",
+            label: "Mass drain (11.86M USDC)",
+          },
+        ],
+      },
+      {
+        id: "t5",
+        phase: "Remaining Payouts",
+        description:
+          "Attacker extracts the remaining ~$11.88M across 6 more transactions, each routing through the same Ostium: Trading → Ostium: Private PriceUpKeep contract pair.",
+        functionsCall: [
+          "OstiumTrading.openPosition()",
+          "OstiumTrading.closePosition()",
+        ],
+        pseudocode:
+          "// 6 more transactions\n// Same pattern: open against fake price, close for profit\n// All route: Trading → PriceUpKeep\n// All pay to: 0x321Df1...8bfD9",
+        txns: [
+          {
+            hash: "0x56e4139a2f51e99933479becee21812dd2ec656128f6f3593a7fa225e2f24adc",
+            label: "Drain #3 (13,480 USDC)",
+          },
+          {
+            hash: "0x397daa6c23c87670f949a970961b1014e966cc40301a99b55c3c1908dd61418e",
+            label: "Drain #4 (13,480 USDC)",
+          },
+          {
+            hash: "0xd9f91cc3eaec695f45bffad3a068fa52e1625ed44bfcc47d6ac3938f78d9061d",
+            label: "Drain #5 (4.49M USDC)",
+          },
+          {
+            hash: "0x3b04639ab9b40760b2138e7bfa7eccc9657f3a767a5c414dbb1b3632ed71f3bf",
+            label: "Drain #6 (3.59M USDC)",
+          },
+          {
+            hash: "0x6c254483fa47a14622662e792bc3728ab3c408a33d3cbb5712434ba96f5ecdc2",
+            label: "Drain #7 (2.7M USDC)",
+          },
+          {
+            hash: "0xfaf6d3d4d7f1a75bfc11fb4d36d0525791546267fda1cdd371703ce03ae8ba8c",
+            label: "Drain #8 (1.08M USDC)",
+          },
+        ],
+      },
+      {
+        id: "t6",
+        phase: "All Funds Extracted",
+        description:
+          "All 8 transactions complete. Total drained: ~$23.75M USDC from the OLP vault, all paid to a single attacker wallet.",
+        functionsCall: [],
+        pseudocode:
+          "// Total: $23.75M USDC\n// 8 transactions, same destination wallet\n// OLP vault depleted",
+      },
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Holds signer + keeper keys", x: 50, y: 200 },
+        { id: "n2", type: "oracle", label: "Oracle Signer", detail: "Compromised authorized key", x: 250, y: 100 },
+        { id: "n3", type: "contract", label: "PriceUpKeep", detail: "Keeper forwarder", x: 250, y: 300 },
+        { id: "n4", type: "contract", label: "Ostium Trading", detail: "Accepts fake prices", x: 450, y: 200 },
+        { id: "n5", type: "pool", label: "OLP Vault", detail: "$23.75M USDC", x: 650, y: 200 },
+        { id: "n6", type: "result", label: "Attacker", detail: "$23.75M drained", x: 850, y: 200 },
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Sign future-dated price report" },
+        { id: "e2", source: "n1", target: "n3", label: "Trigger performUpkeep" },
+        { id: "e3", source: "n2", target: "n4", label: "Feed manufactured price", animated: true },
+        { id: "e4", source: "n3", target: "n4", label: "Fulfill pending orders" },
+        { id: "e5", source: "n4", target: "n5", label: "Open/close × N cycles", animated: true },
+        { id: "e6", source: "n5", target: "n6", label: "Drain $23.75M USDC", animated: true },
+      ],
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Attacker\n(Signer + Keeper)", type: "attacker" },
+      { id: "b", label: "Ostium Trading\n(Manufactured PnL)", type: "vault" },
+      { id: "c", label: "OLP Vault\n$23.75M USDC", type: "pool" },
+      { id: "d", label: "Attacker Wallet\n0x321Df1...8bfD9", type: "drain" },
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 0.1, label: "Fake price + trades" },
+      { source: "b", target: "c", value: 23.75, label: "8 drain txns" },
+      { source: "c", target: "d", value: 23.75, label: "USDC extracted" },
+    ],
+    mitigations: [
+      {
+        category: "Oracle Price Validation",
+        description:
+          "Validate not just the signer's identity but also the price itself. Implement circuit breakers that reject prices deviating significantly from external reference feeds (Chainlink, TWAP).",
+        code: "require(abs(reportPrice - externalOracle) / externalOracle < MAX_DEVIATION);",
+      },
+      {
+        category: "Multi-Party Oracle Consensus",
+        description:
+          "Require M-of-N independent oracle signers to agree on a price before it is accepted. A single compromised signer should never be sufficient.",
+      },
+      {
+        category: "Position Size Limits",
+        description:
+          "Enforce per-transaction and per-block position size limits that cannot be overridden by keeper or oracle roles. This caps the blast radius of any single compromised credential.",
+      },
+      {
+        category: "Key Management & Segregation",
+        description:
+          "Use hardware security modules (HSMs) or multi-party computation (MPC) for oracle signer keys. Separate the signer and keeper roles across independent teams with separate key infrastructure.",
+      },
+    ],
+    quiz: [
+      {
+        question: "Why did the oracle system accept the attacker's price reports?",
+        options: [
+          "The attacker brute-forced the private key",
+          "The verifier only checked signer identity, not price accuracy",
+          "The oracle was offline and defaulted to the submitted value",
+          "A reentrancy bug bypassed the validation",
+        ],
+        correct: 1,
+        explanation: "Ostium's oracle verifier validates WHO signed the report (checks against an authorized signer list) but does not validate WHETHER the price is accurate. A valid signature from an authorized key is sufficient.",
+      },
+      {
+        question: "How did the attacker generate 'profits' without real market exposure?",
+        options: [
+          "By flash-loaning large amounts to move the market",
+          "By submitting a future-dated signed price and opening/closing positions against it",
+          "By manipulating the Uniswap pool used for settlement",
+          "By exploiting a reentrancy bug in the closePosition function",
+        ],
+        correct: 1,
+        explanation: "The attacker submitted a future-dated, correctly signed price report, then opened and closed positions against it. From the system's view, the trades appeared profitable. In reality, the prices were manufactured — no real market movement occurred.",
+      },
+      {
+        question: "What does this exploit teach us about oracle design?",
+        options: [
+          "Oracles should only use Chainlink and nothing else",
+          "Oracle systems must validate both signer identity AND price plausibility against external references",
+          "Oracles should never use digital signatures",
+          "All oracle keys should be stored in a single multisig wallet",
+        ],
+        correct: 1,
+        explanation: "The Ostium exploit demonstrates that signer identity alone is insufficient. Oracle systems must also validate price accuracy — comparing submitted prices against independent reference feeds and rejecting anomalous deviations.",
+      },
+    ],
+  },
 ];
 
 export const hacksBySlug = Object.fromEntries(hacks.map((h) => [h.slug, h]));
