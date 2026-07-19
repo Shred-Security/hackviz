@@ -6514,6 +6514,193 @@ export const hacks: Hack[] = [
       },
     ],
   },
+
+  // DefiTuna (July 16, 2026)
+  {
+    id: "defituna-2026",
+    slug: "defituna-2026",
+    title: "DefiTuna",
+    subtitle: "Rounding-to-Zero Solvency Bypass — $569K USDC",
+    year: 2026,
+    chain: "Solana",
+    chains: ["Solana"],
+    type: ["Logic Error", "Math Bug"],
+    shortDesc:
+      "A fixed-point truncation bug in DefiTuna's health check let attackers drain $569,601 USDC from Solana. By routing borrowed funds through an ultra-thin liquidity pool, the attacker forced the position's total value to round down to zero — which the protocol silently treated as a healthy 1.0x position.",
+    longDesc:
+      "On July 16, 2026, DefiTuna — a leveraged trading protocol on Solana — was exploited for approximately $569,601 USDC. The attacker identified a critical flaw in the protocol's position health verification logic. Specifically, the solvency check that determines whether a position has sufficient collateral relied on a fixed-point arithmetic operation that silently discarded fractional values. By constructing an extremely illiquid token pool and routing borrowed funds through it, the attacker produced a position whose calculated total value fell just below the threshold needed to produce a non-zero integer. The protocol interpreted this zero value as an empty but valid position, bypassed the solvency gate entirely, and allowed the attacker to extract the full borrowed amount through pre-positioned limit orders.",
+    technicalDesc:
+      "## Root Cause Analysis\n\nThe vulnerability lived in [`TunaPosition.is_healthy()`](https://github.com/DefiTuna/tuna-sdk/blob/6a0e6b80b089e86cf4f59391ea7e10ee983c483e/rust-sdk/client/src/implementation/tuna_position.rs#L41-L70), the function responsible for verifying that a position maintains adequate collateral. Internally, this function calls `compute_total_and_debt()`, which estimates the position's total asset value by multiplying the held token quantity by a reference price derived from `sqrt_price`.\n\nThe critical issue was on line 53 of [`tuna_position.rs`](https://github.com/DefiTuna/tuna-sdk/blob/6a0e6b80b089e86cf4f59391ea7e10ee983c483e/rust-sdk/client/src/implementation/tuna_position.rs#L41-L70), where the fixed-point result gets converted to a native integer via `to_num()`. This conversion truncates — it does not round — meaning any fractional value below 1.0 becomes exactly zero.\n\n## How the Attacker Engineered the Zero\n\nThe attacker set up the exploit in three phases:\n\n**Phase 1 — Construct a trap pool.** A nearly-empty TUNA/USDC Fusion pool was created. Its initial price was calibrated to sit just within DefiTuna's acceptable deviation from the oracle price, so the protocol's pre-trade validation would not reject it.\n\n**Phase 2 — Place receiving positions.** Two limit-order positions were opened at tick 208,640 — an extreme price level far from the pool's current trading range. These positions held a combined 0.001052 TUNA and were deliberately placed there to capture any USDC that flowed into the pool.\n\n**Phase 3 — Borrow, swap, and collapse the health metric.** The attacker invoked [`Open_and_increase_tuna_spot_position_jupiter`](https://github.com/DefiTuna/tuna-sdk/blob/6a0e6b80b089e86cf4f59391ea7e10ee983c483e/target/idl/tuna.json#L3662-L3812), which borrowed approximately 569,601 USDC from the lending pool and routed it through an embedded Jupiter swap. The swap path sent the entire USDC amount into the trap pool at tick 208,640. Given the pool's extreme imbalance, the output was only about 0.000494 TUNA.\n\nWhen `is_healthy()` then evaluated this position, the math looked like this:\n\n```\n494 (raw token units) × 0.0018375338 (oracle price) = 0.9077417\n```\n\nBut `to_num()` converts fixed-point to integer by discarding the fractional part — so `0.9077417` became `0`. The function then encountered an empty position and, following its fallback logic, assumed all empty positions carry exactly 1.0x leverage and therefore pass the health check.\n\nWith the solvency check satisfied, the USDC that had entered the pool now sat in the two attacker-controlled limit-order slots. Each was subsequently closed via `DecreaseLimitOrder`, extracting roughly 284,280 USDC per position — for a combined loss of $569,601.\n\n## Key Takeaway\n\nThis exploit is a textbook example of why truncation in financial calculations is dangerous. The protocol trusted an integer conversion that silently destroyed value information. Any position — regardless of its actual composition — could pass the health check if its calculated value fell below 1.0 in the fixed-point representation. A proper fix would either enforce a minimum non-zero threshold or use rounding instead of truncation.",
+    impact: "$569,601",
+    impactUSD: 569601,
+    contracts: [
+      {
+        label: "DefiTuna Protocol",
+        address: "tuna4uSQZncNeeiAMKbstuxA9CUkHH6HmC64wgmnogD",
+        url: "https://solscan.io/account/tuna4uSQZncNeeiAMKbstuxA9CUkHH6HmC64wgmnogD",
+      },
+      {
+        label: "USDC Vault (Damaged)",
+        address: "D76dDcSU5HnAGqVEZCDLyGgLpTp4xZuqeZyVDtUdDv55",
+        url: "https://solscan.io/account/D76dDcSU5HnAGqVEZCDLyGgLpTp4xZuqeZyVDtUdDv55",
+      },
+      {
+        label: "Attacker Wallet #1",
+        address: "9ytGWP8tCRF1keREJ5VHqBpSuM9MZYwm3oFQQa1SvESb",
+        url: "https://solscan.io/account/9ytGWP8tCRF1keREJ5VHqBpSuM9MZYwm3oFQQa1SvESb",
+      },
+    ],
+    transactions: [
+      {
+        hash: "124ibr7NU7AtJdeZ1WJjJy5YathNiBtCnV554uwJtkc7qEXeF64dmCziv4QoiEEMRG6EmCRx8ec2LkARpWH3kvEG",
+        label: "Main exploit — borrow, swap, bypass health check",
+        chain: "solana",
+      },
+    ],
+    timeline: [
+      {
+        id: "t1",
+        phase: "Trap Pool Creation",
+        description:
+          "Attacker deploys a nearly empty TUNA/USDC Fusion pool. The initial price is set close enough to the oracle price to pass DefiTuna's price-deviation pre-checks, but the pool has virtually no depth.",
+        functionsCall: ["FusionPool.create_pool()"],
+        pseudocode:
+          "// Thin pool: minimal liquidity\n// Price calibrated to pass deviation check\n// Will serve as the swap destination for borrowed USDC",
+        timestamp: "July 16, 2026",
+      },
+      {
+        id: "t2",
+        phase: "Limit-Order Positioning",
+        description:
+          "Two positions are placed at tick 208,640 — an extreme price level far from current trading. Each holds a tiny amount of TUNA (combined 0.001052 TUNA). These positions are designed to capture the USDC that will flow into the pool.",
+        functionsCall: ["Position.open_limit_order(tick=208640)"],
+        pseudocode:
+          "// Two positions at the same extreme tick\n// Each holds ~0.000526 TUNA\n// They will receive USDC when the swap executes\n// Owned by 7hiH...FJst and BK9a...QpH3c",
+      },
+      {
+        id: "t3",
+        phase: "Borrow and Route",
+        description:
+          "Attacker calls Open_and_increase_tuna_spot_position_jupiter, borrowing ~569,601 USDC from the lending pool. The entire amount is routed through an embedded Jupiter swap path targeting the trap pool.",
+        functionsCall: ["Open_and_increase_tuna_spot_position_jupiter()"],
+        pseudocode:
+          "// Borrow from lending pool\n// Route: USDC → Jupiter → Trap pool (tick 208640)\n// Swap amount: 569,601 USDC (full borrow minus fees)\n// Output at tick 208640:\n//   569601 / (1.0001)^208640 * (1 - 0.001) = 0.000494 TUNA",
+        txns: [
+          {
+            hash: "124ibr7NU7AtJdeZ1WJjJy5YathNiBtCnV554uwJtkc7qEXeF64dmCziv4QoiEEMRG6EmCRx8ec2LkARpWH3kvEG",
+            label: "Borrow + swap (569,601 USDC → 0.000494 TUNA)",
+          },
+        ],
+      },
+      {
+        id: "t4",
+        phase: "Solvency Check Bypass",
+        description:
+          "DefiTuna's health check evaluates the new position. The math: 494 raw units × 0.0018375338 (oracle price) = 0.9077417. But to_num() truncates the fractional part, producing zero. The protocol treats the zero as an empty position, assumes 1.0x leverage, and marks it healthy.",
+        functionsCall: ["TunaPosition.is_healthy()", "compute_total_and_debt()"],
+        pseudocode:
+          "// is_healthy() calls compute_total_and_debt()\n// total = 494 × 0.0018375338 = 0.9077417\n// to_num() truncates → 0\n// Code path: 'empty position → leverage always 1.0x → healthy'\n// Solvency check passed — but only because of truncation",
+      },
+      {
+        id: "t5",
+        phase: "Drain via Limit Orders",
+        description:
+          "The borrowed USDC now sits economically in the two attacker-controlled limit-order positions. Each position's owner calls DecreaseLimitOrder to withdraw — roughly 284,280 USDC per position, totaling $569,601.",
+        functionsCall: ["DecreaseLimitOrder()", "DecreaseLimitOrder()"],
+        pseudocode:
+          "// Position 7hiH...FJst withdraws ~284,280 USDC\n// Position BK9a...QpH3c withdraws ~284,280 USDC\n// Total drained: $569,601 USDC\n// Funds moved to pivot wallets, then split",
+      },
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "9 wallets coordinated", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "Thin TUNA/USDC Pool", detail: "Near-zero liquidity", x: 250, y: 100 },
+        { id: "n3", type: "contract", label: "DefiTuna Lending", detail: "569K USDC borrowed", x: 450, y: 200 },
+        { id: "n4", type: "contract", label: "is_healthy()", detail: "to_num() truncates to 0", x: 450, y: 350 },
+        { id: "n5", type: "pool", label: "Limit Orders", detail: "284K USDC each", x: 650, y: 200 },
+        { id: "n6", type: "result", label: "Attacker", detail: "$569K drained", x: 850, y: 200 },
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Create thin pool" },
+        { id: "e2", source: "n1", target: "n3", label: "Borrow 569K USDC", animated: true },
+        { id: "e3", source: "n3", target: "n2", label: "Swap → 0.000494 TUNA" },
+        { id: "e4", source: "n3", target: "n4", label: "Health check" },
+        { id: "e5", source: "n4", target: "n5", label: "Zero = 'healthy'", animated: true },
+        { id: "e6", source: "n5", target: "n6", label: "Drain $569K", animated: true },
+      ],
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "DefiTuna\nLending Pool", type: "pool" },
+      { id: "b", label: "Thin TUNA/USDC\nFusion Pool", type: "bridge" },
+      { id: "c", label: "Zero Value\nHealth Check", type: "vault" },
+      { id: "d", label: "Limit Orders\n(Attacker)", type: "attacker" },
+      { id: "e", label: "Pivot Wallets\n$569K USDC", type: "drain" },
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 0.57, label: "569K USDC borrowed" },
+      { source: "b", target: "c", value: 0.001, label: "0.000494 TUNA out" },
+      { source: "c", target: "d", value: 0.57, label: "Health check passed" },
+      { source: "d", target: "e", value: 0.57, label: "Limit order withdrawal" },
+    ],
+    mitigations: [
+      {
+        category: "Fixed-Point Safety",
+        description:
+          "Never trust truncation in financial math. Either enforce a minimum non-zero threshold after conversion, or use proper rounding. Any position whose calculated value rounds to zero must be treated as insolvent, not healthy.",
+        code: "let total = self.compute_total_and_debt();\nrequire!(total > 0, ErrorCode::PositionValueTooLow);",
+      },
+      {
+        category: "Pool Liquidity Guards",
+        description:
+          "Reject positions that route swaps through pools with insufficient liquidity. A pool holding near-zero reserves should not be accepted as a valid swap destination for leveraged positions.",
+      },
+      {
+        category: "Slippage & Output Validation",
+        description:
+          "After executing a swap, verify that the returned token amount exceeds a minimum threshold. If the output is negligible relative to the input, the position's value cannot be meaningfully assessed.",
+      },
+      {
+        category: "Position Value Floor",
+        description:
+          "Treat any position whose total asset value falls below a configurable floor as undercollateralized, regardless of the leverage fallback logic.",
+      },
+    ],
+    quiz: [
+      {
+        question: "What specific operation caused the position's value to become zero?",
+        options: [
+          "An integer overflow in the multiplication step",
+          "The to_num() function truncating a fractional fixed-point value below 1.0",
+          "A division by zero in the sqrt_price calculation",
+          "The oracle returning a stale price of zero",
+        ],
+        correct: 1,
+        explanation: "The calculation 494 × 0.0018375338 = 0.9077417 was valid, but to_num() discards the fractional part during fixed-point-to-integer conversion, producing 0.",
+      },
+      {
+        question: "Why did the protocol consider a zero-value position as healthy?",
+        options: [
+          "The lending pool had excess reserves to cover the shortfall",
+          "The health check had a fallback that assumed empty positions always carry 1.0x leverage",
+          "The attacker bribed the oracle to report a favorable price",
+          "The position had a special admin override flag",
+        ],
+        correct: 1,
+        explanation: "When compute_total_and_debt() returned zero, is_healthy() followed its fallback path for empty positions, which assumes 1.0x leverage and therefore passes the solvency check.",
+      },
+      {
+        question: "How did the attacker extract value after bypassing the health check?",
+        options: [
+          "By calling a direct withdrawal function on the lending pool",
+          "By closing two pre-positioned limit orders that received the borrowed USDC",
+          "By swapping the zero-value position on a secondary market",
+          "By exploiting a reentrancy bug in the settlement function",
+        ],
+        correct: 1,
+        explanation: "Two limit-order positions were placed at tick 208,640 to capture the USDC flowing through the thin pool. After the health check passed, each was closed via DecreaseLimitOrder, extracting ~284K USDC per position.",
+      },
+    ],
+  },
 ];
 
 export const hacksBySlug = Object.fromEntries(hacks.map((h) => [h.slug, h]));

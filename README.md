@@ -69,19 +69,6 @@ An interactive educational platform featuring:
   - **Quiz**: Knowledge testing per exploit
 - **Progress Tracking**: Mastered/Audited badges via localStorage
 
-### Covered Exploits (2025-2026)
-
-| Hack | Chain | Type | Impact |
-|------|-------|------|--------|
-| Bybit | Ethereum | Supply Chain | $1.46B |
-| Cetus Protocol | Sui | Integer Overflow | $223M |
-| GMX V1 | Arbitrum | Reentrancy | $42M |
-| Balancer V2 | Ethereum | Math Bug | $126M |
-| Drift Protocol | Solana | Oracle Manipulation | $285M |
-| Truebit Protocol | Ethereum | Access Control | $26M |
-| CrossCurve Bridge | Multi-chain | Bridge Exploit | $3M |
-| Abracadabra Finance | Ethereum | Flash Loan | $13M |
-
 ## Documentation
 
 - [Adding a New Hack](ADDING_HACKS.md) - Complete guide for contributing new exploit data

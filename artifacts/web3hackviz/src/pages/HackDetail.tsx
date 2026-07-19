@@ -33,6 +33,7 @@ export default function HackDetailPage() {
 
   useEffect(() => {
     setProgressState(getProgress(slug));
+    window.scrollTo(0, 0);
   }, [slug]);
 
   useEffect(() => {

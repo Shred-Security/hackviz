@@ -88,90 +88,90 @@ export function AttackFlowTab({ hack }: { hack: Hack }) {
       </p>
 
       <div className="flex gap-4">
-        {/* Flow diagram */}
-        <div className="flex-1 rounded-lg border border-border/50 overflow-hidden" style={{ height: 400 }}>
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            nodeTypes={nodeTypes}
-            onNodeClick={onNodeClick}
-            fitView
-            proOptions={{ hideAttribution: true }}
-          >
-            <Background color="rgba(0,255,255,0.05)" gap={30} />
-            <Controls
-              style={{
-                background: "rgba(10,10,20,0.9)",
-                border: "1px solid rgba(0,255,255,0.2)",
-              }}
-            />
-            <MiniMap
-              style={{
-                background: "rgba(10,10,20,0.8)",
-                border: "1px solid rgba(0,255,255,0.2)",
-              }}
-              nodeColor={(n: Node) => {
-                const t = n.data?.type as string;
-                const c = NODE_COLORS[t as keyof typeof NODE_COLORS];
-                return c?.border ?? "rgba(0,255,255,0.4)";
-              }}
-            />
-          </ReactFlow>
-        </div>
+            {/* Flow diagram */}
+            <div className="flex-1 rounded-lg border border-border/50 overflow-hidden" style={{ height: 400 }}>
+              <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                nodeTypes={nodeTypes}
+                onNodeClick={onNodeClick}
+                fitView
+                proOptions={{ hideAttribution: true }}
+              >
+                <Background color="rgba(0,255,255,0.05)" gap={30} />
+                <Controls
+                  style={{
+                    background: "rgba(10,10,20,0.9)",
+                    border: "1px solid rgba(0,255,255,0.2)",
+                  }}
+                />
+                <MiniMap
+                  style={{
+                    background: "rgba(10,10,20,0.8)",
+                    border: "1px solid rgba(0,255,255,0.2)",
+                  }}
+                  nodeColor={(n: Node) => {
+                    const t = n.data?.type as string;
+                    const c = NODE_COLORS[t as keyof typeof NODE_COLORS];
+                    return c?.border ?? "rgba(0,255,255,0.4)";
+                  }}
+                />
+              </ReactFlow>
+            </div>
 
-        {/* Detail panel */}
-        <div className="w-60 shrink-0 rounded-lg border border-border/50 bg-card p-4">
-          {selectedNodeData ? (
-            <>
-              <div className="text-xs font-bold text-foreground mb-1">{selectedNodeData.label}</div>
-              <div className="text-[10px] text-muted-foreground mb-3">{selectedNodeData.detail}</div>
-              <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Type</div>
-              <div className="text-xs text-foreground capitalize mb-3">{selectedNodeData.type}</div>
-              <div className="text-[10px] text-muted-foreground border-t border-border/50 pt-2 mt-2">
-                Click another node to explore, or click the same node to deselect.
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="text-xs font-semibold text-foreground mb-3">Node Legend</div>
-              {Object.entries(NODE_COLORS).map(([type, c]) => (
-                <div key={type} className="flex items-center gap-2 mb-1.5">
-                  <div className="w-2.5 h-2.5 rounded-full" style={{ background: c.border }} />
-                  <span className="text-[11px] text-muted-foreground capitalize">{type}</span>
-                </div>
-              ))}
-              <p className="text-[10px] text-muted-foreground mt-3 border-t border-border/50 pt-2">
-                Click a node to see details and prevention tips.
-              </p>
-            </>
-          )}
-        </div>
-      </div>
+            {/* Detail panel */}
+            <div className="w-60 shrink-0 rounded-lg border border-border/50 bg-card p-4">
+              {selectedNodeData ? (
+                <>
+                  <div className="text-xs font-bold text-foreground mb-1">{selectedNodeData.label}</div>
+                  <div className="text-[10px] text-muted-foreground mb-3">{selectedNodeData.detail}</div>
+                  <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Type</div>
+                  <div className="text-xs text-foreground capitalize mb-3">{selectedNodeData.type}</div>
+                  <div className="text-[10px] text-muted-foreground border-t border-border/50 pt-2 mt-2">
+                    Click another node to explore, or click the same node to deselect.
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="text-xs font-semibold text-foreground mb-3">Node Legend</div>
+                  {Object.entries(NODE_COLORS).map(([type, c]) => (
+                    <div key={type} className="flex items-center gap-2 mb-1.5">
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ background: c.border }} />
+                      <span className="text-[11px] text-muted-foreground capitalize">{type}</span>
+                    </div>
+                  ))}
+                  <p className="text-[10px] text-muted-foreground mt-3 border-t border-border/50 pt-2">
+                    Click a node to see details and prevention tips.
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
 
-      {/* Edge list */}
-      <div className="rounded-lg border border-border/50 bg-card p-4">
-        <div className="text-xs font-semibold text-foreground mb-3">Call Sequence</div>
-        <div className="space-y-2">
-          {hack.attackFlow.edges.map((e, i) => {
-            const src = hack.attackFlow.nodes.find((n) => n.id === e.source);
-            const tgt = hack.attackFlow.nodes.find((n) => n.id === e.target);
-            return (
-              <div key={e.id} className="flex items-center gap-2 text-xs">
-                <span className="w-4 h-4 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-[9px] shrink-0">
-                  {i + 1}
-                </span>
-                <span className="text-cyan-300 font-mono">{src?.label}</span>
-                <span className="text-muted-foreground">→</span>
-                <span className="text-green-300 font-mono">{tgt?.label}</span>
-                <span className="text-muted-foreground text-[10px]">· {e.label}</span>
-                {e.animated && (
-                  <span className="ml-auto text-[9px] bg-red-400/10 border border-red-400/30 text-red-400 px-1.5 py-0.5 rounded">
-                    EXPLOIT PATH
-                  </span>
-                )}
-              </div>
-            );
-          })}
+          {/* Edge list */}
+          <div className="rounded-lg border border-border/50 bg-card p-4">
+            <div className="text-xs font-semibold text-foreground mb-3">Call Sequence</div>
+            <div className="space-y-2">
+              {hack.attackFlow.edges.map((e, i) => {
+                const src = hack.attackFlow.nodes.find((n) => n.id === e.source);
+                const tgt = hack.attackFlow.nodes.find((n) => n.id === e.target);
+                return (
+                  <div key={e.id} className="flex items-center gap-2 text-xs">
+                    <span className="w-4 h-4 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-[9px] shrink-0">
+                      {i + 1}
+                    </span>
+                    <span className="text-cyan-300 font-mono">{src?.label}</span>
+                    <span className="text-muted-foreground">→</span>
+                    <span className="text-green-300 font-mono">{tgt?.label}</span>
+                    <span className="text-muted-foreground text-[10px]">· {e.label}</span>
+                    {e.animated && (
+                      <span className="ml-auto text-[9px] bg-red-400/10 border border-red-400/30 text-red-400 px-1.5 py-0.5 rounded">
+                        EXPLOIT PATH
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
         </div>
       </div>
     </div>
