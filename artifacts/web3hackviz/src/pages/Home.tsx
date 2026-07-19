@@ -114,7 +114,7 @@ export default function HomePage() {
         </h1>
         <p className="text-xs text-muted-foreground/60 font-mono mb-3">
           A{" "}
-          <a href="https://shredsec.xyz" target="_blank" rel="noopener noreferrer" className="text-red-400/80 hover:text-red-300 transition-colors">
+          <a href="https://shredsecurity.io" target="_blank" rel="noopener noreferrer" className="text-red-400/80 hover:text-red-300 transition-colors">
             Shred Security
           </a>{" "}
           product, built for the community
@@ -349,7 +349,7 @@ export default function HomePage() {
         <p className="text-xs text-muted-foreground">
           HackViz — Defensive learning only. All data sourced from public
           post-mortems and block explorers. This platform does not encourage or
-          facilitate any malicious activity, developed by <a href="https://shredsec.xyz" target="_blank" rel="noopener noreferrer" className="text-red-400 font-semibold hover:text-red-300 transition-colors">Shred Security</a>.
+          facilitate any malicious activity, developed by <a href="https://shredsecurity.io" target="_blank" rel="noopener noreferrer" className="text-red-400 font-semibold hover:text-red-300 transition-colors">Shred Security</a>.
         </p>
       </footer>
     </div>
