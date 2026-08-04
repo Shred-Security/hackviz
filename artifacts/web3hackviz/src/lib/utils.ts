@@ -16,6 +16,7 @@ export function getExplorerTxUrl(hash: string, chain?: string): string {
   if (c === "avalanche") return `https://snowtrace.io/tx/${hash}`;
   if (c === "sui") return `https://suivision.xyz/tx/${hash}`;
   if (c === "near") return `https://nearblocks.io/txns/${hash}`;
+  if (c === "bitcoin" || c === "btc") return `https://mempool.space/tx/${hash}`;
   if (c === "solana" || hash.length >= 80) return `https://solscan.io/tx/${hash}`;
   return `https://etherscan.io/tx/${hash}`;
 }
@@ -30,5 +31,6 @@ export function getExplorerAddressUrl(address: string, chain?: string): string {
   if (c === "polygon") return `https://polygonscan.com/address/${address}`;
   if (c === "avalanche") return `https://snowtrace.io/address/${address}`;
   if (c === "sui") return `https://suivision.xyz/account/${address}`;
+  if (c === "bitcoin" || c === "btc") return `https://mempool.space/address/${address}`;
   return `https://etherscan.io/address/${address}`;
 }

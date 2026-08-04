@@ -6701,6 +6701,269 @@ export const hacks: Hack[] = [
       },
     ],
   },
+
+  // Coldcard Firmware Entropy Failure (July 30, 2026 — ongoing)
+  {
+    id: "coldcard-2026",
+    slug: "coldcard-2026",
+    title: "Coldcard",
+    subtitle: "Weak Seed Entropy / Offline Key Recovery — Bitcoin",
+    year: 2026,
+    chain: "Bitcoin",
+    chains: ["Bitcoin"],
+    type: ["Cryptography", "Logic Error"],
+    shortDesc:
+      "A five-year-old firmware integration bug caused many Coldcard devices to generate BIP-39 seeds with ~40–72 bits of effective entropy instead of 128+. Attackers enumerated candidate seeds offline, matched them to funded single-sig addresses, and swept ~1,596 BTC (~$100M+) across ~7,300 addresses — with no physical access, phishing, or device interaction required.",
+    longDesc:
+      "On July 30, 2026, attackers began sweeping Bitcoin from single-signature wallets whose BIP-39 seeds had been generated on vulnerable Coinkite Coldcard firmware. The first major wave drained ~1,082.65 BTC from ~1,196 addresses in about 41 minutes (01:10–01:51 UTC, blocks 960,183–960,191), using a distinctive high-fee, no-change fingerprint (~30 sat/vB). Coinkite published advisories and emergency fixed firmware the same day / following day. As of early August 2026, Galaxy Research reports high-confidence confirmed losses of ~1,596 BTC (>$100M at then-prevailing prices) from roughly 7,300 addresses across three confirmed waves plus 14 smaller footprints; a suspected fourth wave could push totals toward ~2,055 BTC (~$130M). Roughly 90% of stolen coins remained unmoved. Exposure depends on the firmware active when the seed was generated — updating firmware does not repair an existing weak seed. TAPSIGNER, OPENDIME, and SATSCARD use different codebases and are unaffected.",
+    technicalDesc:
+      "In March 2021, Coldcard migrated elliptic-curve ops to Bitcoin Core's libsecp256k1 via libNgU. Seed generation switched from `ckcc.rng_bytes()` (STM32 hardware TRNG wrapper) to `ngu.random.bytes()`. Coinkite set MicroPython's `MICROPY_HW_ENABLE_RNG` to `0` intending to prefer the custom TRNG path, but libNgU's guard used `#ifndef MICROPY_HW_ENABLE_RNG` (symbol existence), not a nonzero value check. Because the macro was defined (even at 0), the build silently linked MicroPython's non-cryptographic Yasmarang software PRNG (`ports/stm32/rng.c` fallback) as `rng_get()` instead of the board TRNG. Yasmarang is seeded primarily from chip UID, SysTick, and RTC state — low-entropy / predictable device-timing material — with no ongoing fresh entropy collection on the critical seed path. The intended TRNG code remained present in the binary and was used for less-critical operations, so reviews that only checked for TRNG presence missed the wrong symbol resolution. Coinkite estimates effective entropy at ~40 bits on Mk2/Mk3 (firmware 4.0.1–4.1.9) and ~72 bits on Mk4/Mk5/Q pre-fix (partial SE1/SE2 mixing into the same PRNG state) — far below the 128-bit BIP-39 12-word target. Attackers offline-enumerate the reduced key space, derive addresses, match funded UTXOs, and broadcast sweeps. Mitigating factors for a given seed: ≥50 fair independent private dice rolls at generation, or a strong unique secret BIP-39 passphrase (creates a different wallet). Fixed firmware: Mk2/Mk3 4.2.0+; Mk4/Mk5 Standard 5.6.0+; Q Standard 1.5.0Q+; Edge 6.6.0X / 6.6.0QX. Hotfixes exclude the MicroPython fallback object and fail the build unless the board object uniquely defines `rng_get()`. Independent analyses (e.g. Block Engineering on predictable fallback / 32-bit reseed; ZKAO Max scan confirming the Yasmarang path) align on the entropy collapse; ZKAO also reported separate Critical Mk4 bootloader callgate / firewall findings that are independent of this seed-drain exploit.",
+    impact: "~1,596 BTC (~$100M+ confirmed; up to ~2,055 BTC / ~$130M suspected)",
+    impactUSD: 100000000,
+    contracts: [
+      {
+        label: "Coinkite — Entropy Technical Backgrounder",
+        address: "blog.coinkite.com/entropy-technical-backgrounder",
+        url: "https://blog.coinkite.com/entropy-technical-backgrounder/",
+      },
+      {
+        label: "Coinkite — Mk2/Mk3 Seed Generation Advisory",
+        address: "blog.coinkite.com/coldcard-mk3-seed-generation-warning",
+        url: "https://blog.coinkite.com/coldcard-mk3-seed-generation-warning/",
+      },
+      {
+        label: "libNgU random.c — #ifndef MICROPY_HW_ENABLE_RNG guard",
+        address: "ngu/random.c#L22-L31",
+        url: "https://github.com/switck/libngu/blob/cf1988aa54969a7d2dcef261ee664a41a7013262/ngu/random.c#L22-L31",
+      },
+      {
+        label: "Coldcard firmware — libNgU migration (Mar 2021)",
+        address: "b18723dddb6d751c39978e4364b56b2414f68b47",
+        url: "https://github.com/Coldcard/firmware/commit/b18723dddb6d751c39978e4364b56b2414f68b47",
+      },
+      {
+        label: "MicroPython STM32 rng.c — Yasmarang fallback",
+        address: "ports/stm32/rng.c",
+        url: "https://github.com/micropython/micropython/blob/master/ports/stm32/rng.c",
+      },
+      {
+        label: "Block Engineering — Predictable RNG Fallback Analysis",
+        address: "engineering.block.xyz/predictable-rng-fallback",
+        url: "https://engineering.block.xyz/blog/predictable-rng-fallback-and-32-bit-reseed-in-coldcard-firmware",
+      },
+      {
+        label: "COLDCARD Downloads — Fixed Firmware",
+        address: "coldcard.com/downloads",
+        url: "https://coldcard.com/downloads/",
+      },
+    ],
+    timeline: [
+      {
+        id: "t1",
+        phase: "Upstream Fallback Introduced",
+        description:
+          "MicroPython adds the Yasmarang software PRNG fallback for STM32 when hardware RNG is not enabled (May 2018). This code is not yet on the Coldcard seed-generation path.",
+        functionsCall: [],
+        pseudocode:
+          "// micropython/ports/stm32/rng.c\n// #if MICROPY_HW_ENABLE_RNG\n//   → STM32 hardware TRNG\n// #else\n//   → Yasmarang software PRNG (UID + SysTick + RTC)",
+        timestamp: "May 2018",
+      },
+      {
+        id: "t2",
+        phase: "libNgU Migration Introduces Bug",
+        description:
+          "Coldcard migrates to libsecp256k1 via libNgU (~firmware 4.0.0/4.0.1). Seed generation moves from ckcc.rng_bytes() to ngu.random.bytes(). Because MICROPY_HW_ENABLE_RNG is defined as 0, libNgU's #ifndef guard skips the #error path and the linker resolves rng_get() to Yasmarang.",
+        functionsCall: ["ckcc.rng_bytes() → ngu.random.bytes()", "rng_get() → Yasmarang"],
+        pseudocode:
+          "// Intended: board TRNG via ckcc.rng_bytes()\n// Actual after migration:\n//   ngu/random.c uses #ifndef MICROPY_HW_ENABLE_RNG\n//   macro exists (=0) → no #error\n//   MicroPython builds Yasmarang as rng_get()\n// Effective entropy: ~40 bits (Mk2/Mk3)",
+        timestamp: "March 2021",
+      },
+      {
+        id: "t3",
+        phase: "Partial SE Mixing on Later Models",
+        description:
+          "Mk4+ development mixes SE1/SE2 TRNG values into the PRNG state as a backup. Effective entropy improves to ~72 bits for Mk4/Mk5/Q but still critically short of 128 bits; subsequent draws still come from the same MicroPython PRNG.",
+        functionsCall: ["SE1/SE2 TRNG mix → Yasmarang state"],
+        pseudocode:
+          "// Mk4/Mk5/Q:\n//   SE entropy mixed into PRNG init\n//   Most subsequent bytes still from Yasmarang\n// Effective entropy ≈ 72 bits (Coinkite estimate)",
+        timestamp: "2021–2026",
+      },
+      {
+        id: "t4",
+        phase: "First Major Sweep Wave",
+        description:
+          "Attackers drain ~1,082.65 BTC from ~1,196 single-sig addresses in ~41 minutes. Transactions share ~30 sat/vB fees and no-change outputs across blocks 960,183–960,191 — consistent with offline precomputation and scripted sweeping. Earlier AnchorWatch estimates (~594 BTC / ~500 wallets) covered a tighter subset of the same event.",
+        functionsCall: ["BIP39.mnemonic_to_seed()", "derive addresses", "broadcast sweep txs"],
+        pseudocode:
+          "// Offline:\n//   enumerate Yasmarang state space\n//   derive BIP-39 seeds → privkeys → addresses\n//   match funded UTXOs on-chain\n// Online:\n//   high-fee, no-change sweeps → attacker addresses\n// No Coldcard interaction required",
+        timestamp: "July 30, 2026 · 01:10–01:51 UTC",
+      },
+      {
+        id: "t5",
+        phase: "Advisory & Fixed Firmware",
+        description:
+          "Coinkite publishes Mk3 advisory and technical backgrounder; releases emergency hotfixes that exclude the MicroPython fallback and add compile-time checks that the board uniquely defines rng_get(). Emphasizes that firmware updates do not repair existing seeds.",
+        functionsCall: [],
+        pseudocode:
+          "// Fixed releases:\n//   Mk2/Mk3: 4.2.0+\n//   Mk4/Mk5 Standard: 5.6.0+\n//   Q Standard: 1.5.0Q+\n//   Edge: 6.6.0X / 6.6.0QX\n// Build fails if wrong rng_get() is linked",
+        timestamp: "July 30–31, 2026",
+      },
+      {
+        id: "t6",
+        phase: "Additional Waves & Ongoing Risk",
+        description:
+          "Galaxy Research tracks rising totals across three confirmed waves plus smaller opportunistic footprints. Confirmed ~1,596 BTC from ~7,300 addresses (>$100M); suspected fourth wave could reach ~2,055 BTC (~$130M). ~90% of stolen coins remain unmoved; addresses shared with law enforcement and exchanges. Vulnerable single-sig addresses remain at risk until migrated to new seeds.",
+        functionsCall: [],
+        pseudocode:
+          "// Confirmed (high confidence): ~1,596 BTC / ~7,300 addrs\n// Suspected 4th wave: → ~2,055 BTC / ~$130M\n// ~90% of stolen BTC still unmoved\n// Multisig wallets not observed in first three waves",
+        timestamp: "Late July – early August 2026",
+      },
+    ],
+    attackFlow: {
+      nodes: [
+        {
+          id: "n1",
+          type: "attacker",
+          label: "Attacker",
+          detail: "Offline compute",
+          x: 40,
+          y: 180,
+        },
+        {
+          id: "n2",
+          type: "contract",
+          label: "Yasmarang PRNG",
+          detail: "UID + timer seed",
+          x: 280,
+          y: 40,
+        },
+        {
+          id: "n3",
+          type: "oracle",
+          label: "Candidate Seeds",
+          detail: "~40–72 bit space",
+          x: 280,
+          y: 320,
+        },
+        {
+          id: "n4",
+          type: "vault",
+          label: "Funded UTXOs",
+          detail: "Single-sig BTC",
+          x: 540,
+          y: 180,
+        },
+        {
+          id: "n5",
+          type: "pool",
+          label: "Sweep Txs",
+          detail: "High-fee batches",
+          x: 780,
+          y: 180,
+        },
+        {
+          id: "n6",
+          type: "result",
+          label: "Attacker Wallets",
+          detail: "~1,596 BTC",
+          x: 1020,
+          y: 180,
+        },
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Reconstruct PRNG" },
+        { id: "e2", source: "n1", target: "n3", label: "Enumerate seeds" },
+        { id: "e3", source: "n2", target: "n4", label: "Derive keys", animated: true },
+        { id: "e4", source: "n3", target: "n4", label: "Match addresses", animated: true },
+        { id: "e5", source: "n4", target: "n5", label: "Broadcast sweeps", animated: true },
+        { id: "e6", source: "n5", target: "n6", label: "Drain BTC", animated: true },
+      ],
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Victim Single-Sig\nColdcard Seeds", type: "vault" },
+      { id: "b", label: "On-Chain UTXOs\n~7,300 addresses", type: "pool" },
+      { id: "c", label: "Programmatic\nSweep Waves", type: "bridge" },
+      { id: "d", label: "Attacker Addresses\n~1,596 BTC (~$100M+)", type: "drain" },
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 10, label: "Weak BIP-39 seeds" },
+      { source: "b", target: "c", value: 100, label: "Wave 1–3 + footprints" },
+      { source: "c", target: "d", value: 100, label: "~90% still unmoved" },
+    ],
+    mitigations: [
+      {
+        category: "Compile-Time RNG Binding",
+        description:
+          "Never rely on #ifndef for valued config macros. Exclude MicroPython's fallback PRNG object from the link and fail the build unless the board-specific object uniquely defines rng_get(). Verify end-to-end call reachability from seed generation — presence of TRNG code in the binary is not enough.",
+        code: "#if !MICROPY_HW_ENABLE_RNG\n#error \"board must provide rng_get(); MicroPython fallback excluded\"\n#endif",
+      },
+      {
+        category: "User-Supplied Entropy",
+        description:
+          "Prefer ≥50 fair, independent, private dice rolls when generating high-value seeds on any hardware wallet. Coinkite treats seeds created with that dice entropy as not at risk from this RNG issue alone.",
+      },
+      {
+        category: "BIP-39 Passphrase & Multisig",
+        description:
+          "A strong, unique, secret BIP-39 passphrase creates a different wallet and can change immediate urgency — but does not repair a weak underlying seed. Prefer multisig with diverse signers/hardware so a single vendor RNG failure is not catastrophic.",
+      },
+      {
+        category: "Migrate Affected Seeds",
+        description:
+          "Updating firmware does not repair an existing vulnerable seed. Determine generation firmware; if affected and lacking sufficient dice/passphrase protection: install fixed firmware, generate an entirely new seed, verify fingerprint/address, test with a small transfer, then migrate. Keep the old backup until confirmed.",
+      },
+      {
+        category: "Independent Path Verification",
+        description:
+          "Audits of embedded/firmware stacks must symbol-resolve critical crypto paths across submodules (human and AI). Treat seed generation as a high-assurance critical path; assume attackers will also AI-review open-source firmware.",
+      },
+    ],
+    quiz: [
+      {
+        question: "What was the primary root cause of the Coldcard seed weakness?",
+        options: [
+          "Smart-contract reentrancy in a Bitcoin script",
+          "Physical side-channel on the secure element",
+          "Silent fallback to Yasmarang via a #ifndef / linker config error",
+          "Compromised Coinkite firmware signing keys",
+        ],
+        correct: 2,
+        explanation:
+          "MICROPY_HW_ENABLE_RNG was defined as 0, but libNgU used #ifndef (existence check). The build linked MicroPython's Yasmarang software PRNG instead of the STM32 hardware TRNG for seed generation.",
+      },
+      {
+        question: "Does installing the latest Coldcard firmware protect an already-generated seed?",
+        options: [
+          "Yes — the update re-encrypts the seed with fresh entropy",
+          "No — a weak seed must be replaced; firmware only fixes new generation",
+          "Yes — if you also change the PIN",
+          "Only on Mk4 and newer",
+        ],
+        correct: 1,
+        explanation:
+          "Coinkite's advisory is explicit: updating does not repair seeds generated on affected firmware. Users must generate a new seed on fixed firmware and migrate funds.",
+      },
+      {
+        question: "Which mitigation most strongly reduces risk for a seed generated on affected firmware?",
+        options: [
+          "Changing the device PIN",
+          "≥50 independent private dice rolls at generation, or a strong unique BIP-39 passphrase",
+          "Keeping the device powered off",
+          "Using only SegWit addresses",
+        ],
+        correct: 1,
+        explanation:
+          "Dice rolls inject external entropy outside the broken PRNG path. A strong unique passphrase derives a different wallet. PIN, power state, and address type do not fix weak seed entropy.",
+      },
+      {
+        question: "What effective entropy did Coinkite estimate for affected Mk2/Mk3 seeds?",
+        options: ["128 bits", "~40 bits", "~72 bits", "256 bits"],
+        correct: 1,
+        explanation:
+          "Mk2/Mk3 on firmware 4.0.1–4.1.9 are estimated at ~40 bits. Mk4/Mk5/Q pre-fix improved to ~72 bits via limited SE mixing — still far below the 128-bit target.",
+      },
+    ],
+  },
 ];
 
 export const hacksBySlug = Object.fromEntries(hacks.map((h) => [h.slug, h]));

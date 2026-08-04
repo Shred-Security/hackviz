@@ -32,6 +32,7 @@ const HACK_CHAIN_TAGS: Record<string, string[]> = {
   "raydium-2026": ["Solana"],
   "ostium-2026": ["Arbitrum"],
   "defituna-2026": ["Solana"],
+  "coldcard-2026": ["Bitcoin"],
 };
 
 const CHAIN_DISPLAY_ORDER = [
