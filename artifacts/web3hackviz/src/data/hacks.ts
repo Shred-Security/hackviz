@@ -6702,6 +6702,940 @@ export const hacks: Hack[] = [
     ],
   },
 
+  // Coinsbuy (August 9, 2026)
+  {
+    id: "coinsbuy-2026",
+    slug: "coinsbuy-2026",
+    title: "Coinsbuy",
+    subtitle: "Hot Wallet Drain - TRON / Ethereum",
+    year: 2026,
+    chain: "Multichain",
+    chains: ["TRON", "Ethereum"],
+    type: ["Key Compromise", "Infrastructure"],
+    shortDesc:
+      "Coordinated drain of Coinsbuy hot wallets for ~$8.07M across TRON and Ethereum; the company recapitalized users from reserves.",
+    longDesc:
+      "On August 9, 2026, an attacker drained approximately $8.07M from Coinsbuy payment-platform wallets in under an hour. The sequence began with a 5 USDT probe on TRON, then eight TRON wallets lost ~6.04M USDT while three Ethereum wallets lost 1.89M USDT and 77 ETH (swapped via 1inch). On-chain forensics linked both legs through cross-chain swapper Bridgers. Roughly 79% of proceeds passed through FixedFloat; ChangeNOW froze a six-figure portion after investigator contact. Coinsbuy confirmed the breach, covered all client balances from reserves, and offered a $100K bounty. The exact vector remains undisclosed; researchers note the team refilled the same drained addresses within 24 hours, suggesting keys may not have been permanently compromised.",
+    technicalDesc:
+      "No verified smart-contract bug has been published. BlockWatchdog and Specter Investigations traced a single actor across TRON and Ethereum via Bridgers payout timing. The working hypothesis is unauthorized access to Coinsbuy's withdrawal or processing layer rather than on-chain logic failure. Treat as operational until an official post-mortem names the root cause.",
+    impact: "$8.07M",
+    impactUSD: 8070000,
+    contracts: [{ label: "Coinsbuy hot wallets", address: "", url: "https://etherscan.io" }],
+    timeline: [
+      { id: "t1", phase: "Probe", description: "5 USDT test transfer on TRON.", functionsCall: [], pseudocode: "// probe withdrawal path" },
+      { id: "t2", phase: "Drain", description: "~6.04M USDT from eight TRON wallets; 1.89M USDT + 77 ETH from three Ethereum wallets.", functionsCall: [], pseudocode: "// transferAll() across chains" },
+      { id: "t3", phase: "Laundering", description: "Funds routed via Bridgers, FixedFloat, ChangeNOW; some toward XMR.", functionsCall: [], pseudocode: "// cross-chain obfuscation" },
+      { id: "t4", phase: "Response", description: "Coinsbuy paused, recapitalized wallets, restored services.", functionsCall: [], pseudocode: "// user funds made whole" },
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Cross-chain op", x: 50, y: 200 },
+        { id: "n2", type: "vault", label: "Coinsbuy wallets", detail: "TRON + ETH", x: 300, y: 200 },
+        { id: "n3", type: "bridge", label: "Bridgers / CEX", detail: "FixedFloat", x: 520, y: 120 },
+        { id: "n4", type: "result", label: "Mixed trail", detail: "~$8M out", x: 520, y: 280 },
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "unauthorized withdraw", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Bridgers link" },
+        { id: "e3", source: "n3", target: "n4", label: "FixedFloat / XMR" },
+      ],
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Coinsbuy\n$8.07M", type: "vault" },
+      { id: "b", label: "Attacker", type: "attacker" },
+    ],
+    tokenFlowLinks: [{ source: "a", target: "b", value: 8.07, label: "Hot wallet" }],
+    mitigations: [
+      { category: "Ops", description: "Per-wallet withdraw caps, dual control, allowlists; rotate keys before refilling drained addresses." },
+      { category: "Monitoring", description: "Alert on probe-then-drain patterns and cross-chain payout correlation." },
+    ],
+    quiz: [
+      {
+        question: "Why is this a weak fit for a Solidity post-mortem?",
+        options: ["It was an AMM invariant break", "Vector is operational / undisclosed hot wallets", "It used GG20", "It was a governance vote"],
+        correct: 1,
+        explanation: "Coinsbuy has not published a contract bug; investigators focus on withdrawal infrastructure.",
+      },
+    ],
+  },
+
+  // Allbridge CCTP (August 19, 2026)
+  {
+    id: "allbridge-cctp-2026",
+    slug: "allbridge-cctp-2026",
+    title: "Allbridge",
+    subtitle: "Forged CCTP Message - Base",
+    year: 2026,
+    chain: "Base",
+    chains: ["Base", "Polygon"],
+    type: ["Bridge", "Protocol Logic"],
+    shortDesc:
+      "Attacker redeemed a Circle-attested but asset-less CCTP message and flash-loaned the router shortfall to take ~$191K USDC.",
+    longDesc:
+      "On August 19, 2026 at 01:47 UTC, an attacker drained 191,156 USDC from Allbridge's CCTP router on Base. On July 26 they had called Circle's MessageTransmitterV2.sendMessage on Polygon, crafting a payload claiming 1,000,000 USDC with no actual burn or mint. Circle's attestation service signed the message anyway. Twenty-four days later, six seconds after a legitimate 191,112 USDC deposit landed, the attacker redeemed the forged message. Allbridge credited the declared amount without verifying sender/recipient identities or a real USDC balance increase. An Aave flash loan temporarily topped the router balance so the fraudulent withdrawal could execute; net profit was ~189,752 USDC after fees.",
+    technicalDesc:
+      "Circle attestation proves message integrity, not economic backing. Allbridge's receiveCctpMessage path trusted attacker-supplied amount and messageHash without confirming TokenMessengerV2 as sender/recipient or observing minted USDC. SlowMist: missing validation on CCTPTokenMessenger allowed phantom deposits to become withdrawable credits.",
+    impact: "$191K",
+    impactUSD: 191000,
+    contracts: [{ label: "Allbridge CCTP router (Base)", address: "", url: "https://basescan.org" }],
+    timeline: [
+      { id: "t1", phase: "Setup", description: "July 26: forged 1M USDC CCTP message on Polygon; Circle attestation issued.", functionsCall: ["sendMessage"], pseudocode: "// no USDC burned" },
+      { id: "t2", phase: "Wait", description: "Attacker waited until router held real liquidity (~191K USDC).", functionsCall: [], pseudocode: "// 24-day delay" },
+      { id: "t3", phase: "Attack", description: "Redeemed forged message + Aave flash loan; withdrew ~999K USDC accounting.", functionsCall: ["receiveCctpMessage", "flashLoan"], pseudocode: "// phantom deposit → payout" },
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Forged msg", x: 50, y: 200 },
+        { id: "n2", type: "bridge", label: "Circle CCTP", detail: "Valid attestation", x: 280, y: 120 },
+        { id: "n3", type: "contract", label: "Allbridge router", detail: "No mint check", x: 280, y: 280 },
+        { id: "n4", type: "pool", label: "Aave flash loan", detail: "Top-up", x: 520, y: 200 },
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "forge message", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "redeem attestation" },
+        { id: "e3", source: "n4", target: "n3", label: "flash top-up" },
+        { id: "e4", source: "n3", target: "n1", label: "191K USDC out" },
+      ],
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Router\n191K USDC", type: "vault" },
+      { id: "b", label: "Attacker", type: "attacker" },
+    ],
+    tokenFlowLinks: [{ source: "a", target: "b", value: 0.191, label: "Phantom deposit" }],
+    mitigations: [
+      { category: "Bridge", description: "Verify official TokenMessengerV2 sender/recipient and actual USDC mint/balance delta before crediting deposits." },
+      { category: "Attestation", description: "Treat Circle signatures as integrity checks only — never as proof of burned collateral." },
+    ],
+    quiz: [
+      {
+        question: "What did Circle's attestation actually guarantee?",
+        options: ["USDC was burned on source chain", "Message bytes were untampered", "Router balance increased", "Sender was TokenMessengerV2"],
+        correct: 1,
+        explanation: "Attestation validates message content, not that a real token transfer occurred.",
+      },
+    ],
+  },
+
+  // Maya Protocol (August 18, 2026)
+  {
+    id: "maya-protocol-2026",
+    slug: "maya-protocol-2026",
+    title: "Maya Protocol",
+    subtitle: "Chained Accounting Bugs - MAYAChain",
+    year: 2026,
+    chain: "MAYAChain",
+    type: ["Protocol Logic"],
+    shortDesc:
+      "Six bugs in one 23-message MsgDeposit minted phantom CACAO subsidy; attacker LP'd and extracted ~20.8 BTC plus other assets.",
+    longDesc:
+      "On August 18, 2026 (~17:32 UTC), Maya Protocol on MAYAChain lost roughly $1.65–1.7M in direct theft. A single 23-message MsgDeposit triggered false outbound-theft detection on the attacker's own trade-account withdrawals. The uncapped subsidizePoolsWithSlashBond handler credited ~49.45M CACAO to a thin ARB.LINK pool even though the on-chain transfer failed (~168K CACAO actually in reserve). The attacker deposited dust, owned ~99.93% of the inflated pool, withdrew 48.87M CACAO, and swapped to 20.83 BTC (~$1.34M) plus LINK and other assets. CACAO fell ~89%; broader pool valuation impact was ~$10.9M including price collapse. Maya halted the network globally.",
+    technicalDesc:
+      "Six medium-severity issues composed: trade accounts not in solvency checks; batching bypass via incremented withdrawal amounts; false theft alert; uncapped slash subsidy; failed outbound still credited pool state; LP extract against phantom inventory. Audits (Halborn, Fable 5) missed the interaction chain.",
+    impact: "$1.7M",
+    impactUSD: 1700000,
+    contracts: [{ label: "MAYAChain pools", address: "", url: "https://www.mayaprotocol.com" }],
+    timeline: [
+      { id: "t1", phase: "Setup", description: "Fund trade accounts; craft 23-message MsgDeposit.", functionsCall: ["MsgDeposit"], pseudocode: "// 22 withdrawals + 1 donation" },
+      { id: "t2", phase: "False theft", description: "Nodes flag legitimate withdrawals as missing outbound.", functionsCall: [], pseudocode: "// theft detector misfires" },
+      { id: "t3", phase: "Subsidy", description: "Uncapped CACAO subsidy inflates ARB.LINK pool despite failed transfer.", functionsCall: [], pseudocode: "// +49M phantom CACAO" },
+      { id: "t4", phase: "Extract", description: "LP in/out; swap to 20.83 BTC.", functionsCall: ["addLiquidity", "withdraw"], pseudocode: "// real BTC out" },
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "23-msg deposit", x: 50, y: 200 },
+        { id: "n2", type: "pool", label: "Thin CACAO pool", detail: "Phantom 49M", x: 300, y: 200 },
+        { id: "n3", type: "result", label: "20.83 BTC", detail: "bc1q…l646", x: 550, y: 200 },
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "false theft + subsidy", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "withdraw + swap" },
+      ],
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Maya pools", type: "pool" },
+      { id: "b", label: "Attacker BTC", type: "attacker" },
+    ],
+    tokenFlowLinks: [{ source: "a", target: "b", value: 1.7, label: "Extract" }],
+    mitigations: [
+      { category: "Fix", description: "Cap slash subsidies; revert credits if outbound never executed; invariant pool units ≤ vault assets." },
+      { category: "Integration", description: "Include trade accounts in solvency and outbound-matching logic." },
+    ],
+    quiz: [
+      {
+        question: "What turned a failed outbound into stealable value?",
+        options: ["Uncapped CACAO subsidy left on the books", "Compromised TSS key", "Uniswap callback", "NFT approve"],
+        correct: 0,
+        explanation: "The subsidy credit persisted after the transfer failed, so LP math paid real BTC.",
+      },
+    ],
+  },
+
+  // BounceBit (August 19–20, 2026)
+  {
+    id: "bouncebit-2026",
+    slug: "bouncebit-2026",
+    title: "BounceBit",
+    subtitle: "Vesting Authorization Flaw - BounceBit Chain",
+    year: 2026,
+    chain: "BounceBit Chain",
+    type: ["Access Control", "Protocol Logic"],
+    shortDesc:
+      "Evmos vesting-module auth bug let an attacker move 286.5M BB (~$3.1M) from nine accounts; the L1 was permanently sunset.",
+    longDesc:
+      "Between August 19–20, 2026, an attacker exploited an authorization flaw in BounceBit Chain's inherited Evmos vesting/lockup module to debit nine accounts without owner consent, moving 286,543,148 BB (~$3.1M) in 14 transactions. No private keys or exchange accounts were compromised. BounceBit halted at block 20,702,857 and chose to permanently sunset the chain because Evmos infrastructure is discontinued; BB will reissue as BEP-20 on BNB Chain from pre-attack snapshot block 20,697,260, excluding stolen tokens.",
+    technicalDesc:
+      "The vesting module should verify the debited account authorized the funder. A misapplied check validated the wrong principal, letting callers specify arbitrary funding sources and pull locked BB. Protocol-level flaw, not wallet compromise.",
+    impact: "$3.1M",
+    impactUSD: 3100000,
+    contracts: [{ label: "BounceBit Chain vesting module", address: "", url: "https://bouncebit.io" }],
+    timeline: [
+      { id: "t1", phase: "Exploit", description: "14 unauthorized transfers from nine accounts (Aug 19 21:02 – Aug 20 01:54 UTC).", functionsCall: [], pseudocode: "// debit without auth" },
+      { id: "t2", phase: "Halt", description: "Validators stopped block production ~42 minutes after last theft.", functionsCall: [], pseudocode: "// chain paused" },
+      { id: "t3", phase: "Sunset", description: "Team announces permanent chain shutdown and BNB Chain migration.", functionsCall: [], pseudocode: "// reissue BB BEP-20" },
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Unprivileged EOA", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "Vesting module", detail: "Bad auth check", x: 300, y: 200 },
+        { id: "n3", type: "vault", label: "Nine BB accounts", detail: "286.5M BB", x: 520, y: 120 },
+        { id: "n4", type: "result", label: "CEX / EOA", detail: "~$3.1M", x: 520, y: 280 },
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "craft debit", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "unauthorized move" },
+        { id: "e3", source: "n3", target: "n4", label: "254M to CEX" },
+      ],
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "BB accounts\n286.5M", type: "vault" },
+      { id: "b", label: "Attacker / CEX", type: "attacker" },
+    ],
+    tokenFlowLinks: [{ source: "a", target: "b", value: 3.1, label: "Auth bypass" }],
+    mitigations: [
+      { category: "Fix", description: "Bind debit authorization to the actual funding account; audit inherited Cosmos/Evmos modules." },
+      { category: "Lifecycle", description: "Do not run production chains on discontinued upstream stacks without independent security review." },
+    ],
+    quiz: [
+      {
+        question: "Were user private keys compromised?",
+        options: ["Yes — leaked validator keys", "No — protocol vesting auth failed", "Yes — exchange API keys", "Multisig social engineering"],
+        correct: 1,
+        explanation: "BounceBit confirmed no keys/signatures were stolen; the bug was in vesting authorization logic.",
+      },
+    ],
+  },
+
+  // Term Finance (August 23, 2026)
+  {
+    id: "term-finance-2026",
+    slug: "term-finance-2026",
+    title: "Term Finance",
+    subtitle: "Governance Takeover - Ethereum",
+    year: 2026,
+    chain: "Ethereum",
+    type: ["Governance"],
+    shortDesc:
+      "Attacker cornered sparse vault governance votes and drained 2,842 WETH + 1.68M USDC (~$8.5M) despite advertised timelocks.",
+    longDesc:
+      "On August 23, 2026, an attacker drained about $8.47M from six Term Finance ERC-4626 strategy vaults built on Yearn V3 with Term's custom governance wrapper. Voting uses an opt-in wrapper around LP shares; in five USDC vaults total wrapped voting power was zero until the attacker deposited $5 each on August 21 and held 100% of votes. On the ETH meta vault, 0.4852 tmvETH (~$951) bought ~90.66% of votes. Proposals disabled the seven-day Zodiac delay, replaced price oracles with attacker contracts, and paid out 2,841.74 WETH and 1,679,639 USDC. Yearn confirmed standard Yearn vaults were unaffected. Attacker funded from Tornado Cash (~2 ETH).",
+    technicalDesc:
+      "Low participation + opt-in wrapper governance let trivial capital acquire supermajorities. Execution path bypassed the timelock and LP veto users assumed protected vault admin actions. Not a Yearn V3 core bug — Term's periphery governance shell was the attack surface.",
+    impact: "$8.5M",
+    impactUSD: 8500000,
+    contracts: [{ label: "Term strategy vaults", address: "", url: "https://etherscan.io" }],
+    timeline: [
+      { id: "t1", phase: "Setup", description: "Aug 17–22: acquire wrapped voting power in six vaults.", functionsCall: ["wrap", "stake"], pseudocode: "// $5 → 100% votes" },
+      { id: "t2", phase: "Proposal", description: "Pass proposals disabling delay and swapping oracles.", functionsCall: ["propose", "vote"], pseudocode: "// self-approved admin" },
+      { id: "t3", phase: "Drain", description: "Aug 23 06:25 UTC block 25,816,049: withdraw WETH + USDC.", functionsCall: ["execute", "withdraw"], pseudocode: "// 2,842 ETH + 1.68M USDC" },
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Tornado-funded", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "Governance wrapper", detail: "100% votes", x: 300, y: 200 },
+        { id: "n3", type: "vault", label: "Term vaults", detail: "Yearn V3 base", x: 520, y: 120 },
+        { id: "n4", type: "result", label: "2,842 ETH + USDC", detail: "~$8.5M", x: 520, y: 280 },
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "corner votes", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "disable timelock" },
+        { id: "e3", source: "n3", target: "n4", label: "withdraw" },
+      ],
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Term vaults\n$8.5M", type: "vault" },
+      { id: "b", label: "Attacker", type: "attacker" },
+    ],
+    tokenFlowLinks: [{ source: "a", target: "b", value: 8.5, label: "Governance drain" }],
+    mitigations: [
+      { category: "Governance", description: "Timelock on every execution path; minimum quorum and veto that cannot be removed in same proposal." },
+      { category: "Participation", description: "Require meaningful wrapped-vote participation before admin changes bind vaults." },
+    ],
+    quiz: [
+      {
+        question: "Why didn't the 7-day timelock stop this?",
+        options: ["Chain reorg", "Execution path bypassed the delay", "Oracle lag", "Bridge replay"],
+        correct: 1,
+        explanation: "Proposals zeroed the Zodiac delay module on the actual execution route.",
+      },
+    ],
+  },
+
+  // Cosmos EVM (August 20–25, 2026)
+  {
+    id: "cosmos-evm-2026",
+    slug: "cosmos-evm-2026",
+    title: "Cosmos EVM",
+    subtitle: "Staking Precompile Balance Underflow - Multichain",
+    year: 2026,
+    chain: "Multichain",
+    chains: ["MANTRA", "TAC", "KiiChain"],
+    type: ["Access Control", "Protocol Logic"],
+    shortDesc:
+      "Shared cosmos/evm GHSA-7g4w-cg88-2cq2 was exploited on six chains after a silent patch left validators ~20 hours to upgrade.",
+    longDesc:
+      "Between August 20–25, 2026, attackers exploited GHSA-7g4w-cg88-2cq2 — an unchecked StateDB balance underflow when vesting accounts delegate via the staking precompile beyond spendable balance, wrapping balances to ~2²⁵⁶. Reported in April, initially judged non-production; patched silently in v0.6.2/v0.7.2 on August 19 (~20h before MANTRA was hit). MANTRA lost ~720.9M OM (~$3.6M pre-price). TAC lost ~3B TAC from bonded_tokens_pool. KiiChain lost 148.3M KII via Hyperlane (~$1.6M realized). Cosmos Labs later estimated ~$5.72M sold across DEXes and CEXes on six chains. Thirteen other exposed chains patched or halted before exploitation.",
+    technicalDesc:
+      "Cosmos EVM StateDB tracks spendable balance only; vesting accounts can delegate locked funds via x/staking and the EVM staking precompile. SubBalance write-back subtracts full delegation from spendable without underflow guard. Chained with balance overflow to move inert treasury/bonded/burn funds. Fix: underflow guard in SubBalance (PR #1176, backported v0.6.2/v0.7.2).",
+    impact: "$5.7M",
+    impactUSD: 5720000,
+    contracts: [{ label: "cosmos/evm staking precompile", address: "", url: "https://github.com/cosmos/evm/security/advisories/GHSA-7g4w-cg88-2cq2" }],
+    timeline: [
+      { id: "t1", phase: "Disclosure gap", description: "April report; silent patch Aug 19 without named advisory.", functionsCall: [], pseudocode: "// v0.7.2 released" },
+      { id: "t2", phase: "MANTRA", description: "Aug 20: first known exploitation.", functionsCall: [], pseudocode: "// precompile.withdraw" },
+      { id: "t3", phase: "TAC / Kii", description: "Aug 22–24: further chains hit; halt advisory Aug 22.", functionsCall: [], pseudocode: "// bonded pool drain" },
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Unprivileged EOA", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "Staking precompile", detail: "StateDB underflow", x: 300, y: 200 },
+        { id: "n3", type: "result", label: "Six chains", detail: "MANTRA/TAC/Kii+", x: 550, y: 200 },
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "delegate > spendable", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "move inert balances" },
+      ],
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "TAC bonded pool", type: "vault" },
+      { id: "b", label: "MANTRA treasuries", type: "multisig" },
+      { id: "c", label: "Attacker / CEX", type: "attacker" },
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "c", value: 3.0, label: "TAC sold" },
+      { source: "b", target: "c", value: 2.7, label: "MANTRA + others" },
+    ],
+    mitigations: [
+      { category: "Disclosure", description: "Critical shared-module bugs need named advisories and coordinated upgrade windows." },
+      { category: "Fix", description: "Upgrade to v0.6.2+ / v0.7.2+; halt if immediate upgrade impossible." },
+    ],
+    quiz: [
+      {
+        question: "Why did multiple chains fall in days?",
+        options: ["One shared CEX key", "Copied Uniswap v2 pair", "Shared cosmos/evm module + quiet patch", "LayerZero DVN"],
+        correct: 2,
+        explanation: "Identical vulnerable module; operators lacked time for state-breaking upgrades after silent release.",
+      },
+    ],
+  },
+
+  // Moonwell MAMO (August 27, 2026)
+  {
+    id: "moonwell-mamo-2026",
+    slug: "moonwell-mamo-2026",
+    title: "Moonwell",
+    subtitle: "MAMO Donation + Spot Inflate - Base",
+    year: 2026,
+    chain: "Base",
+    type: ["Oracle Manipulation", "Price Manipulation"],
+    shortDesc:
+      "Direct mMAMO donations plus a thin-book MAMO pump let the attacker extract ~$8.7M of real assets on Base.",
+    longDesc:
+      "On August 27, 2026 (06:09–09:46 UTC), an attacker exploited Moonwell's MAMO market on Base. After seeding ~799 ETH (~$1.95M USDC on Base), they minted 346M mMAMO shares from 7.1M MAMO, then direct-transferred 53.4M MAMO to the mToken contract without minting — raising exchangeRateStored from ~0.0205 to ~0.0755 (~3.7×). They pumped MAMO spot from ~$0.0106 to ~$0.43 (~40×) on thin liquidity, then borrowed cbBTC, WETH, USDC, and wstETH. PeckShield/CertiK estimate ~$8.7M net loss; Moonwell post-mortem traces ~$8.73M USDC burned via CCTP to Ethereum and swapped to DAI. Remaining borrower obligations ~$9.13M bad debt. Borrow caps on all Base core markets were set to 1 wei.",
+    technicalDesc:
+      "Two stacked distortions on Compound v2 fork: (1) raw ERC-20 transfer to mToken inflates exchangeRate for all existing shares because supply caps apply only on mint(); (2) spot oracle followed manipulated MAMO DEX price. No core reentrancy required.",
+    impact: "$8.7M",
+    impactUSD: 8700000,
+    contracts: [{ label: "mMAMO / Moonwell Base", address: "", url: "https://basescan.org" }],
+    timeline: [
+      { id: "t1", phase: "Setup", description: "Mint mMAMO; donate 53.4M MAMO to inflate exchange rate.", functionsCall: ["mint", "transfer"], pseudocode: "// exchangeRate × 3.7" },
+      { id: "t2", phase: "Pump", description: "Buy MAMO on thin books; oracle accepts ~$0.40.", functionsCall: [], pseudocode: "// spot 40×" },
+      { id: "t3", phase: "Borrow", description: "Borrow cbBTC, WETH, USDC, wstETH; bridge USDC to Ethereum.", functionsCall: ["borrow"], pseudocode: "// ~$11M gross borrowed" },
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "~799 ETH seed", x: 50, y: 200 },
+        { id: "n2", type: "vault", label: "mMAMO", detail: "Donation inflate", x: 280, y: 120 },
+        { id: "n3", type: "oracle", label: "MAMO spot", detail: "~40× print", x: 280, y: 280 },
+        { id: "n4", type: "result", label: "Borrowed assets", detail: "~$8.7M DAI", x: 520, y: 200 },
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "donate MAMO", animated: true },
+        { id: "e2", source: "n1", target: "n3", label: "pump()" },
+        { id: "e3", source: "n2", target: "n4", label: "borrow()" },
+        { id: "e4", source: "n3", target: "n4", label: "mark" },
+      ],
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Moonwell\n$8.7M", type: "vault" },
+      { id: "b", label: "Attacker", type: "attacker" },
+    ],
+    tokenFlowLinks: [{ source: "a", target: "b", value: 8.7, label: "Borrow" }],
+    mitigations: [
+      { category: "Accounting", description: "Reject or isolate raw donations to mTokens; enforce caps on all balance changes." },
+      { category: "Oracle", description: "Liquidity-aware oracles, supply/borrow caps tied to real liquidity for thin tokens." },
+    ],
+    quiz: [
+      {
+        question: "Which two steps stacked?",
+        options: ["Reentrancy + delegatecall", "mToken donation + thin spot pump", "Flash loan + approval phishing", "Multisig social engineering"],
+        correct: 1,
+        explanation: "Donation inflated mToken rate; spot oracle then printed an even higher collateral mark.",
+      },
+    ],
+  },
+
+  // Sandbox SAND OFT (August 21–22, 2026)
+  {
+    id: "sandbox-sand-oft-2026",
+    slug: "sandbox-sand-oft-2026",
+    title: "The Sandbox",
+    subtitle: "OFT Bridge Config - Base / BSC",
+    year: 2026,
+    chain: "Multichain",
+    chains: ["Base", "BNB Chain", "Ethereum"],
+    type: ["Access Control", "Bridge"],
+    shortDesc:
+      "Attacker hijacked SAND OFT delegate on Base/BSC, minted unbacked SAND, and redeemed 14.7M SAND (~$697K) from the Ethereum vault.",
+    longDesc:
+      "From August 21, 2026, an attacker exploited The Sandbox's LayerZero OFT configuration on Base and BNB Smart Chain via approveAndCall-style delegate takeover, becoming sole verifier of inbound bridge messages. They minted hundreds of billions of unbacked SAND (reports up to trillions on-chain; SAND max supply is 3B). Some was dumped on Aerodrome; 14,742,341.84 SAND (~$697K) was redeemed from the Ethereum backing vault. Bridges closed August 22 05:26 UTC. Total economic impact ~$1.5M per official post-mortem; ETH L1 and Polygon SAND untouched. 1:1 compensation for pre-attack Base/BSC holders from treasury.",
+    technicalDesc:
+      "Bridge app misconfiguration, not LayerZero core bug. Attacker rotated OFT delegate/verifier and approved fraudulent mint messages with no ETH-side lock. Unbacked L2 supply was mostly isolated; real loss was Ethereum vault redemption plus AMM dumps.",
+    impact: "$697K",
+    impactUSD: 697000,
+    contracts: [{ label: "SAND OFT / ETH vault", address: "", url: "https://etherscan.io" }],
+    timeline: [
+      { id: "t1", phase: "Setup", description: "Hijack Base/BSC OFT delegate and verifier roles.", functionsCall: ["approveAndCall"], pseudocode: "// setDelegate(attacker)" },
+      { id: "t2", phase: "Mint", description: "Mint unbacked SAND on Base/BSC.", functionsCall: ["mint"], pseudocode: "// no L1 lock" },
+      { id: "t3", phase: "Cash out", description: "Redeem 14.7M SAND from ETH vault; dump on Base AMM.", functionsCall: ["redeem"], pseudocode: "// vault.withdraw()" },
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Sole verifier", x: 50, y: 200 },
+        { id: "n2", type: "bridge", label: "SAND OFT", detail: "Base / BSC", x: 300, y: 200 },
+        { id: "n3", type: "vault", label: "ETH vault", detail: "14.7M SAND", x: 550, y: 200 },
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "fake mint msgs", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "redeem" },
+      ],
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "ETH vault", type: "vault" },
+      { id: "b", label: "Attacker", type: "attacker" },
+    ],
+    tokenFlowLinks: [{ source: "a", target: "b", value: 0.697, label: "Redeem" }],
+    mitigations: [
+      { category: "Bridge", description: "Immutable verifier set; separate bridge app from token; cap daily redeem vs locked inventory." },
+      { category: "Config", description: "Disable approveAndCall paths that can rotate privileged delegates." },
+    ],
+    quiz: [
+      {
+        question: "Where did real value leave?",
+        options: ["Polygon mint", "Ethereum vault redemptions + Base dumps", "Solana program", "Cronos halt"],
+        correct: 1,
+        explanation: "Unbacked L2 mint was mostly isolated; ETH vault redeem and AMM dumps were the cash-out.",
+      },
+    ],
+  },
+
+  // Fogo Foundation (August 29, 2026)
+  {
+    id: "fogo-foundation-2026",
+    slug: "fogo-foundation-2026",
+    title: "Fogo Foundation",
+    subtitle: "Foundation Wallet Compromise - Fogo",
+    year: 2026,
+    chain: "Fogo",
+    type: ["Key Compromise", "Infrastructure"],
+    shortDesc:
+      "400M FOGO (~$3M, >10% of circulating supply) left a compromised Foundation wallet; validators later halted mainnet.",
+    longDesc:
+      "On August 29, 2026, the Fogo Foundation disclosed that an unknown actor compromised Foundation-controlled wallets and transferred 400 million FOGO (~4% of 10B genesis supply, >10% of ~3.88B circulating) worth roughly $3M at market prices. This was treasury infrastructure, not a consensus or smart-contract exploit. The team alerted exchanges, law enforcement, and forensic firms; validators later halted mainnet to restrict attacker-linked addresses before a network upgrade. User staked funds and personal wallets were reported unaffected.",
+    technicalDesc:
+      "Operational key-management failure at the Foundation layer. Attack vector undisclosed as of public statements — candidates include leaked private keys or cloud infrastructure compromise. Network halt and address restrictions are governance/validator responses, not evidence of a chain-level logic bug.",
+    impact: "$3M",
+    impactUSD: 3000000,
+    contracts: [{ label: "Fogo Foundation wallets", address: "", url: "https://fogo.io" }],
+    timeline: [
+      { id: "t1", phase: "Theft", description: "400M FOGO sent to attacker address.", functionsCall: [], pseudocode: "// treasury transfer" },
+      { id: "t2", phase: "Response", description: "Exchange alerts; law enforcement engaged.", functionsCall: [], pseudocode: "// freeze deposits" },
+      { id: "t3", phase: "Halt", description: "Validators halt mainnet; prepare address-restriction upgrade.", functionsCall: [], pseudocode: "// contain movement" },
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Unknown vector", x: 50, y: 200 },
+        { id: "n2", type: "vault", label: "Foundation wallet", detail: "400M FOGO", x: 300, y: 200 },
+        { id: "n3", type: "result", label: "Attacker EOA", detail: "~$3M", x: 550, y: 200 },
+      ],
+      edges: [
+        { id: "e1", source: "n2", target: "n3", label: "unauthorized transfer", animated: true },
+        { id: "e2", source: "n1", target: "n2", label: "compromise", animated: true },
+      ],
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Foundation\n400M FOGO", type: "vault" },
+      { id: "b", label: "Attacker", type: "attacker" },
+    ],
+    tokenFlowLinks: [{ source: "a", target: "b", value: 3.0, label: "Treasury" }],
+    mitigations: [
+      { category: "Ops", description: "Multisig + hardware keys for treasury; no single hot wallet for large allocations." },
+      { category: "Monitoring", description: "Real-time alerts on Foundation outflows above threshold." },
+    ],
+    quiz: [
+      {
+        question: "Was Fogo's consensus code exploited?",
+        options: ["Yes — validator key leak", "No — Foundation wallet compromise", "Yes — staking precompile", "Bridge replay"],
+        correct: 1,
+        explanation: "Public statements separate Foundation treasury access from chain protocol security.",
+      },
+    ],
+  },
+
+  // Avici / Rain (August 28–29, 2026)
+  {
+    id: "avici-rain-2026",
+    slug: "avici-rain-2026",
+    title: "Avici",
+    subtitle: "Rain Card AddCollateralAdmin - Solana",
+    year: 2026,
+    chain: "Solana",
+    type: ["Access Control", "Protocol Logic"],
+    shortDesc:
+      "Flawed Ed25519 verification in Rain's legacy card contract let attacker call AddCollateralAdmin and drain $500,859 from 1,685 Avici users.",
+    longDesc:
+      "On August 28–29, 2026, an attacker exploited an authorization bug in an outdated Rain Solana card-collateral contract used by Avici (and Tria). Via SubmitSignatures + misrouted Ed25519 verification, the attacker registered themselves as collateral admin on user accounts, then called WithdrawCollateralAsset across 1,685 Avici card balances totaling $500,859.22. Tria reported a further $431,945 from 636 users on the same contract version. Rain upgraded all affected programs; Avici fully refunded users plus 10% cashback. Ordinary self-custodial wallets were not affected.",
+    technicalDesc:
+      "Second signature verification was incorrectly bound to the first instruction's Ed25519 context, letting the attacker's own signature satisfy admin checks. Attacker path: SubmitSignatures → AddCollateralAdmin → WithdrawCollateralAsset, repeated programmatically.",
+    impact: "$501K",
+    impactUSD: 500859,
+    contracts: [{ label: "Rain card collateral (Solana)", address: "", url: "https://solscan.io" }],
+    timeline: [
+      { id: "t1", phase: "Exploit", description: "Crafted signature bundle passes flawed verification.", functionsCall: ["SubmitSignatures"], pseudocode: "// bad Ed25519 bind" },
+      { id: "t2", phase: "Escalate", description: "AddCollateralAdmin on user collateral accounts.", functionsCall: ["AddCollateralAdmin"], pseudocode: "// attacker = admin" },
+      { id: "t3", phase: "Drain", description: "WithdrawCollateralAsset across 1,685 accounts.", functionsCall: ["WithdrawCollateralAsset"], pseudocode: "// sweep card balances" },
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "~$190 gas", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "Rain card contract", detail: "Bad sig verify", x: 280, y: 200 },
+        { id: "n3", type: "vault", label: "User card balances", detail: "1,685 accounts", x: 520, y: 200 },
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "SubmitSignatures", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "AddCollateralAdmin" },
+        { id: "e3", source: "n3", target: "n1", label: "WithdrawCollateral" },
+      ],
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Avici cards\n$501K", type: "vault" },
+      { id: "b", label: "Attacker", type: "attacker" },
+    ],
+    tokenFlowLinks: [{ source: "a", target: "b", value: 0.501, label: "Card drain" }],
+    mitigations: [
+      { category: "Fix", description: "Bind each Ed25519 verify to its intended instruction; audit legacy deployed program versions." },
+      { category: "Upgrade", description: "Force migration off deprecated card contract versions across all Rain partners." },
+    ],
+    quiz: [
+      {
+        question: "What function granted the attacker control?",
+        options: ["mint()", "AddCollateralAdmin", "initializePool()", "vote()"],
+        correct: 1,
+        explanation: "After bypassing signature checks, AddCollateralAdmin registered the attacker on user collateral accounts.",
+      },
+    ],
+  },
+
+  // Ajna V2 (August 28–29, 2026)
+  {
+    id: "ajna-v2-2026",
+    slug: "ajna-v2-2026",
+    title: "Ajna V2",
+    subtitle: "Liquidation Accounting - Ethereum",
+    year: 2026,
+    chain: "Ethereum",
+    type: ["Protocol Logic"],
+    shortDesc:
+      "Self-dealing liquidation auction math drained $775.4K from seven oracleless Ajna v2 pools.",
+    longDesc:
+      "Between August 28–29, 2026, Ajna v2 — an immutable, oracleless lending protocol — lost ~$775.4K across seven Ethereum pools. Attack contracts deployed ~15:16 UTC Aug 28; first extraction on cbETH pool at 16:19 UTC (block 25,854,888). Defimon alerted >1 hour before some extractions. Losses: syrupUSDC $173.7K, wstETH $159.8K, rETH $143K, cbETH $137K, WBTC $101.8K, WETH/USDC $42K, sDAI $18K. Attacker steered kick/take/settle accounting to extract quote tokens below fair bond math. Team urged users to withdraw and repay; no pause mechanism exists.",
+    technicalDesc:
+      "Oracleless design still has internal price discovery via liquidation auctions. Attacker acted as kicker and taker, manipulating bucketTake/removeCollateral/take/AuctionSettle sequence so collateral left while quote paid trended toward zero. Immutable contracts prevent post-deploy mitigation.",
+    impact: "$775K",
+    impactUSD: 775400,
+    contracts: [{ label: "Ajna v2 pools", address: "", url: "https://etherscan.io" }],
+    timeline: [
+      { id: "t1", phase: "Deploy", description: "Attack contracts deployed Aug 28 15:16 UTC.", functionsCall: [], pseudocode: "// deploy liquidator" },
+      { id: "t2", phase: "Extract", description: "Iterate seven pools via same selector.", functionsCall: ["kick", "take"], pseudocode: "// auction math abuse" },
+      { id: "t3", phase: "Alert", description: "Defimon public accounting Aug 29; users told to exit.", functionsCall: [], pseudocode: "// no pause path" },
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Self-auction", x: 50, y: 200 },
+        { id: "n2", type: "pool", label: "Ajna pools", detail: "7 markets", x: 300, y: 200 },
+        { id: "n3", type: "result", label: "$775K", detail: "Quote out", x: 550, y: 200 },
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "manipulate auction", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "extract" },
+      ],
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Ajna v2\n$775K", type: "pool" },
+      { id: "b", label: "Attacker", type: "attacker" },
+    ],
+    tokenFlowLinks: [{ source: "a", target: "b", value: 0.775, label: "Liquidation" }],
+    mitigations: [
+      { category: "Fix", description: "Bound take prices; prevent same-block kicker+taker self-dealing; add pause in new deployments." },
+      { category: "Monitoring", description: "Automated alerts on anomalous auction settlement ratios." },
+    ],
+    quiz: [
+      {
+        question: "Ajna is oracleless. What still broke?",
+        options: ["Chainlink heartbeat", "Internal liquidation accounting", "Bridge mint", "MPC"],
+        correct: 1,
+        explanation: "Auction math substitutes for oracles — it was the exploited surface.",
+      },
+    ],
+  },
+
+  // Tectonic (August 30, 2026)
+  {
+    id: "tectonic-2026",
+    slug: "tectonic-2026",
+    title: "Tectonic",
+    subtitle: "Spot Oracle Manipulation - Cronos",
+    year: 2026,
+    chain: "Cronos",
+    type: ["Oracle Manipulation", "Price Manipulation"],
+    shortDesc:
+      "Attacker pumped illiquid TONIC ~100× and borrowed ~$74M of real assets; Cronos halted and rolled back most proceeds.",
+    longDesc:
+      "On August 30, 2026, Tectonic — Cronos's largest lender (~$122M TVL) — was drained via classic pump-and-borrow. TONIC, Tectonic's governance token, had ~$305K weekly volume and a 20% collateral factor despite thin liquidity (~$11K/day). In ~20 minutes the attacker inflated TONIC roughly 100× on spot markets, posted it as collateral, and borrowed WETH, stables, and BTC-pegged assets. PeckShield estimated ~$74M borrowed; only ~$6M bridged to Ethereum before Cronos validators halted at block ~90,907,150. Validators later restarted from a pre-attack snapshot (block 90,896,189), reversing most on-chain proceeds. TVL fell from ~$121.7M to ~$3M.",
+    technicalDesc:
+      "Lending oracle tracked manipulable TONIC spot price on illiquid pairs. No Solidity reentrancy required — economic attack class matching Mango Markets / recent Moonwell MAMO incident. Collateral factor and missing liquidity floors let inflated marks support tens of millions in borrows.",
+    impact: "$74M",
+    impactUSD: 74000000,
+    contracts: [{ label: "Tectonic markets", address: "", url: "https://cronoscan.com" }],
+    timeline: [
+      { id: "t1", phase: "Setup", description: "Accumulate TONIC; seed thin DEX liquidity.", functionsCall: [], pseudocode: "// buy TONIC" },
+      { id: "t2", phase: "Attack", description: "Pump TONIC ~100×; supply collateral; borrow hard assets.", functionsCall: ["mint", "borrow"], pseudocode: "// oracle × 100" },
+      { id: "t3", phase: "Containment", description: "Cronos halt; ~$6M on Ethereum; chain rollback.", functionsCall: [], pseudocode: "// validator rollback" },
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Thin-book buyer", x: 50, y: 200 },
+        { id: "n2", type: "oracle", label: "TONIC spot", detail: "~100× print", x: 280, y: 120 },
+        { id: "n3", type: "vault", label: "Tectonic", detail: "Lending pools", x: 280, y: 280 },
+        { id: "n4", type: "result", label: "Drain + rollback", detail: "~$74M / $6M escaped", x: 520, y: 200 },
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "pump()", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "collateral mark" },
+        { id: "e3", source: "n1", target: "n3", label: "borrow()" },
+        { id: "e4", source: "n3", target: "n4", label: "drain" },
+      ],
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Tectonic\n~$74M", type: "vault" },
+      { id: "b", label: "Attacker", type: "attacker" },
+      { id: "c", label: "Ethereum\n~$6M", type: "bridge" },
+    ],
+    tokenFlowLinks: [
+      { source: "a", target: "b", value: 68, label: "Reversed on rollback" },
+      { source: "a", target: "c", value: 6, label: "Bridged pre-halt" },
+    ],
+    mitigations: [
+      { category: "Oracle", description: "TWAP + liquidity floors; do not list own illiquid governance token as borrow collateral." },
+      { category: "Risk", description: "Circuit-breakers when spot deviates >X% from lagged index; auto-delist thin assets." },
+    ],
+    quiz: [
+      {
+        question: "What was the primary failure?",
+        options: ["Reentrancy in borrow()", "GG20 key leak", "Thin-market oracle on TONIC collateral", "Validator 51%"],
+        correct: 2,
+        explanation: "The oracle accepted a manipulated TONIC spot price on illiquid markets.",
+      },
+    ],
+  },
+
+  // Harmony ONE mint (August 12, 2026)
+  {
+    id: "harmony-one-mint-2026",
+    slug: "harmony-one-mint-2026",
+    title: "Harmony",
+    subtitle: "Unauthorized ONE Mint - Harmony",
+    year: 2026,
+    chain: "Harmony",
+    type: ["Protocol Logic", "Access Control"],
+    shortDesc:
+      "Cross-shard receipt and quorum verification bugs let attacker mint trillions of ONE; network rolled back to August 11.",
+    longDesc:
+      "On August 12, 2026, Harmony suffered unauthorized ONE minting via cross-shard receipt validation and pre-staking quorum verification flaws. Initial empty-block mints created 4B ONE (~26% of ~15B supply); extended exploitation forged cross-shard receipts for up to 2.385 trillion ONE in ~106 seconds (477 of 534 attempted 5B transfers succeeded). ONE fell ~40% as forged supply hit exchanges. Harmony deployed emergency patch v2026.1.1, paused bridges, and executed full rollback to block 92,730,034 (Aug 11 23:25 UTC), discarding 109,441 post-breach transactions. Halborn estimated initial 4B ONE at ~$3.2M market value before full scale and rollback.",
+    technicalDesc:
+      "Quorum check counted public keys in signature mask rather than validators who actually signed. Attacker submitted empty blocks and forged cross-shard receipts to mint ONE without real consensus. totalSupply endpoint lagged, delaying detection while tokens moved to CEXes.",
+    impact: "$3.2M",
+    impactUSD: 3200000,
+    contracts: [{ label: "Harmony cross-shard / consensus", address: "", url: "https://explorer.harmony.one" }],
+    timeline: [
+      { id: "t1", phase: "Mint", description: "Empty blocks + forged cross-shard receipts mint ONE.", functionsCall: [], pseudocode: "// fake quorum" },
+      { id: "t2", phase: "Distribution", description: "Tokens routed to exchanges; ONE price −40%.", functionsCall: [], pseudocode: "// 409 wallets" },
+      { id: "t3", phase: "Rollback", description: "Patch + bridge pause; rollback to Aug 11 state.", functionsCall: [], pseudocode: "// revert 109k txs" },
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Forged receipts", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "Consensus / cross-shard", detail: "Bad quorum check", x: 300, y: 200 },
+        { id: "n3", type: "result", label: "2.385T ONE minted", detail: "Rollback", x: 550, y: 200 },
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "empty blocks", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "unauthorized mint" },
+      ],
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Harmony supply", type: "vault" },
+      { id: "b", label: "Attacker / CEX", type: "attacker" },
+    ],
+    tokenFlowLinks: [{ source: "a", target: "b", value: 3.2, label: "Initial extract" }],
+    mitigations: [
+      { category: "Consensus", description: "Verify actual validator signatures, not mask length; atomic totalSupply updates." },
+      { category: "Response", description: "Exchange freeze lists + rollback playbook for supply-inflation incidents." },
+    ],
+    quiz: [
+      {
+        question: "What did the quorum bug check incorrectly?",
+        options: ["Block timestamp order", "Number of keys in mask vs validators who signed", "Gas price", "Bridge nonce"],
+        correct: 1,
+        explanation: "Mask length was treated as quorum without confirming which validators signed.",
+      },
+    ],
+  },
+
+  // Injective (August 31, 2026)
+  {
+    id: "injective-binary-2026",
+    slug: "injective-binary-2026",
+    title: "Injective",
+    subtitle: "Binary Options Settlement - Injective",
+    year: 2026,
+    chain: "Injective",
+    type: ["Protocol Logic", "Oracle Manipulation"],
+    shortDesc:
+      "Self-traded binary markets on a dead oracle triggered no-price refunds that overpaid ~$4.9M; chain stalled ~3h42m.",
+    longDesc:
+      "On August 31, 2026, Injective block production stalled ~3h42m (height 181,027,006 → 181,027,007) after an exploit in native binary options settlement. The attacker created hundreds of instant markets referencing a self-controlled oracle (reported symbol NO_PRICE_FOR_REFUND_P44_USDC), forced no-price refund paths, and withdrew more than deposited — e.g. ~105K USDC in yielding ~205K USDC out in indexed samples. Researchers cite market-ID concatenation without separators mapping insurance-fund denominations incorrectly. ~1,980 ETH (~$4.9M) bridged to Ethereum per on-chain analysts; Injective has not published an official loss figure. Network resumed with v1.20.3-safeharbor.1 disabling binary options; no rollback.",
+    technicalDesc:
+      "Refund/settlement compared raw amounts across mismatched denominations when no oracle price existed. Attacker self-traded both sides at fixed prices to trigger insurance-fund payouts at ~2× collateral. Patch added insurance-fund denomination check and disabled binary options on mainnet.",
+    impact: "$4.9M",
+    impactUSD: 4900000,
+    contracts: [{ label: "Binary options / insurance fund", address: "", url: "https://explorer.injective.network" }],
+    timeline: [
+      { id: "t1", phase: "Setup", description: "Create instant markets on attacker-controlled oracle.", functionsCall: [], pseudocode: "// createMarket(deadOracle)" },
+      { id: "t2", phase: "Attack", description: "Self-trade; trigger no-price refund; over-withdraw.", functionsCall: [], pseudocode: "// refund() > deposit" },
+      { id: "t3", phase: "Upgrade", description: "Emergency patch; binary options disabled.", functionsCall: [], pseudocode: "// safeharbor.1" },
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Self-trading subs", x: 50, y: 200 },
+        { id: "n2", type: "oracle", label: "Dead oracle", detail: "No settlement price", x: 280, y: 120 },
+        { id: "n3", type: "pool", label: "Insurance fund", detail: "Denom mismatch", x: 280, y: 280 },
+        { id: "n4", type: "result", label: "~$4.9M ETH", detail: "Bridged out", x: 520, y: 200 },
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "createMarket", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "no-price refund" },
+        { id: "e3", source: "n3", target: "n4", label: "overpay" },
+      ],
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Injective\n$4.9M", type: "vault" },
+      { id: "b", label: "Attacker ETH", type: "attacker" },
+    ],
+    tokenFlowLinks: [{ source: "a", target: "b", value: 4.9, label: "Refund overpay" }],
+    mitigations: [
+      { category: "Fix", description: "Canonical market IDs with separators; refunds in same denom as collateral; disable dead oracles." },
+      { category: "Settlement", description: "Never compare raw unit amounts across different asset denominations." },
+    ],
+    quiz: [
+      {
+        question: "What enabled over-withdrawal?",
+        options: ["Reentrancy", "No-price refund + insurance-fund mapping bug", "MPC leak", "Governance vote"],
+        correct: 1,
+        explanation: "Forced no-price refunds paid more collateral than was posted when denominations collided.",
+      },
+    ],
+  },
+
+  // Aquifer (August 31, 2026)
+  {
+    id: "aquifer-2026",
+    slug: "aquifer-2026",
+    title: "Aquifer",
+    subtitle: "Fake Balance Account - Solana",
+    year: 2026,
+    chain: "Solana",
+    type: ["Access Control", "Protocol Logic"],
+    shortDesc:
+      "212 zero-input swaps in 40 minutes drained ~$2.47M from Aquifer vaults using a fabricated USDC balance account.",
+    longDesc:
+      "On August 31, 2026 (~04:00 UTC), Aquifer — a Solana prop AMM routed by Jupiter — lost ~$2.47M across 212 transactions in ~40 minutes. Bitquery reconstruction: the attacker supplied a self-created token account falsely asserting USDC balance; Aquifer honored it as payment and sent real assets from 18 vault stores (USDC $1.28M, USDT $0.46M, cbBTC, WETH, etc.). Proceeds sold to SOL, bridged to Ethereum as ~1,000.8 ETH in 0x2Dfe…922746 (no outgoing txs as of Sep 1). Aquifer offered 80% return / 20% bounty until Sep 3 14:00 UTC.",
+    technicalDesc:
+      "AMM trusted user-supplied token account data without verifying mint, token program, and pool authority ownership of inventory. Attacker program performed swaps paying fake USDC — classic account validation failure on Solana.",
+    impact: "$2.47M",
+    impactUSD: 2470000,
+    contracts: [{ label: "Aquifer AMM program", address: "", url: "https://solscan.io" }],
+    timeline: [
+      { id: "t1", phase: "Setup", description: "Deploy attacker program / fake USDC balance account.", functionsCall: [], pseudocode: "// fake_usdc.amount = MAX" },
+      { id: "t2", phase: "Attack", description: "212 zero-in swaps drain 18 vaults.", functionsCall: [], pseudocode: "// swap(fake -> real)" },
+      { id: "t3", phase: "Exit", description: "SOL → ~1,001 ETH on Ethereum.", functionsCall: [], pseudocode: "// bridge proceeds" },
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker program", detail: "Fake USDC acct", x: 50, y: 200 },
+        { id: "n2", type: "pool", label: "Aquifer vaults", detail: "18 stores", x: 300, y: 200 },
+        { id: "n3", type: "result", label: "~1,001 ETH", detail: "Ethereum", x: 550, y: 200 },
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "swap(fake)", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "SOL→ETH" },
+      ],
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "Aquifer\n$2.47M", type: "pool" },
+      { id: "b", label: "Attacker", type: "attacker" },
+    ],
+    tokenFlowLinks: [{ source: "a", target: "b", value: 2.47, label: "Drain" }],
+    mitigations: [
+      { category: "Fix", description: "Verify mint + token program + that input accounts are real pool inventory, not user-owned fakes." },
+      { category: "Validation", description: "Reject swaps where input token account owner/mint does not match expected vault custody." },
+    ],
+    quiz: [
+      {
+        question: "What did Aquifer accept as payment?",
+        options: ["A fabricated balance account", "A zk proof", "A governance NFT", "A CCTP attestation"],
+        correct: 0,
+        explanation: "The AMM sent real tokens against a user-owned account that was not genuine USDC inventory.",
+      },
+    ],
+  },
+
+  // More Markets / Ankr (August 31, 2026)
+  {
+    id: "more-markets-ankr-2026",
+    slug: "more-markets-ankr-2026",
+    title: "More Markets",
+    subtitle: "Unbacked ankrFLOW Collateral - Flow EVM",
+    year: 2026,
+    chain: "Flow EVM",
+    type: ["Protocol Logic", "Oracle Manipulation"],
+    shortDesc:
+      "Ankr ankrFLOW mint bug created 8.6M unbacked tokens used to drain ~15.5M WFLOW (~$410K) from More Markets.",
+    longDesc:
+      "On August 31, 2026 (~06:18 UTC), an attacker exploited a vulnerability in Ankr's ankrFLOW liquid-staking contract on Flow EVM, minting ~8.6M ankrFLOW with no FLOW backing. They supplied it as collateral on More Markets (Aave V3 fork) and borrowed ~15.5M WFLOW from the mFlowWFLOW reserve. Blockaid initially estimated $9.3M using an incorrect WFLOW price; corrected loss ~$410K (~$246–250K realized after slippage). Root bug was in Ankr's Solidity contract, not Flow consensus or More Markets core logic. Ankr and More Markets paused contracts; Flow Foundation committed to replenishing drained reserves.",
+    technicalDesc:
+      "ankrFLOW contract allowed token creation without corresponding stake deposit. More Markets accepted ankrFLOW as collateral with E-Mode elevated borrowing power. Unbacked LST treated as valid collateral → WFLOW reserve drain. Initial $9.3M headline was a detector pricing error.",
+    impact: "$410K",
+    impactUSD: 410000,
+    contracts: [{ label: "ankrFLOW / More Markets", address: "", url: "https://flowscan.org" }],
+    timeline: [
+      { id: "t1", phase: "Mint", description: "Create ~8.6M unbacked ankrFLOW via Ankr contract bug.", functionsCall: [], pseudocode: "// mint without stake" },
+      { id: "t2", phase: "Borrow", description: "Supply ankrFLOW; borrow 15.5M WFLOW from More Markets.", functionsCall: ["supply", "borrow"], pseudocode: "// E-Mode leverage" },
+      { id: "t3", phase: "Exit", description: "Swap WFLOW; ~$246K realized after slippage.", functionsCall: [], pseudocode: "// thin market exit" },
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Unbacked LST", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "ankrFLOW", detail: "Mint bug", x: 280, y: 120 },
+        { id: "n3", type: "vault", label: "More Markets", detail: "WFLOW reserve", x: 280, y: 280 },
+        { id: "n4", type: "result", label: "~$410K", detail: "~$246K net", x: 520, y: 200 },
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "mint unbacked", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "collateral" },
+        { id: "e3", source: "n3", target: "n4", label: "borrow WFLOW" },
+      ],
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "More Markets\n15.5M WFLOW", type: "vault" },
+      { id: "b", label: "Attacker", type: "attacker" },
+    ],
+    tokenFlowLinks: [{ source: "a", target: "b", value: 0.41, label: "Borrow drain" }],
+    mitigations: [
+      { category: "LST", description: "Enforce mint/redeem invariants tying ankrFLOW supply to staked FLOW." },
+      { category: "Lending", description: "Verify LST exchange-rate oracles against on-chain stake backing before listing." },
+    ],
+    quiz: [
+      {
+        question: "Why was the first $9.3M estimate wrong?",
+        options: ["Double-counted txs", "Detector used incorrect WFLOW price", "Included recovered funds", "Counted testnet tokens"],
+        correct: 1,
+        explanation: "Blockaid corrected the figure after repricing WFLOW at spot (~$410K for 15.5M tokens).",
+      },
+    ],
+  },
+
+  // Reflexer GEB (September 2, 2026)
+  {
+    id: "reflexer-geb-2026",
+    slug: "reflexer-geb-2026",
+    title: "Reflexer",
+    subtitle: "quitSystem Without DSProxy - Ethereum",
+    year: 2026,
+    chain: "Ethereum",
+    type: ["Access Control", "Protocol Logic"],
+    shortDesc:
+      "Calling quitSystem directly instead of via DSProxy misrecorded SAFE ownership and let an attacker steal ~5.94 ETH collateral.",
+    longDesc:
+      "On September 2, 2026, SlowMist reported a permissions-check flaw in Reflexer Finance's GEB (RAI) system. A user closed a collateral position (SAFE) by calling quitSystem directly instead of routing through the required DSProxy intermediary. That misrecorded the SAFE owner as GebProxyActions rather than the user. An attacker observed the wrong owner field, bypassed ownership checks, and withdrew ~5.9436 ETH collateral. Small absolute loss but illustrates how DeFi assumes users always follow intended proxy call paths.",
+    technicalDesc:
+      "quitSystem direct call wrote incorrect owner state (GebProxyActions instead of user). Subsequent withdraw path trusted owner mapping without validating the proxy-mediated flow was used. Attacker exploited stale/wrong owner assignment to pull collateral.",
+    impact: "~6 ETH",
+    impactUSD: 26000,
+    contracts: [{ label: "Reflexer GEB / GebProxyActions", address: "", url: "https://etherscan.io" }],
+    timeline: [
+      { id: "t1", phase: "Mis-call", description: "User calls quitSystem directly; owner misrecorded.", functionsCall: ["quitSystem"], pseudocode: "// skip DSProxy" },
+      { id: "t2", phase: "Exploit", description: "Attacker withdraws collateral via ownership confusion.", functionsCall: ["withdraw"], pseudocode: "// wrong owner field" },
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "contract", label: "User SAFE", detail: "Direct quitSystem", x: 50, y: 200 },
+        { id: "n2", type: "contract", label: "GebProxyActions", detail: "Recorded owner", x: 280, y: 120 },
+        { id: "n3", type: "attacker", label: "Attacker", detail: "Ownership bypass", x: 280, y: 280 },
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "quitSystem()", animated: true },
+        { id: "e2", source: "n3", target: "n2", label: "withdraw collateral" },
+      ],
+    },
+    tokenFlowNodes: [
+      { id: "a", label: "SAFE\n5.94 ETH", type: "vault" },
+      { id: "b", label: "Attacker", type: "attacker" },
+    ],
+    tokenFlowLinks: [{ source: "a", target: "b", value: 0.026, label: "~6 ETH" }],
+    mitigations: [
+      { category: "Fix", description: "Require DSProxy-only entrypoints for state-changing SAFE ops; reject direct quitSystem." },
+      { category: "Ownership", description: "Invariant-check SAFE owner matches expected proxy/user after every mutation." },
+    ],
+    quiz: [
+      {
+        question: "What user action created the vulnerable state?",
+        options: ["Flash loan", "Direct quitSystem without DSProxy", "Oracle update", "Bridge deposit"],
+        correct: 1,
+        explanation: "Bypassing DSProxy misassigned SAFE ownership to GebProxyActions.",
+      },
+    ],
+  },
+
   // Coldcard Firmware Entropy Failure (July 30, 2026 — ongoing)
   {
     id: "coldcard-2026",
