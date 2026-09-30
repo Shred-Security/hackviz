@@ -18,7 +18,6 @@ import {
   Calendar,
   ArrowDownUp,
   ShieldCheck,
-  ArrowUpRight,
 } from "lucide-react";
 import { FaGithub, FaLinkedin } from "react-icons/fa";
 import { FaXTwitter } from "react-icons/fa6";
@@ -158,21 +157,22 @@ export default function HomePage() {
               hunt and secure the blockchain.
             </p>
 
-            <nav aria-label="Shred Security social links" className="mt-8 flex flex-wrap justify-center gap-2">
-              {SOCIAL_LINKS.map(({ label, href, Icon }) => (
-                <a
-                  key={label}
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={`Shred Security on ${label}`}
-                  className="group/social inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background/60 px-3.5 py-2 text-sm font-medium text-foreground/85 backdrop-blur transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:text-primary hover:shadow-[0_0_14px_rgba(0,255,255,0.15)]"
-                >
-                  <Icon className="h-4 w-4" />
-                  {label}
-                  <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground transition-transform group-hover/social:-translate-y-0.5 group-hover/social:translate-x-0.5 group-hover/social:text-primary" />
-                </a>
-              ))}
+            <nav aria-label="Shred Security social links" className="mt-8 flex flex-col items-center">
+              <div className="flex items-center gap-3">
+                {SOCIAL_LINKS.map(({ label, href, Icon }) => (
+                  <a
+                    key={label}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`Shred Security on ${label}`}
+                    title={label}
+                    className="p-1.5 text-foreground/80 transition-all hover:-translate-y-0.5 hover:text-primary"
+                  >
+                    <Icon className="h-5 w-5" />
+                  </a>
+                ))}
+              </div>
             </nav>
           </div>
         </section>
