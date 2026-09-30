@@ -17,6 +17,7 @@ import {
   DollarSign,
   Calendar,
   ArrowDownUp,
+  ShieldCheck,
 } from "lucide-react";
 
 const ALL_TYPES = [
@@ -102,28 +103,70 @@ export default function HomePage() {
     <div className="min-h-screen px-6 py-8 max-w-7xl mx-auto">
       {/* Hero */}
       <div className="mb-10">
-        <div className="flex items-center gap-2 mb-3">
-          <AlertTriangle className="w-5 h-5 text-yellow-400" />
-          <span className="text-xs text-muted-foreground font-mono uppercase tracking-widest">
-            Defensive Learning Platform
-          </span>
-        </div>
-        <h1 className="text-4xl md:text-5xl font-bold mb-1">
-          <span className="glow-cyan">Hack</span>
-          <span className="text-foreground/80">Viz</span>
-        </h1>
-        <p className="text-xs text-muted-foreground/60 font-mono mb-3">
-          A{" "}
-          <a href="https://shredsecurity.io" target="_blank" rel="noopener noreferrer" className="text-red-400/80 hover:text-red-300 transition-colors">
-            Shred Security
-          </a>{" "}
-          product, built for the community
-        </p>
-        <p className="text-muted-foreground max-w-2xl text-sm md:text-base leading-relaxed">
-          Simulate and learn every exploit. Visualize smart contract
-          drains, bridge hacks, flash loans, oracle manipulations, and
-          governance attacks. Learn how to hunt and secure the blockchain.
-        </p>
+        <section className="relative overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/[0.07] via-background to-background px-6 py-10 md:px-10 md:py-14">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 opacity-[0.07] [background-image:linear-gradient(hsl(var(--primary))_1px,transparent_1px),linear-gradient(90deg,hsl(var(--primary))_1px,transparent_1px)] [background-size:32px_32px] [mask-image:radial-gradient(ellipse_at_top_left,black,transparent_70%)]"
+          />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -top-24 -left-24 h-72 w-72 rounded-full bg-primary/20 blur-3xl"
+          />
+
+          <div className="relative">
+            <span className="inline-flex items-center gap-2 rounded-full border border-yellow-400/30 bg-yellow-400/10 px-3 py-1 text-[11px] font-mono uppercase tracking-widest text-yellow-300">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Defensive Learning Platform
+            </span>
+
+            <h1 className="mt-5 text-5xl md:text-7xl font-bold tracking-tight leading-none">
+              <span className="glow-cyan">Hack</span>
+              <span className="text-foreground/90">Viz</span>
+            </h1>
+
+            <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-mono text-muted-foreground">
+              <span>
+                A{" "}
+                <a
+                  href="https://shredsecurity.io"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-red-400 hover:text-red-300 transition-colors"
+                >
+                  Shred Security
+                </a>{" "}
+                product
+              </span>
+              <span className="h-1 w-1 rounded-full bg-muted-foreground/50" />
+              <span>Built for the community</span>
+            </p>
+
+            <p className="mt-8 max-w-3xl text-2xl md:text-3xl font-semibold leading-snug text-foreground">
+              Simulate and learn every exploit.
+            </p>
+            <p className="mt-3 max-w-2xl text-sm md:text-base leading-relaxed text-muted-foreground">
+              Visualize how real attacks unfold, step by step, then learn how to
+              hunt and secure the blockchain.
+            </p>
+
+            <ul className="mt-5 flex flex-wrap gap-2">
+              {[
+                "Smart contract drains",
+                "Bridge hacks",
+                "Flash loans",
+                "Oracle manipulations",
+                "Governance attacks",
+              ].map((label) => (
+                <li
+                  key={label}
+                  className="rounded-md border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-foreground/80"
+                >
+                  {label}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
 
         {/* Year selector above stats */}
         <div className="flex items-center gap-2 mt-6 mb-3">

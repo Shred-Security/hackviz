@@ -136,6 +136,25 @@
   }
 }
 
+@keyframes announcement-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.announcement-track {
+  animation: announcement-scroll 40s linear infinite;
+}
+
+.announcement-bar:focus-within .announcement-track {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .announcement-track {
+    animation: none;
+  }
+}
+
 /* React Flow overrides */
 .react-flow__node {
   cursor: pointer;
