@@ -18,7 +18,16 @@ import {
   Calendar,
   ArrowDownUp,
   ShieldCheck,
+  ArrowUpRight,
 } from "lucide-react";
+import { FaGithub, FaLinkedin } from "react-icons/fa";
+import { FaXTwitter } from "react-icons/fa6";
+
+const SOCIAL_LINKS = [
+  { label: "X", href: "https://x.com/ShredSecurity", Icon: FaXTwitter },
+  { label: "GitHub", href: "https://github.com/Shred-Security", Icon: FaGithub },
+  { label: "LinkedIn", href: "https://www.linkedin.com/company/shred-security/", Icon: FaLinkedin },
+];
 
 const ALL_TYPES = [
   "Reentrancy",
@@ -103,17 +112,17 @@ export default function HomePage() {
     <div className="min-h-screen px-6 py-8 max-w-7xl mx-auto">
       {/* Hero */}
       <div className="mb-10">
-        <section className="relative overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/[0.07] via-background to-background px-6 py-10 md:px-10 md:py-14">
+        <section className="relative overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-b from-primary/[0.07] via-background to-background px-6 py-12 md:px-10 md:py-16">
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-0 opacity-[0.07] [background-image:linear-gradient(hsl(var(--primary))_1px,transparent_1px),linear-gradient(90deg,hsl(var(--primary))_1px,transparent_1px)] [background-size:32px_32px] [mask-image:radial-gradient(ellipse_at_top_left,black,transparent_70%)]"
+            className="pointer-events-none absolute inset-0 opacity-[0.07] [background-image:linear-gradient(hsl(var(--primary))_1px,transparent_1px),linear-gradient(90deg,hsl(var(--primary))_1px,transparent_1px)] [background-size:32px_32px] [mask-image:radial-gradient(ellipse_at_top,black,transparent_70%)]"
           />
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute -top-24 -left-24 h-72 w-72 rounded-full bg-primary/20 blur-3xl"
+            className="pointer-events-none absolute -top-32 left-1/2 h-72 w-[36rem] max-w-full -translate-x-1/2 rounded-full bg-primary/20 blur-3xl"
           />
 
-          <div className="relative">
+          <div className="relative flex flex-col items-center text-center">
             <span className="inline-flex items-center gap-2 rounded-full border border-yellow-400/30 bg-yellow-400/10 px-3 py-1 text-[11px] font-mono uppercase tracking-widest text-yellow-300">
               <ShieldCheck className="h-3.5 w-3.5" />
               Defensive Learning Platform
@@ -124,7 +133,7 @@ export default function HomePage() {
               <span className="text-foreground/90">Viz</span>
             </h1>
 
-            <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-mono text-muted-foreground">
+            <p className="mt-3 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs font-mono text-muted-foreground">
               <span>
                 A{" "}
                 <a
@@ -149,22 +158,22 @@ export default function HomePage() {
               hunt and secure the blockchain.
             </p>
 
-            <ul className="mt-5 flex flex-wrap gap-2">
-              {[
-                "Smart contract drains",
-                "Bridge hacks",
-                "Flash loans",
-                "Oracle manipulations",
-                "Governance attacks",
-              ].map((label) => (
-                <li
+            <nav aria-label="Shred Security social links" className="mt-8 flex flex-wrap justify-center gap-2">
+              {SOCIAL_LINKS.map(({ label, href, Icon }) => (
+                <a
                   key={label}
-                  className="rounded-md border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-foreground/80"
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`Shred Security on ${label}`}
+                  className="group/social inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background/60 px-3.5 py-2 text-sm font-medium text-foreground/85 backdrop-blur transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:text-primary hover:shadow-[0_0_14px_rgba(0,255,255,0.15)]"
                 >
+                  <Icon className="h-4 w-4" />
                   {label}
-                </li>
+                  <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground transition-transform group-hover/social:-translate-y-0.5 group-hover/social:translate-x-0.5 group-hover/social:text-primary" />
+                </a>
               ))}
-            </ul>
+            </nav>
           </div>
         </section>
 
