@@ -25,7 +25,7 @@ import { FaXTwitter } from "react-icons/fa6";
 
 const SOCIAL_LINKS = [
   { label: "X", href: "https://x.com/ShredSecurity", Icon: FaXTwitter },
-  { label: "GitHub", href: "https://github.com/Shred-Security", Icon: FaGithub },
+  { label: "GitHub", href: "https://github.com/Shred-Security/hackviz", Icon: FaGithub },
   { label: "LinkedIn", href: "https://www.linkedin.com/company/shred-security/", Icon: FaLinkedin },
 ];
 
