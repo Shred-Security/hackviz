@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { hacks, typeColors, availableYears } from "@/data/hacks";
 import { getHackSortDate } from "@/lib/hack-dates";
 import {
@@ -41,6 +41,8 @@ const ALL_TYPES = [
   "Logic Error",
 ];
 
+const PAGE_SIZE = 9;
+
 function formatBig(n: number) {
   if (n >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
   if (n >= 1e6) return `$${(n / 1e6).toFixed(0)}M`;
@@ -53,6 +55,7 @@ export default function HomePage() {
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [selectedChain, setSelectedChain] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest" | "highest" | "lowest" | "default">("newest");
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const availableChains = useMemo(() => getAvailableChains(hacks), []);
 
@@ -89,6 +92,13 @@ export default function HomePage() {
 
     return result;
   }, [search, selectedYear, selectedType, selectedChain, sortOrder]);
+
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [search, selectedYear, selectedType, selectedChain, sortOrder]);
+
+  const visible = filtered.slice(0, visibleCount);
+  const hasMore = visibleCount < filtered.length;
 
   const yearHacks = useMemo(
     () => (selectedYear ? hacks.filter((h) => h.year === selectedYear) : hacks),
@@ -354,8 +364,11 @@ export default function HomePage() {
         <Filter className="w-3.5 h-3.5 text-muted-foreground" />
         <span className="text-xs text-muted-foreground">
           Showing{" "}
-          <span className="text-foreground font-medium">{filtered.length}</span>{" "}
-          of {hacks.length} exploits
+          <span className="text-foreground font-medium">
+            {Math.min(visibleCount, filtered.length)}
+          </span>{" "}
+          of {filtered.length} exploits
+          {filtered.length !== hacks.length ? ` (filtered from ${hacks.length})` : ""}
         </span>
       </div>
 
@@ -366,11 +379,26 @@ export default function HomePage() {
           <p>No exploits match your filters.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filtered.map((hack) => (
-            <HackCard key={hack.id} hack={hack} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {visible.map((hack) => (
+              <HackCard key={hack.id} hack={hack} />
+            ))}
+          </div>
+          {hasMore && (
+            <div className="mt-8 flex justify-center">
+              <button
+                onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
+                className="px-5 py-2.5 rounded-lg border border-primary/40 bg-primary/10 text-sm font-medium text-primary transition-all hover:bg-primary/20 hover:border-primary/60 hover:shadow-[0_0_12px_rgba(0,255,255,0.2)]"
+              >
+                Load more
+                <span className="ml-2 text-xs text-primary/70">
+                  ({Math.min(PAGE_SIZE, filtered.length - visibleCount)} more)
+                </span>
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {/* Similar exploits suggestion */}
