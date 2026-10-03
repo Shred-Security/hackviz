@@ -1,6 +1,7 @@
 "use client";
 import { useState, useMemo, useEffect } from "react";
-import { hacks, typeColors, availableYears } from "@/data/hacks";
+import { motion, AnimatePresence, useReducedMotion, animate } from "framer-motion";
+import { hacks, availableYears } from "@/data/hacks";
 import { getHackSortDate } from "@/lib/hack-dates";
 import {
   formatHackChains,
@@ -9,24 +10,24 @@ import {
   hackMatchesChainSearch,
 } from "@/lib/hack-chains";
 import { HackCard } from "@/components/HackCard";
+import { FilterBar } from "@/components/home/FilterBar";
+import { ActiveFilters } from "@/components/home/ActiveFilters";
+import { Hero } from "@/components/home/Hero";
 import {
-  Search,
+  fadeUp,
+  staggerContainer,
+  cardItem,
+  motionSafe,
+} from "@/components/home/motion";
+import {
   Filter,
   AlertTriangle,
   Zap,
   DollarSign,
   Calendar,
   ArrowDownUp,
-  ShieldCheck,
 } from "lucide-react";
-import { FaGithub, FaLinkedin } from "react-icons/fa";
-import { FaXTwitter } from "react-icons/fa6";
-
-const SOCIAL_LINKS = [
-  { label: "X", href: "https://x.com/ShredSecurity", Icon: FaXTwitter },
-  { label: "GitHub", href: "https://github.com/Shred-Security/hackviz", Icon: FaGithub },
-  { label: "LinkedIn", href: "https://www.linkedin.com/company/shred-security/", Icon: FaLinkedin },
-];
+import { cn } from "@/lib/utils";
 
 const ALL_TYPES = [
   "Reentrancy",
@@ -43,18 +44,40 @@ const ALL_TYPES = [
 
 const PAGE_SIZE = 9;
 
+type SortOrder = "newest" | "oldest" | "highest" | "lowest" | "default";
+
 function formatBig(n: number) {
   if (n >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
   if (n >= 1e6) return `$${(n / 1e6).toFixed(0)}M`;
   return `$${(n / 1e3).toFixed(0)}K`;
 }
 
+function useAnimatedNumber(target: number, reduced: boolean | null, format: (n: number) => string) {
+  const [display, setDisplay] = useState(format(target));
+
+  useEffect(() => {
+    if (reduced) {
+      setDisplay(format(target));
+      return;
+    }
+    const controls = animate(0, target, {
+      duration: 0.55,
+      ease: [0.22, 1, 0.36, 1],
+      onUpdate: (v) => setDisplay(format(v)),
+    });
+    return () => controls.stop();
+  }, [target, reduced, format]);
+
+  return display;
+}
+
 export default function HomePage() {
+  const reduced = useReducedMotion();
   const [search, setSearch] = useState("");
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [selectedChain, setSelectedChain] = useState<string | null>(null);
-  const [sortOrder, setSortOrder] = useState<"newest" | "oldest" | "highest" | "lowest" | "default">("newest");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const availableChains = useMemo(() => getAvailableChains(hacks), []);
@@ -75,7 +98,6 @@ export default function HomePage() {
       return matchSearch && matchYear && matchType && matchChain;
     });
 
-    // Apply sorting
     if (sortOrder === "newest") {
       result = [...result].sort(
         (a, b) => getHackSortDate(b) - getHackSortDate(a) || b.impactUSD - a.impactUSD,
@@ -99,6 +121,7 @@ export default function HomePage() {
 
   const visible = filtered.slice(0, visibleCount);
   const hasMore = visibleCount < filtered.length;
+  const canCollapse = visibleCount > PAGE_SIZE;
 
   const yearHacks = useMemo(
     () => (selectedYear ? hacks.filter((h) => h.year === selectedYear) : hacks),
@@ -109,302 +132,278 @@ export default function HomePage() {
     ? yearHacks.reduce((a, b) => (a.impactUSD > b.impactUSD ? a : b))
     : null;
 
-  // Calculate actual year range from data
   const yearRange = useMemo(() => {
     const years = hacks.map((h) => h.year);
-    const minYear = Math.min(...years);
-    const maxYear = Math.max(...years);
-    return `${minYear}–${maxYear}`;
+    return `${Math.min(...years)}–${Math.max(...years)}`;
   }, []);
 
+  const formatCount = useMemo(() => (n: number) => String(Math.round(n)), []);
+  const formatImpact = useMemo(() => (n: number) => formatBig(n), []);
+  const animatedCount = useAnimatedNumber(yearHacks.length, reduced, formatCount);
+  const animatedImpact = useAnimatedNumber(totalImpact, reduced, formatImpact);
+
+  const clearAllFilters = () => {
+    setSearch("");
+    setSelectedYear(null);
+    setSelectedType(null);
+    setSelectedChain(null);
+  };
+
+  const sortOptions: {
+    id: SortOrder;
+    label: string;
+    shortLabel: string;
+    icon: React.ReactNode;
+    activeClass: string;
+  }[] = [
+    {
+      id: "newest",
+      label: "Newest",
+      shortLabel: "Newest",
+      icon: <ArrowDownUp className="h-3 w-3" />,
+      activeClass: "bg-primary/20 text-primary",
+    },
+    {
+      id: "oldest",
+      label: "Oldest",
+      shortLabel: "Oldest",
+      icon: <ArrowDownUp className="h-3 w-3 rotate-180" />,
+      activeClass: "bg-primary/20 text-primary",
+    },
+    {
+      id: "highest",
+      label: "Most drained",
+      shortLabel: "Most $",
+      icon: <DollarSign className="h-3 w-3" />,
+      activeClass: "bg-red-500/20 text-red-400",
+    },
+    {
+      id: "lowest",
+      label: "Least drained",
+      shortLabel: "Least $",
+      icon: <DollarSign className="h-3 w-3 rotate-180" />,
+      activeClass: "bg-green-500/20 text-green-400",
+    },
+  ];
+
   return (
-    <div className="min-h-screen px-6 py-8 max-w-7xl mx-auto">
-      {/* Hero */}
-      <div className="mb-10">
-        <section className="relative overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-b from-primary/[0.07] via-background to-background px-6 py-12 md:px-10 md:py-16">
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 opacity-[0.07] [background-image:linear-gradient(hsl(var(--primary))_1px,transparent_1px),linear-gradient(90deg,hsl(var(--primary))_1px,transparent_1px)] [background-size:32px_32px] [mask-image:radial-gradient(ellipse_at_top,black,transparent_70%)]"
-          />
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute -top-32 left-1/2 h-72 w-[36rem] max-w-full -translate-x-1/2 rounded-full bg-primary/20 blur-3xl"
-          />
+    <div className="mx-auto min-h-screen max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
+      <Hero />
 
-          <div className="relative flex flex-col items-center text-center">
-            <span className="inline-flex items-center gap-2 rounded-full border border-yellow-400/30 bg-yellow-400/10 px-3 py-1 text-[11px] font-mono uppercase tracking-widest text-yellow-300">
-              <ShieldCheck className="h-3.5 w-3.5" />
-              Defensive Learning Platform
-            </span>
-
-            <h1 className="mt-5 text-5xl md:text-7xl font-bold tracking-tight leading-none">
-              <span className="glow-cyan">Hack</span>
-              <span className="text-foreground/90">Viz</span>
-            </h1>
-
-            <p className="mt-3 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs font-mono text-muted-foreground">
-              <span>
-                A{" "}
-                <a
-                  href="https://shredsecurity.io"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-semibold text-red-400 hover:text-red-300 transition-colors"
-                >
-                  Shred Security
-                </a>{" "}
-                product
-              </span>
-              <span className="h-1 w-1 rounded-full bg-muted-foreground/50" />
-              <span>Built for the community</span>
-            </p>
-
-            <p className="mt-8 max-w-3xl text-2xl md:text-3xl font-semibold leading-snug text-foreground">
-              Simulate and learn every exploit.
-            </p>
-            <p className="mt-3 max-w-2xl text-sm md:text-base leading-relaxed text-muted-foreground">
-              Visualize how real attacks unfold, step by step, then learn how to
-              hunt and secure the blockchain.
-            </p>
-
-            <nav aria-label="Shred Security social links" className="mt-8 flex flex-col items-center">
-              <div className="flex items-center gap-3">
-                {SOCIAL_LINKS.map(({ label, href, Icon }) => (
-                  <a
-                    key={label}
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={`Shred Security on ${label}`}
-                    title={label}
-                    className="p-1.5 text-foreground/80 transition-all hover:-translate-y-0.5 hover:text-primary"
-                  >
-                    <Icon className="h-5 w-5" />
-                  </a>
-                ))}
-              </div>
-            </nav>
+      {/* Stats */}
+      <motion.section
+        className="mb-10"
+        initial={reduced ? false : "hidden"}
+        animate="show"
+        variants={fadeUp}
+        transition={motionSafe(reduced, { delay: 0.1 })}
+      >
+        <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">Stats for:</span>
           </div>
-        </section>
-
-        {/* Year selector above stats */}
-        <div className="flex items-center gap-2 mt-6 mb-3">
-          <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
-          <span className="text-xs text-muted-foreground">Stats for:</span>
-          <div className="flex gap-1.5">
-            {([null, ...availableYears] as (number | null)[]).map((y) => (
-              <button
-                key={y ?? "all"}
-                onClick={() => setSelectedYear(y)}
-                className={`px-3 py-1 rounded text-xs font-semibold border transition-all
-                  ${selectedYear === y
-                    ? "bg-primary/20 border-primary/50 text-primary shadow-[0_0_8px_rgba(0,255,255,0.2)]"
-                    : "border-border/50 bg-muted/30 text-muted-foreground hover:border-border hover:text-foreground"
-                  }`}
-              >
-                {y ?? "All Years"}
-              </button>
-            ))}
-          </div>
+          {([null, ...availableYears] as (number | null)[]).map((y) => (
+            <button
+              key={y ?? "all"}
+              type="button"
+              onClick={() => setSelectedYear(y)}
+              className={cn(
+                "rounded-md border px-3 py-1 text-xs font-semibold transition-all",
+                selectedYear === y
+                  ? "border-primary/50 bg-primary/20 text-primary shadow-[0_0_8px_rgba(0,255,255,0.2)]"
+                  : "border-border/50 bg-muted/30 text-muted-foreground hover:border-border hover:text-foreground",
+              )}
+            >
+              {y ?? "All years"}
+            </button>
+          ))}
         </div>
 
-        {/* Stat cards — reactive to selected year */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <motion.div
+          className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4"
+          variants={staggerContainer}
+          initial={reduced ? false : "hidden"}
+          animate="show"
+        >
           <StatCard
-            icon={<AlertTriangle className="w-4 h-4 text-red-400" />}
+            icon={<AlertTriangle className="h-4 w-4 text-red-400" />}
             label="Total Exploits"
-            value={`${yearHacks.length}`}
+            value={animatedCount}
             sub={selectedYear ? `in ${selectedYear}` : yearRange}
           />
           <StatCard
-            icon={<DollarSign className="w-4 h-4 text-red-400" />}
+            icon={<DollarSign className="h-4 w-4 text-red-400" />}
             label="Total Drained"
-            value={formatBig(totalImpact)}
+            value={animatedImpact}
             sub={selectedYear ? `in ${selectedYear}` : yearRange}
             highlight
           />
           <StatCard
-            icon={<Zap className="w-4 h-4 text-yellow-400" />}
+            icon={<Zap className="h-4 w-4 text-yellow-400" />}
             label="Biggest Hack"
             value={biggestHack ? biggestHack.title : "—"}
             sub={biggestHack ? biggestHack.impact : undefined}
           />
           <StatCard
-            icon={<Calendar className="w-4 h-4 text-cyan-400" />}
+            icon={<Calendar className="h-4 w-4 text-cyan-400" />}
             label="Coverage"
             value={selectedYear ? String(selectedYear) : yearRange}
             sub={selectedYear ? "selected year" : "all exploits"}
           />
+        </motion.div>
+      </motion.section>
+
+      {/* Filter bar */}
+      <motion.div
+        className="mb-4"
+        initial={reduced ? false : "hidden"}
+        animate="show"
+        variants={fadeUp}
+        transition={motionSafe(reduced, { delay: 0.15 })}
+      >
+        <FilterBar
+          search={search}
+          onSearchChange={setSearch}
+          types={ALL_TYPES}
+          selectedType={selectedType}
+          onTypeChange={setSelectedType}
+          chains={availableChains}
+          selectedChain={selectedChain}
+          onChainChange={setSelectedChain}
+        />
+      </motion.div>
+
+      <div className="mb-4">
+        <ActiveFilters
+          year={selectedYear}
+          chain={selectedChain}
+          type={selectedType}
+          search={search}
+          onClearYear={() => setSelectedYear(null)}
+          onClearChain={() => setSelectedChain(null)}
+          onClearType={() => setSelectedType(null)}
+          onClearSearch={() => setSearch("")}
+          onClearAll={clearAllFilters}
+        />
+      </div>
+
+      {/* Results toolbar */}
+      <div className="mb-5 flex flex-col gap-3">
+        <div className="flex items-center gap-2">
+          <Filter className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">
+            Showing{" "}
+            <span className="font-medium text-foreground">
+              {Math.min(visibleCount, filtered.length)}
+            </span>{" "}
+            of {filtered.length} exploits
+            {filtered.length !== hacks.length ? (
+              <span className="text-muted-foreground/80"> · {hacks.length} total</span>
+            ) : null}
+          </span>
         </div>
-      </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3 mb-6">
-        {/* Search */}
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input
-            type="search"
-            placeholder="Search exploits, chains, attack types..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 rounded-lg border border-border bg-muted/50 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50"
-          />
+        <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div
+            role="group"
+            aria-label="Sort exploits"
+            className="inline-flex w-max min-w-full rounded-lg border border-border/50 bg-muted/30 p-0.5 sm:min-w-0"
+          >
+            {sortOptions.map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setSortOrder(sortOrder === opt.id ? "default" : opt.id)}
+                className={cn(
+                  "inline-flex flex-1 items-center justify-center gap-1.5 rounded-md px-2.5 py-2 text-xs font-medium transition-all sm:flex-none sm:py-1.5",
+                  sortOrder === opt.id
+                    ? opt.activeClass
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {opt.icon}
+                <span className="sm:hidden">{opt.shortLabel}</span>
+                <span className="hidden sm:inline">{opt.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
-
-      </div>
-
-      {/* Chain filter */}
-      <div className="flex flex-wrap gap-1.5 mb-6">
-        <button
-          onClick={() => setSelectedChain(null)}
-          className={`px-2.5 py-1 rounded text-[11px] font-medium border transition-all
-            ${!selectedChain ? "bg-muted border-border text-foreground" : "border-border/50 text-muted-foreground hover:text-foreground"}`}
-        >
-          All Chains
-        </button>
-        {availableChains.map((c) => (
-          <button
-            key={c}
-            onClick={() => setSelectedChain(selectedChain === c ? null : c)}
-            className={`px-2.5 py-1 rounded text-[11px] font-medium border transition-all
-              ${
-                selectedChain === c
-                  ? "bg-accent/20 border-accent/40 text-accent"
-                  : "border-border/40 text-muted-foreground hover:text-foreground opacity-70 hover:opacity-100"
-              }`}
-          >
-            {c}
-          </button>
-        ))}
-      </div>
-
-      {/* Type pills */}
-      <div className="flex flex-wrap gap-1.5 mb-8">
-        <button
-          onClick={() => setSelectedType(null)}
-          className={`px-2.5 py-1 rounded text-[11px] font-medium border transition-all
-            ${!selectedType ? "bg-muted border-border text-foreground" : "border-border/50 text-muted-foreground hover:text-foreground"}`}
-        >
-          All Types
-        </button>
-        {ALL_TYPES.map((t) => (
-          <button
-            key={t}
-            onClick={() => setSelectedType(selectedType === t ? null : t)}
-            className={`px-2.5 py-1 rounded text-[11px] font-medium border transition-all
-              ${
-                selectedType === t
-                  ? typeColors[t] + " opacity-100"
-                  : "border-border/40 text-muted-foreground hover:text-foreground opacity-70 hover:opacity-100"
-              }`}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
-
-      {/* Sort filter */}
-      <div className="flex items-center gap-2 mb-4">
-        <span className="text-xs text-muted-foreground">Sort by:</span>
-        <div className="flex gap-1.5 flex-wrap">
-          <button
-            onClick={() => setSortOrder(sortOrder === "newest" ? "default" : "newest")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border transition-all
-              ${
-                sortOrder === "newest"
-                  ? "bg-primary/20 border-primary/50 text-primary shadow-[0_0_8px_rgba(0,255,255,0.2)]"
-                  : "border-border bg-muted/30 text-muted-foreground hover:border-border/80 hover:text-foreground"
-              }`}
-          >
-            <ArrowDownUp className="w-3 h-3" />
-            Newest
-          </button>
-          <button
-            onClick={() => setSortOrder(sortOrder === "oldest" ? "default" : "oldest")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border transition-all
-              ${
-                sortOrder === "oldest"
-                  ? "bg-primary/20 border-primary/50 text-primary shadow-[0_0_8px_rgba(0,255,255,0.2)]"
-                  : "border-border bg-muted/30 text-muted-foreground hover:border-border/80 hover:text-foreground"
-              }`}
-          >
-            <ArrowDownUp className="w-3 h-3 rotate-180" />
-            Oldest
-          </button>
-          <button
-            onClick={() => setSortOrder(sortOrder === "highest" ? "default" : "highest")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border transition-all
-              ${
-                sortOrder === "highest"
-                  ? "bg-red-500/20 border-red-500/50 text-red-400 shadow-[0_0_8px_rgba(239,68,68,0.2)]"
-                  : "border-border bg-muted/30 text-muted-foreground hover:border-border/80 hover:text-foreground"
-              }`}
-          >
-            <DollarSign className="w-3 h-3" />
-            Most Drained
-          </button>
-          <button
-            onClick={() => setSortOrder(sortOrder === "lowest" ? "default" : "lowest")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border transition-all
-              ${
-                sortOrder === "lowest"
-                  ? "bg-green-500/20 border-green-500/50 text-green-400 shadow-[0_0_8px_rgba(34,197,94,0.2)]"
-                  : "border-border bg-muted/30 text-muted-foreground hover:border-border/80 hover:text-foreground"
-              }`}
-          >
-            <DollarSign className="w-3 h-3 rotate-180" />
-            Least Drained
-          </button>
-        </div>
-      </div>
-
-      {/* Results count */}
-      <div className="flex items-center gap-2 mb-4">
-        <Filter className="w-3.5 h-3.5 text-muted-foreground" />
-        <span className="text-xs text-muted-foreground">
-          Showing{" "}
-          <span className="text-foreground font-medium">
-            {Math.min(visibleCount, filtered.length)}
-          </span>{" "}
-          of {filtered.length} exploits
-          {filtered.length !== hacks.length ? ` (filtered from ${hacks.length})` : ""}
-        </span>
       </div>
 
       {/* Grid */}
       {filtered.length === 0 ? (
-        <div className="text-center py-20 text-muted-foreground">
-          <AlertTriangle className="w-8 h-8 mx-auto mb-3 opacity-50" />
+        <div className="py-20 text-center text-muted-foreground">
+          <AlertTriangle className="mx-auto mb-3 h-8 w-8 opacity-50" />
           <p>No exploits match your filters.</p>
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {visible.map((hack) => (
-              <HackCard key={hack.id} hack={hack} />
-            ))}
-          </div>
-          {hasMore && (
-            <div className="mt-8 flex justify-center">
-              <button
-                onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
-                className="px-5 py-2.5 rounded-lg border border-primary/40 bg-primary/10 text-sm font-medium text-primary transition-all hover:bg-primary/20 hover:border-primary/60 hover:shadow-[0_0_12px_rgba(0,255,255,0.2)]"
-              >
-                Load more
-                <span className="ml-2 text-xs text-primary/70">
-                  ({Math.min(PAGE_SIZE, filtered.length - visibleCount)} more)
-                </span>
-              </button>
+          <motion.div
+            id="exploit-grid"
+            className="grid scroll-mt-6 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
+            variants={staggerContainer}
+            initial={reduced ? false : "hidden"}
+            animate="show"
+            key={`${selectedYear}-${selectedChain}-${selectedType}-${search}-${sortOrder}`}
+          >
+            <AnimatePresence mode="popLayout">
+              {visible.map((hack) => (
+                <motion.div
+                  key={hack.id}
+                  layout={!reduced}
+                  variants={cardItem}
+                  initial={reduced ? false : "hidden"}
+                  animate="show"
+                  exit="exit"
+                  transition={motionSafe(reduced)}
+                >
+                  <HackCard hack={hack} />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </motion.div>
+
+          {(hasMore || canCollapse) && (
+            <div className="mt-8 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-3">
+              {hasMore && (
+                <motion.button
+                  type="button"
+                  onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
+                  whileHover={reduced ? undefined : { scale: 1.02 }}
+                  whileTap={reduced ? undefined : { scale: 0.98 }}
+                  className="w-full rounded-lg border border-primary/40 bg-primary/10 px-5 py-3 text-sm font-medium text-primary transition-colors hover:border-primary/60 hover:bg-primary/20 hover:shadow-[0_0_12px_rgba(0,255,255,0.2)] sm:w-auto sm:py-2.5"
+                >
+                  Load more
+                  <span className="ml-2 text-xs text-primary/70">
+                    ({Math.min(PAGE_SIZE, filtered.length - visibleCount)} more)
+                  </span>
+                </motion.button>
+              )}
+              {canCollapse && (
+                <motion.button
+                  type="button"
+                  onClick={() => {
+                    setVisibleCount(PAGE_SIZE);
+                    document
+                      .getElementById("exploit-grid")
+                      ?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
+                  }}
+                  whileHover={reduced ? undefined : { scale: 1.02 }}
+                  whileTap={reduced ? undefined : { scale: 0.98 }}
+                  className="w-full rounded-lg border border-border/60 bg-muted/40 px-5 py-3 text-sm font-medium text-muted-foreground transition-colors hover:border-border hover:text-foreground sm:w-auto sm:py-2.5"
+                >
+                  Collapse
+                </motion.button>
+              )}
             </div>
           )}
         </>
       )}
 
-      {/* Similar exploits suggestion */}
       {filtered.length < hacks.length && filtered.length > 0 && (
-        <div className="mt-8 p-4 rounded-lg border border-border/50 bg-muted/20">
-          <p className="text-xs text-muted-foreground mb-2 font-medium">
+        <div className="mt-8 rounded-lg border border-border/50 bg-muted/20 p-4">
+          <p className="mb-2 text-xs font-medium text-muted-foreground">
             Similar exploits you might want to review:
           </p>
           <div className="flex flex-wrap gap-2">
@@ -424,12 +423,20 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* Footer */}
-      <footer className="mt-16 pt-6 border-t border-border/50 text-center">
+      <footer className="mt-16 border-t border-border/50 pt-6 text-center">
         <p className="text-xs text-muted-foreground">
-          HackViz — Defensive learning only. All data sourced from public
-          post-mortems and block explorers. This platform does not encourage or
-          facilitate any malicious activity, developed by <a href="https://shredsecurity.io" target="_blank" rel="noopener noreferrer" className="text-red-400 font-semibold hover:text-red-300 transition-colors">Shred Security</a>.
+          HackViz — Defensive learning only. All data sourced from public post-mortems and block
+          explorers. This platform does not encourage or facilitate any malicious activity,
+          developed by{" "}
+          <a
+            href="https://shredsecurity.io"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-red-400 transition-colors hover:text-red-300"
+          >
+            Shred Security
+          </a>
+          .
         </p>
       </footer>
     </div>
@@ -449,22 +456,36 @@ function StatCard({
   sub?: string;
   highlight?: boolean;
 }) {
+  const reduced = useReducedMotion();
   return (
-    <div
-      className={`rounded-lg border p-3 bg-card ${highlight ? "border-red-500/30" : "border-border/50"}`}
+    <motion.div
+      variants={fadeUp}
+      whileHover={reduced ? undefined : { y: -2 }}
+      className={cn(
+        "rounded-lg border bg-card p-2.5 transition-shadow sm:p-3",
+        highlight ? "border-red-500/30" : "border-border/50",
+      )}
     >
-      <div className="flex items-center gap-1.5 mb-1">
+      <div className="mb-1 flex items-center gap-1.5">
         {icon}
-        <span className="text-[10px] text-muted-foreground uppercase tracking-widest">
+        <span className="truncate text-[10px] uppercase tracking-widest text-muted-foreground">
           {label}
         </span>
       </div>
       <div
-        className={`text-lg font-bold font-mono ${highlight ? "text-red-400" : "text-foreground"}`}
+        className={cn(
+          "truncate font-mono text-base font-bold sm:text-lg",
+          highlight ? "text-red-400" : "text-foreground",
+        )}
+        title={value}
       >
         {value}
       </div>
-      {sub && <div className="text-[10px] text-muted-foreground">{sub}</div>}
-    </div>
+      {sub && (
+        <div className="truncate text-[10px] text-muted-foreground" title={sub}>
+          {sub}
+        </div>
+      )}
+    </motion.div>
   );
 }

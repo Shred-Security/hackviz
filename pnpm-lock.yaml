@@ -400,6 +400,10 @@ importers:
         version: 3.25.76
 
   artifacts/web3hackviz:
+    dependencies:
+      '@paper-design/shaders-react':
+        specifier: 0.0.81
+        version: 0.0.81(@types/react@19.2.14)(react@19.1.0)
     devDependencies:
       '@hookform/resolvers':
         specifier: ^3.10.0
@@ -849,6 +853,18 @@ packages:
 
   '@orval/zod@8.5.3':
     resolution: {integrity: sha512-qcbnpGE0VrgCDm0hNWQSOmzbfgdnr1xo+PYQ3PJjxfLuk3kGdJmFANTr53/1lI3sZUvWZwX5nKJCLWVxvwJEgg==}
+
+  '@paper-design/shaders-react@0.0.81':
+    resolution: {integrity: sha512-3FMkeZqj9sSvK/WkgekGu3crnOQd4R2iH8IT+jVBuQmq1m8p88VFvxh63s9bSt2exBwjBNaRfSo0FSCeNxqh3w==}
+    peerDependencies:
+      '@types/react': ^18 || ^19
+      react: ^18 || ^19
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+
+  '@paper-design/shaders@0.0.81':
+    resolution: {integrity: sha512-jeGdyjMscZ2bxmQdo8lhwUufHUf4iq3s1ayjh8PXU7Go42Rw8E3I0It1FZdc3HuWt5J82m//DRWaxsRqRfA4Gg==}
 
   '@pinojs/redact@0.4.0':
     resolution: {integrity: sha512-k2ENnmBugE/rzQfEcdWHcCY+/FM3VLzH9cYEsbdsoqrvzAKRhUZeRNhAZvB8OitQJ1TBed3yqWtdjzS6wJKBwg==}
@@ -3208,6 +3224,7 @@ packages:
   tsconfck@3.1.6:
     resolution: {integrity: sha512-ks6Vjr/jEw0P1gmOVwutM3B7fWxoWBL2KRDb1JfqGVawBmO5UsvmWOQFGHBPl5yxYz4eERr19E6L7NMv+Fej4w==}
     engines: {node: ^18 || >=20}
+    deprecated: unmaintained
     hasBin: true
     peerDependencies:
       typescript: ^5.0.0
@@ -3711,6 +3728,15 @@ snapshots:
       - '@faker-js/faker'
       - supports-color
       - typescript
+
+  '@paper-design/shaders-react@0.0.81(@types/react@19.2.14)(react@19.1.0)':
+    dependencies:
+      '@paper-design/shaders': 0.0.81
+      react: 19.1.0
+    optionalDependencies:
+      '@types/react': 19.2.14
+
+  '@paper-design/shaders@0.0.81': {}
 
   '@pinojs/redact@0.4.0': {}
 
