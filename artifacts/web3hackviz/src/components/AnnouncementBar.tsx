@@ -17,7 +17,7 @@ function Message({ decorative = false }: { decorative?: boolean }) {
         tabIndex={decorative ? -1 : undefined}
         className="font-semibold text-primary underline-offset-4 hover:underline"
       >
-        Learn more →
+        Donate →
       </a>
     </span>
   );

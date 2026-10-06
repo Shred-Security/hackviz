@@ -80,6 +80,7 @@
     "zod": "catalog:"
   },
   "dependencies": {
-    "@paper-design/shaders-react": "0.0.81"
+    "@paper-design/shaders-react": "0.0.81",
+    "@vercel/analytics": "^2.0.1"
   }
 }

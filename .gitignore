@@ -117,6 +117,7 @@ temp/
 
 # Local development
 .local
+artifacts/web3hackviz/.visitors-total.json
 
 # Database files
 *.db

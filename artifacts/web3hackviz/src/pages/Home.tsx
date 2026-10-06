@@ -10,6 +10,7 @@ import {
   hackMatchesChainSearch,
 } from "@/lib/hack-chains";
 import { HackCard } from "@/components/HackCard";
+import { LiveVisitorCounter } from "@/components/LiveVisitorCounter";
 import { FilterBar } from "@/components/home/FilterBar";
 import { ActiveFilters } from "@/components/home/ActiveFilters";
 import { Hero } from "@/components/home/Hero";
@@ -423,8 +424,8 @@ export default function HomePage() {
         </div>
       )}
 
-      <footer className="mt-16 border-t border-border/50 pt-6 text-center">
-        <p className="text-xs text-muted-foreground">
+      <footer className="mt-16 border-t border-border/50 pt-6 pb-8 text-center">
+        <p className="text-xs text-muted-foreground/70">
           HackViz — Defensive learning only. All data sourced from public post-mortems and block
           explorers. This platform does not encourage or facilitate any malicious activity,
           developed by{" "}
@@ -432,11 +433,13 @@ export default function HomePage() {
             href="https://shredsecurity.io"
             target="_blank"
             rel="noopener noreferrer"
-            className="font-semibold text-red-400 transition-colors hover:text-red-300"
+            className="font-semibold text-red-400/80 transition-colors hover:text-red-300"
           >
             Shred Security
           </a>
           .
+          <span className="mx-1.5 text-muted-foreground/40">·</span>
+          <LiveVisitorCounter />
         </p>
       </footer>
     </div>
