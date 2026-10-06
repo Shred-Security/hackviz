@@ -5,6 +5,7 @@ import { Analytics } from "@vercel/analytics/react";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AnnouncementBar } from "@/components/AnnouncementBar";
+import { DarkForestBackground } from "@/components/DarkForestBackground";
 import HomePage from "@/pages/Home";
 import HackDetailPage from "@/pages/HackDetail";
 import NotFound from "@/pages/not-found";
@@ -26,6 +27,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+          <DarkForestBackground />
           <AnnouncementBar />
           <main className="min-h-screen">
             <Router />
