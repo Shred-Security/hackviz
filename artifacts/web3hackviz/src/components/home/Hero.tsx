@@ -71,7 +71,7 @@ export function Hero() {
         <motion.p
           variants={fadeUp}
           transition={motionSafe(reduced)}
-          className="mt-3 text-sm font-mono text-muted-foreground sm:text-base"
+          className="mt-3 text-xs font-mono text-muted-foreground sm:text-sm"
         >
           A{" "}
           <a

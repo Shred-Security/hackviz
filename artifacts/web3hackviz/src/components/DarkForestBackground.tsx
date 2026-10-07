@@ -17,24 +17,6 @@ export function DarkForestBackground() {
     let raf = 0;
     let t = 0;
 
-    type Planet = { x: number; y: number; r: number; hue: number; ring: boolean; phase: number };
-    const planets: Planet[] = [];
-
-    const seed = () => {
-      planets.length = 0;
-      const n = Math.floor((w * h) / 90000);
-      for (let i = 0; i < n; i++) {
-        planets.push({
-          x: Math.random() * w,
-          y: Math.random() * h,
-          r: 2 + Math.random() * 9,
-          hue: Math.random() < 0.7 ? 185 + Math.random() * 40 : 140 + Math.random() * 30,
-          ring: Math.random() < 0.3,
-          phase: Math.random() * Math.PI * 2,
-        });
-      }
-    };
-
     const resize = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       w = window.innerWidth;
@@ -42,7 +24,6 @@ export function DarkForestBackground() {
       canvas.width = w * dpr;
       canvas.height = h * dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      seed();
     };
 
     const drawHex = (s: number, view: number) => {
@@ -78,30 +59,6 @@ export function DarkForestBackground() {
       drawHex(30, drift);
       ctx.restore();
 
-      for (const p of planets) {
-        const pulse = reduced ? 0.7 : 0.55 + 0.45 * Math.sin(t * 0.6 + p.phase);
-        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 4);
-        g.addColorStop(0, `hsla(${p.hue}, 100%, 60%, ${0.25 * pulse})`);
-        g.addColorStop(1, "transparent");
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r * 4, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.fillStyle = `hsla(${p.hue}, 90%, 65%, ${0.5 + 0.4 * pulse})`;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fill();
-
-        if (p.ring) {
-          ctx.strokeStyle = `hsla(${p.hue}, 90%, 70%, ${0.25 * pulse})`;
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.ellipse(p.x, p.y, p.r * 1.9, p.r * 0.7, -0.5, 0, Math.PI * 2);
-          ctx.stroke();
-        }
-      }
-
       const fog = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.25, w / 2, h / 2, Math.max(w, h) * 0.75);
       fog.addColorStop(0, "rgba(4,7,13,0)");
       fog.addColorStop(1, "rgba(4,7,13,0.75)");
@@ -117,12 +74,6 @@ export function DarkForestBackground() {
     if (reduced) {
       // single static frame
       drawHex(30, 0);
-      for (const p of planets) {
-        ctx.fillStyle = `hsla(${p.hue}, 90%, 65%, 0.7)`;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fill();
-      }
       const fog = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.25, w / 2, h / 2, Math.max(w, h) * 0.75);
       fog.addColorStop(0, "rgba(4,7,13,0)");
       fog.addColorStop(1, "rgba(4,7,13,0.75)");
