@@ -7898,6 +7898,360 @@ export const hacks: Hack[] = [
       },
     ],
   },
+
+  // zkLink Nova (October 28, 2026)
+  {
+    id: "zklink-nova-2026",
+    slug: "zklink-nova-2026",
+    title: "zkLink Nova",
+    subtitle: "Forged Batch Root / Transient Hash – Ethereum",
+    year: 2026,
+    chain: "Ethereum",
+    type: ["Bridge", "Logic Error"],
+    shortDesc:
+      "Forged batch root on Ethereum. Principal withdrawal ~$780K–$786K; a separate ZKL outflow is reported but not reconciled.",
+    longDesc:
+      "On October 28, 2026, transaction 0x4f3c23e75b9134e8cae5a462550daad42fbbc19242567fcc34c0a035e297462c succeeded in block 26,294,188 at 22:21:35 UTC. It pulled 22.4312945256 ETH and 11 ERC-20s from zkLink Nova's Ethereum escrow, including 245.7378988511 pufETH, plus ezETH, USDC, rsETH, STONE, WBTC, USDT, mswETH, mstETH, wstETH, and rswETH. Published valuations of that principal withdrawal sit around $780K–$786K (SlowMist ~$783K). That range is the reported value of this transaction, not a reconciled total for every associated outflow. Public reporting also describes about 216.4 million ZKL (~$42K) from a second address; that transfer was not tied to its own transaction in this review. Incident reports say a public SyncL2TxHashRelayer was used to reuse an uncleared transient hash and install a forged batch root under the Ethereum Gateway. The published Arbitrator confirms the stale-hash check, and syncBatchRoot is onlyGateway. The deployed relayer wrapper was not byte-matched to source. Blockaid flagged the exploit while the escrow was still unpaused. zkLink had not published an official post-mortem or a final loss figure.",
+    technicalDesc: `The published [Arbitrator](https://github.com/zkLinkProtocol/zklink-evm-contracts/blob/main/contracts/Arbitrator.sol) confirms the stale-hash condition: \`claiming\` is set with \`tstore\`, \`finalizeMessageHash\` is read with \`tload\`, and neither slot is cleared in the claim flow. The code also does not require proof that this invocation received a fresh callback. [ZkLink.syncBatchRoot](https://github.com/zkLinkProtocol/zklink-evm-contracts/blob/main/contracts/ZkLink.sol) is \`onlyGateway\` and then stores the supplied root. The call sequence through \`SyncL2TxHashRelayer\` comes from public incident reporting. That deployed wrapper was not byte-compared to source. zkLink had not published its own post-mortem.
+
+## Where the proof lives
+
+SlowMist traced the drain to [Arbitrator.claimMessage](https://github.com/zkLinkProtocol/zklink-evm-contracts/blob/main/contracts/Arbitrator.sol) on Ethereum. A claim is supposed to be one shot: the Arbitrator marks the call as in progress, the canonical message service calls back into \`receiveMessage\`, and that callback writes a transient hash of the gateway, value, and calldata. \`claimMessage\` then forwards that same payload.
+
+The hash and the in-progress flag sit in transient storage. Neither is cleared when the claim returns. Transient values last until the end of the transaction, so a later call in the same transaction still sees them.
+
+\`\`\`solidity
+// Arbitrator.sol — abbreviated
+bytes32 private finalizeMessageHash;
+uint256 private claiming;
+
+function receiveMessage(uint256 value, bytes calldata callData) external payable {
+    // msg.sender must be the primary gateway or a registered secondary gateway
+    uint256 inClaim;
+    assembly { inClaim := tload(claiming.slot) }
+    require(inClaim == 1, "Claim not from arbitrator");
+
+    bytes32 hash = keccak256(abi.encode(msg.sender, value, callData));
+    assembly { tstore(finalizeMessageHash.slot, hash) }
+    // no tstore back to zero
+}
+\`\`\`
+
+## The check does not require a new callback
+
+\`claimMessage\` is \`onlyRelayer\`. Incident reports identify \`SyncL2TxHashRelayer\` as a publicly callable relayer the bridge already authorized. The message-service address is a function argument. After that external call returns, the function accepts whatever \`finalizeMessageHash\` still holds if it matches the supplied gateway, value, and calldata. A hash left by an earlier call in the same transaction can pass. Nothing checks that this invocation caused the callback.
+
+\`\`\`solidity
+function claimMessage(
+    address messageService,
+    bytes calldata claimCallData,
+    IL1Gateway sourceGateway,
+    uint256 value,
+    bytes calldata callData,
+    bytes calldata forwardParams
+) external payable onlyRelayer whenNotPaused {
+    assembly { tstore(claiming.slot, 1) }
+
+    // Expected: messageService calls back into receiveMessage.
+    // A service that does not call back leaves the previous hash in place.
+    Address.functionCall(messageService, claimCallData);
+
+    bytes32 hash;
+    assembly { hash := tload(finalizeMessageHash.slot) }
+    require(
+        hash == keccak256(abi.encode(sourceGateway, value, callData)),
+        "Incorrect finalize data"
+    );
+
+    // Secondary-chain branch. Runs as the primary (Ethereum) gateway.
+    primaryChainGateway.sendMessage{value: msg.value + value}(
+        value,
+        callData,
+        forwardParams
+    );
+    // claiming and finalizeMessageHash are still set
+}
+\`\`\`
+
+## How the stale hash becomes a batch root
+
+A first callback in the transaction stores a hash of the Ethereum Gateway plus a chosen payload. A second \`claimMessage\` then calls a message service that never reaches \`receiveMessage\`. The \`require\` still passes, and \`sendMessage\` runs with the gateway as \`msg.sender\`.
+
+On zkLink, only that gateway may write a batch root:
+
+\`\`\`solidity
+// ZkLink.sol
+function syncBatchRoot(
+    uint256 batchNumber,
+    bytes32 l2LogsRootHash,
+    uint256 forwardEthAmount
+) external payable onlyGateway {
+    l2LogsRootHashes[batchNumber] = l2LogsRootHash;
+}
+\`\`\`
+
+[The exploit transaction](https://etherscan.io/tx/0x4f3c23e75b9134e8cae5a462550daad42fbbc19242567fcc34c0a035e297462c) wrote batch **116,409** in block **26,294,188** (22:21:35 UTC on October 28) and moved 22.4312945256 ETH plus those 11 ERC-20s. Incident analysis concludes those withdrawals were not backed by a corresponding L2 burn. That L2 batch was not re-compared to the forged root here, so the missing burn is an attribution from the technical reporting, not a second independent trace.
+
+## What was missing
+
+Clearing the hash is not a complete fix by itself. Each claim has to drop any leftover hash first, require one fresh callback from this call, check that the callback matches the intended gateway, value, and calldata, and clear both transient slots before the next external call. The snippet is a suggested check, not an official zkLink patch. Regression tests should cover two claims in one transaction, a missing callback, a mismatched callback, and a reentrant callback.
+
+\`\`\`solidity
+uint256 private claimNonce;
+
+function receiveMessage(uint256 value, bytes calldata callData) external payable {
+    // gateway check and require(claiming == 1), as above
+    bytes32 hash = keccak256(abi.encode(msg.sender, value, callData));
+    assembly {
+        tstore(finalizeMessageHash.slot, hash)
+        tstore(claimNonce.slot, add(tload(claimNonce.slot), 1))
+    }
+}
+
+function claimMessage(/* ... */) external payable onlyRelayer {
+    uint256 nonceBefore;
+    assembly {
+        tstore(finalizeMessageHash.slot, 0) // drop a leftover hash
+        tstore(claiming.slot, 1)
+        nonceBefore := tload(claimNonce.slot)
+    }
+
+    Address.functionCall(messageService, claimCallData);
+
+    uint256 nonceAfter;
+    bytes32 hash;
+    assembly {
+        nonceAfter := tload(claimNonce.slot)
+        hash := tload(finalizeMessageHash.slot)
+    }
+    require(nonceAfter == nonceBefore + 1, "callback missing");
+    require(
+        hash == keccak256(abi.encode(sourceGateway, value, callData)),
+        "bad callback"
+    );
+
+    // Clear before forwarding. Clearing alone does not replace the nonce check.
+    assembly {
+        tstore(finalizeMessageHash.slot, 0)
+        tstore(claiming.slot, 0)
+    }
+
+    primaryChainGateway.sendMessage{value: msg.value + value}(
+        value,
+        callData,
+        forwardParams
+    );
+}
+\`\`\``,
+    impact: "~$780K–$786K",
+    impactUSD: 780000,
+    transactions: [
+      {
+        hash: "0x4f3c23e75b9134e8cae5a462550daad42fbbc19242567fcc34c0a035e297462c",
+        label: "Principal withdrawal — 22.43 ETH and 11 ERC-20s",
+        chain: "Ethereum",
+      },
+    ],
+    contracts: [
+      {
+        label: "Arbitrator",
+        address: "0x1Ee09A2cAa0813A5183f90F5a6d0E4871f4C6002",
+        url: "https://etherscan.io/address/0x1Ee09A2cAa0813A5183f90F5a6d0E4871f4C6002",
+      },
+      {
+        label: "zkLink",
+        address: "0x5fD9F73286b7E8683Bab45019C94553b93e015Cf",
+        url: "https://etherscan.io/address/0x5fD9F73286b7E8683Bab45019C94553b93e015Cf",
+      },
+      {
+        label: "ERC-20 Bridge",
+        address: "0xAd16eDCF7DEB7e90096A259c81269d811544B6B6",
+        url: "https://etherscan.io/address/0xAd16eDCF7DEB7e90096A259c81269d811544B6B6",
+      },
+      {
+        label: "Ethereum Gateway",
+        address: "0x83Bc7394738A7A084081aF22EEC0051908c0055c",
+        url: "https://etherscan.io/address/0x83Bc7394738A7A084081aF22EEC0051908c0055c",
+      },
+    ],
+    timeline: [
+      {
+        id: "t1",
+        phase: "Setup",
+        description:
+          "Incident reports say the attacker entered through SyncL2TxHashRelayer, a publicly callable contract the bridge already treated as a relayer. That deployed wrapper was not byte-matched to source.",
+        functionsCall: ["SyncL2TxHashRelayer (reported)"],
+        pseudocode:
+          "// Reported entry point, not a bytecode match\n// Relayer is callable by anyone\n// Arbitrator.claimMessage is onlyRelayer",
+        timestamp: "October 28, 2026",
+      },
+      {
+        id: "t2",
+        phase: "Hash Replay",
+        description:
+          "claimMessage reused an uncleared finalizeMessageHash and did not demand a fresh authenticated callback, so a prior valid hash was applied to a different target message.",
+        functionsCall: ["Arbitrator.claimMessage()"],
+        pseudocode:
+          "// finalizeMessageHash left set after use\n// Next call swaps the target message\n// No fresh authenticated callback required",
+        timestamp: "October 28, 2026",
+      },
+      {
+        id: "t3",
+        phase: "Forged Root",
+        description:
+          "The replay made ZkLink.syncBatchRoot execute as if it originated from the Ethereum Gateway, installing an attacker-chosen batch root for batch 116,409.",
+        functionsCall: ["EthereumGateway.sendMessage", "ZkLink.syncBatchRoot()"],
+        pseudocode:
+          "// syncBatchRoot runs under gateway identity\n// l2LogsRootHashes[116409] = attacker root\n// block 26,294,188 @ 22:21:35 UTC",
+        timestamp: "22:21:35 UTC",
+      },
+      {
+        id: "t4",
+        phase: "Drain",
+        description:
+          "The same transaction released 22.4312945256 ETH and 11 ERC-20s, led by 245.7378988511 pufETH. Valuations of this principal withdrawal are about $780K–$786K.",
+        functionsCall: ["L1 escrow release"],
+        pseudocode:
+          "// tx 0x4f3c23e7…7462c\n// 22.4312945256 ETH + 11 ERC-20 transfers\n// Incident reports: proofs matched the forged root",
+        timestamp: "October 28, 2026",
+      },
+      {
+        id: "t5",
+        phase: "Laundering",
+        description:
+          "Public reporting describes later swaps and a split of the proceeds. A separate claim of about 216.4 million ZKL (~$42K) has not been tied to a transaction, so it is not included in the principal loss.",
+        functionsCall: [],
+        pseudocode:
+          "// Downstream swaps are reported, not part of the verified root tx\n// 216.4M ZKL remains unreconciled",
+        timestamp: "22:58–23:01 UTC",
+      },
+      {
+        id: "t6",
+        phase: "Detection",
+        description:
+          "Blockaid flagged the ongoing exploit. SlowMist published the claimMessage root cause. The main escrow was still unpaused in early reports, and zkLink had not issued an official post-mortem.",
+        functionsCall: [],
+        pseudocode:
+          "// Public alert while contracts remain active\n// Official post-mortem not yet released",
+        timestamp: "October 28–29, 2026",
+      },
+    ],
+    attackFlow: {
+      nodes: [
+        { id: "n1", type: "attacker", label: "Attacker", detail: "Public relayer caller", x: 40, y: 180 },
+        { id: "n2", type: "contract", label: "SyncL2TxHashRelayer", detail: "Public but trusted", x: 230, y: 80 },
+        { id: "n3", type: "contract", label: "Arbitrator", detail: "claimMessage hash replay", x: 450, y: 180 },
+        { id: "n4", type: "bridge", label: "Ethereum Gateway", detail: "Spoofed sendMessage", x: 670, y: 80 },
+        { id: "n5", type: "vault", label: "L1 Escrow", detail: "ETH + ERC-20", x: 670, y: 300 },
+        { id: "n6", type: "result", label: "Attacker Wallet", detail: "Principal tx ~$780–786K", x: 890, y: 180 },
+      ],
+      edges: [
+        { id: "e1", source: "n1", target: "n2", label: "Call public relayer", animated: true },
+        { id: "e2", source: "n2", target: "n3", label: "Reuse finalizeMessageHash" },
+        { id: "e3", source: "n3", target: "n4", label: "syncBatchRoot as gateway", animated: true },
+        { id: "e4", source: "n4", target: "n5", label: "Install forged root" },
+        { id: "e5", source: "n5", target: "n6", label: "Withdraw against fake root", animated: true },
+      ],
+    },
+    tokenFlowNodes: [
+      { id: "eth", label: "ETH escrow\n22.43 ETH", type: "vault" },
+      { id: "puf", label: "pufETH\n245.74", type: "vault" },
+      { id: "erc", label: "Other ERC-20s\n10 tokens", type: "bridge" },
+      { id: "atk", label: "Primary wallet", type: "attacker" },
+      { id: "dex", label: "DEX swaps", type: "pool" },
+      { id: "left", label: "Unsold\nmstETH + mswETH", type: "vault" },
+      { id: "w1", label: "Wallet A\n101 ETH", type: "drain" },
+      { id: "w2", label: "Wallet B\n100 ETH", type: "drain" },
+      { id: "w3", label: "Wallet C\n102.06 ETH", type: "drain" },
+    ],
+    tokenFlowLinks: [
+      { source: "eth", target: "atk", value: 0.052, label: "Withdraw" },
+      { source: "puf", target: "atk", value: 0.615, label: "Withdraw" },
+      { source: "erc", target: "atk", value: 0.113, label: "Withdraw" },
+      { source: "atk", target: "dex", value: 0.7, label: "Reported swaps" },
+      { source: "atk", target: "left", value: 0.011, label: "Left unsold" },
+      { source: "dex", target: "w1", value: 0.233, label: "101 ETH" },
+      { source: "dex", target: "w2", value: 0.231, label: "100 ETH" },
+      { source: "dex", target: "w3", value: 0.236, label: "102.06 ETH" },
+    ],
+    mitigations: [
+      {
+        category: "Transient State",
+        description:
+          "Clear finalizeMessageHash at the start of each claim, and clear both finalizeMessageHash and claiming after validation, before any further external call. Clearing alone does not replace a fresh-callback check.",
+      },
+      {
+        category: "Fresh Authentication",
+        description:
+          "Count callbacks before the external message-service call and require exactly one new callback afterward. The stored hash must match the intended gateway, value, and calldata.",
+      },
+      {
+        category: "Regression Tests",
+        description:
+          "Cover two sequential claims in one transaction, an omitted callback, a mismatched callback, and an attempted reentrant callback.",
+      },
+      {
+        category: "Relayer Trust",
+        description:
+          "A publicly callable relayer must not be sufficient authority for root updates. Bind syncBatchRoot to the canonical gateway and verify the message sender on-chain.",
+      },
+      {
+        category: "Withdrawal Checks",
+        description:
+          "Cross-check L1 releases against proven L2 burns. Add pause switches, withdrawal caps, and monitoring on batch-root changes and large finalizations.",
+      },
+    ],
+    quiz: [
+      {
+        question: "What did Arbitrator.claimMessage fail to do?",
+        options: [
+          "Clear finalizeMessageHash after use and require a fresh authenticated callback",
+          "Check ERC-20 decimals before a swap",
+          "Emit a Withdrawal event",
+          "Charge a bridge fee",
+        ],
+        correct: 0,
+        explanation:
+          "The transient finalizeMessageHash stayed set, and later calls did not need a new authenticated callback, so a valid hash could be reused against a different message.",
+      },
+      {
+        question: "How did the forged batch root get installed?",
+        options: [
+          "By compromising the zkLink sequencer key",
+          "By replaying a hash through the public relayer so syncBatchRoot ran as the Ethereum Gateway",
+          "By overflowing the batch index",
+          "By upgrading the escrow proxy",
+        ],
+        correct: 1,
+        explanation:
+          "Incident reports describe the public relayer. The published contracts show why that matters: claimMessage can accept a leftover hash, and syncBatchRoot stores any root the gateway forwards.",
+      },
+      {
+        question: "Why did the L1 escrow release funds?",
+        options: [
+          "Withdrawal proofs matched the attacker-chosen root, with no legitimate L2 burn",
+          "A governance vote approved the transfer",
+          "The oracle price of pufETH was manipulated",
+          "Reentrancy reentered the ETH withdraw function",
+        ],
+        correct: 0,
+        explanation:
+          "The escrow checks proofs against the stored root. Incident analysis says these withdrawals had no matching L2 burn. That L2 comparison was not re-run against batch logs here.",
+      },
+      {
+        question: "Which control most directly closes this class of bug?",
+        options: [
+          "Raise the bridge UI warning",
+          "Clear transient message state and authenticate every root update independently of a public relayer",
+          "Lower the L2 gas limit",
+          "Rename the batch root variable",
+        ],
+        correct: 1,
+        explanation:
+          "Each claim must require a fresh callback and must clear both transient slots before the next external call. Wiping the hash alone still lets a stale callback count pass.",
+      },
+    ],
+  },
 ];
 
 export const hacksBySlug = Object.fromEntries(hacks.map((h) => [h.slug, h]));

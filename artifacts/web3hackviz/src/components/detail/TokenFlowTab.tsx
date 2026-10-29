@@ -35,6 +35,22 @@ function bezierPoint(
   };
 }
 
+function formatFlowValue(value: number): string {
+  if (value >= 1000) return `$${(value / 1000).toFixed(2)}B`;
+  if (value >= 10) {
+    const millions = Number(value.toFixed(1));
+    return `$${millions}M`;
+  }
+  if (value >= 1) {
+    const millions = Number(value.toFixed(2));
+    return `$${millions}M`;
+  }
+  const thousands = value * 1000;
+  if (thousands >= 100) return `$${Math.round(thousands)}K`;
+  if (thousands >= 10) return `$${Number(thousands.toFixed(1))}K`;
+  return `$${Number(thousands.toFixed(2))}K`;
+}
+
 function buildLayout(
   nodes: { id: string }[],
   links: { source: string; target: string }[],
@@ -99,26 +115,49 @@ export function TokenFlowTab({ hack }: { hack: Hack }) {
       svg.selectAll("*").remove();
 
       const container = svgRef.current.parentElement;
-      const width = container ? Math.max(container.clientWidth - 4, 500) : 700;
-      const height = 420;
-      const NODE_W = 134;
+      const NODE_W = 142;
       const NODE_H = 54;
-
-      svg.attr("width", width).attr("height", height);
 
       const nodes = hack.tokenFlowNodes.map((n) => ({ ...n }));
       const links = hack.tokenFlowLinks.map((l) => ({ ...l }));
 
-      // Validate data
       if (!nodes.length || !links.length) {
+        const width = container ? Math.max(container.clientWidth - 4, 500) : 700;
+        svg.attr("width", width).attr("height", 420);
         svg.append("text")
           .attr("x", width / 2)
-          .attr("y", height / 2)
+          .attr("y", 210)
           .attr("text-anchor", "middle")
           .attr("fill", "#666")
           .text("No token flow data available");
         return;
       }
+
+      const layerOf: Record<string, number> = {};
+      nodes.forEach((n) => { layerOf[n.id] = 0; });
+      let guard = nodes.length * links.length + 10;
+      let moved = true;
+      while (moved && guard-- > 0) {
+        moved = false;
+        links.forEach((l) => {
+          if ((layerOf[l.target] ?? 0) <= (layerOf[l.source] ?? 0)) {
+            layerOf[l.target] = (layerOf[l.source] ?? 0) + 1;
+            moved = true;
+          }
+        });
+      }
+      const layerSizes: Record<number, number> = {};
+      nodes.forEach((n) => {
+        const layer = layerOf[n.id] ?? 0;
+        layerSizes[layer] = (layerSizes[layer] ?? 0) + 1;
+      });
+      const numLayers = Math.max(...Object.values(layerOf), 0) + 1;
+      const busiest = Math.max(...Object.values(layerSizes), 1);
+      const containerWidth = container ? Math.max(container.clientWidth - 4, 500) : 700;
+      const width = Math.max(containerWidth, 160 + 180 * (numLayers - 1));
+      const height = Math.max(420, busiest * 108 + 36);
+
+      svg.attr("width", width).attr("height", height).style("min-height", `${height}px`);
 
       const { posMap } = buildLayout(nodes, links, width, height, NODE_W);
 
@@ -148,7 +187,7 @@ export function TokenFlowTab({ hack }: { hack: Hack }) {
       });
     svg.call(zoom);
 
-    const maxVal = Math.max(...links.map((l) => l.value), 1);
+    const maxVal = Math.max(...links.map((l) => l.value), 0.001);
 
     type BezierEntry = {
       link: (typeof links)[0];
@@ -171,6 +210,9 @@ export function TokenFlowTab({ hack }: { hack: Hack }) {
         const tx = tgt.x - NODE_W / 2;
         const ty = tgt.y;
         const dx = tx - sx;
+        const sameTarget = links.filter((l) => l.target === link.target);
+        const fanIndex = Math.max(0, sameTarget.indexOf(link));
+        const fanSpread = (fanIndex - (sameTarget.length - 1) / 2) * 22;
 
         const srcNode = nodes.find((n) => n.id === link.source);
         const color = NODE_COLORS[srcNode?.type ?? "vault"] ?? "#06b6d4";
@@ -178,10 +220,10 @@ export function TokenFlowTab({ hack }: { hack: Hack }) {
         return {
           link,
           sx, sy, tx, ty,
-          cx1: sx + dx * 0.45, cy1: sy,
-          cx2: tx - dx * 0.45, cy2: ty,
+          cx1: sx + dx * 0.45, cy1: sy + fanSpread * 0.35,
+          cx2: tx - dx * 0.45, cy2: ty + fanSpread,
           color,
-          strokeW: Math.max(2, (link.value / maxVal) * 14),
+          strokeW: 1.5 + (link.value / maxVal) * 4.5,
         };
       })
       .filter(Boolean) as BezierEntry[];
@@ -256,19 +298,8 @@ export function TokenFlowTab({ hack }: { hack: Hack }) {
         .attr("d", pathD)
         .attr("fill", "none")
         .attr("stroke", b.color)
-        .attr("stroke-width", b.strokeW + 8)
-        .attr("opacity", 0.1);
-
-      const markerId = `arr${hack.id}${i}`;
-      const marker = defs
-        .append("marker")
-        .attr("id", markerId)
-        .attr("markerWidth", 10)
-        .attr("markerHeight", 8)
-        .attr("refX", 8)
-        .attr("refY", 4)
-        .attr("orient", "auto");
-      marker.append("polygon").attr("points", "0 0, 10 4, 0 8").attr("fill", b.color);
+        .attr("stroke-width", b.strokeW + 2)
+        .attr("opacity", 0.12);
 
       edgeG
         .append("path")
@@ -276,22 +307,48 @@ export function TokenFlowTab({ hack }: { hack: Hack }) {
         .attr("fill", "none")
         .attr("stroke", b.color)
         .attr("stroke-width", b.strokeW)
-        .attr("opacity", 0.7)
-        .attr("stroke-linecap", "round")
-        .attr("marker-end", `url(#${markerId})`);
+        .attr("opacity", 0.75)
+        .attr("stroke-linecap", "round");
 
-      const midP = bezierPoint(0.5, b.sx, b.sy, b.cx1, b.cy1, b.cx2, b.cy2, b.tx, b.ty);
-      const amtStr =
-        b.link.value >= 1000
-          ? `$${(b.link.value / 1000).toFixed(2)}B`
-          : `$${b.link.value}M`;
+      // Fixed-size head. SVG markers scale with stroke width, which turned the
+      // thickest edge into a wedge that covered the next node.
+      const ang = Math.atan2(b.ty - b.cy2, b.tx - b.cx2);
+      const head = 7;
+      const wing = 3.2;
+      const tipX = b.tx;
+      const tipY = b.ty;
+      const bx = tipX - Math.cos(ang) * head;
+      const by = tipY - Math.sin(ang) * head;
+      const lx = bx + Math.cos(ang + Math.PI / 2) * wing;
+      const ly = by + Math.sin(ang + Math.PI / 2) * wing;
+      const rx = bx + Math.cos(ang - Math.PI / 2) * wing;
+      const ry = by + Math.sin(ang - Math.PI / 2) * wing;
+      edgeG
+        .append("polygon")
+        .attr("points", `${tipX},${tipY} ${lx},${ly} ${rx},${ry}`)
+        .attr("fill", b.color)
+        .attr("opacity", 0.9);
+
+      const sameTarget = links.filter((l) => l.target === b.link.target);
+      const sameSource = links.filter((l) => l.source === b.link.source);
+      let labelT = 0.5;
+      if (sameTarget.length > 1) {
+        const idx = Math.max(0, sameTarget.indexOf(b.link));
+        labelT = 0.22 + ((idx + 1) / (sameTarget.length + 1)) * 0.28;
+      } else if (sameSource.length > 1) {
+        const idx = Math.max(0, sameSource.indexOf(b.link));
+        labelT = 0.55 + ((idx + 1) / (sameSource.length + 1)) * 0.22;
+      }
+      const midP = bezierPoint(labelT, b.sx, b.sy, b.cx1, b.cy1, b.cx2, b.cy2, b.tx, b.ty);
+      const amtStr = formatFlowValue(b.link.value);
+      const pillW = Math.max(76, Math.max(b.link.label.length, amtStr.length) * 6.4 + 18);
 
       const labelG = edgeG.append("g");
       labelG
         .append("rect")
-        .attr("x", midP.x - 42)
+        .attr("x", midP.x - pillW / 2)
         .attr("y", midP.y - 25)
-        .attr("width", 84)
+        .attr("width", pillW)
         .attr("height", 34)
         .attr("rx", 5)
         .attr("fill", "rgba(0,0,0,0.85)")
@@ -320,7 +377,7 @@ export function TokenFlowTab({ hack }: { hack: Hack }) {
       mainG
         .append("circle")
         .attr("class", `flow-particle particle-src-${b.link.source} particle-tgt-${b.link.target}`)
-        .attr("r", Math.max(4, b.strokeW * 0.55))
+        .attr("r", 3.5)
         .attr("fill", b.color)
         .attr("opacity", 0.95)
         .attr("filter", "url(#tfglow)")
@@ -486,9 +543,7 @@ export function TokenFlowTab({ hack }: { hack: Hack }) {
                   </td>
                   <td className="px-3 py-2 text-muted-foreground">{link.label}</td>
                   <td className="px-3 py-2 text-right font-mono text-red-400">
-                    {link.value >= 1000
-                      ? `$${(link.value / 1000).toFixed(2)}B`
-                      : `$${link.value}M`}
+                    {formatFlowValue(link.value)}
                   </td>
                 </tr>
               );

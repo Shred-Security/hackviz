@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Hack } from "@/data/hacks";
 import { ChevronDown, ChevronUp, Shield, Code2, AlertTriangle } from "lucide-react";
+import { CodeBlock } from "@/components/detail/CodeBlock";
 
 export function LessonsTab({ hack }: { hack: Hack }) {
   const [expandedMit, setExpandedMit] = useState<number | null>(0);
@@ -56,9 +57,7 @@ export function LessonsTab({ hack }: { hack: Hack }) {
                         <Code2 className="w-3 h-3 text-muted-foreground" />
                         <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Example Fix</span>
                       </div>
-                      <pre className="bg-black/50 border border-border/50 rounded p-3 text-[11px] font-mono text-green-300 overflow-x-auto whitespace-pre-wrap leading-relaxed">
-                        {m.code}
-                      </pre>
+                      <CodeBlock code={m.code} language="solidity" />
                     </div>
                   )}
                 </div>

@@ -4,6 +4,7 @@ import { Hack } from "@/data/hacks";
 import { formatHackChains, getHackChains } from "@/lib/hack-chains";
 import { ExternalLink, ArrowRightLeft } from "lucide-react";
 import { getExplorerTxUrl } from "@/lib/utils";
+import { CodeBlock } from "@/components/detail/CodeBlock";
 
 function renderMarkdown(text: string): React.ReactNode[] {
   const lines = text.split("\n");
@@ -16,6 +17,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
 
     // Code block (```)
     if (line.trimStart().startsWith("```")) {
+      const language = line.trim().slice(3).trim() || "text";
       const codeLines: string[] = [];
       i++;
       while (i < lines.length && !lines[i].trimStart().startsWith("```")) {
@@ -24,9 +26,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
       }
       i++;
       nodes.push(
-        <pre key={key++} className="bg-black/40 border border-border/50 rounded p-3 text-xs font-mono text-green-300 overflow-x-auto whitespace-pre-wrap leading-relaxed my-3">
-          {codeLines.join("\n")}
-        </pre>
+        <CodeBlock key={key++} language={language} code={codeLines.join("\n")} />
       );
       continue;
     }

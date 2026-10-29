@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { Hack } from "@/data/hacks";
 import { Play, Pause, SkipBack, SkipForward, ChevronRight, Code, ExternalLink } from "lucide-react";
 import { getExplorerTxUrl } from "@/lib/utils";
+import { CodeBlock } from "@/components/detail/CodeBlock";
 
 export function TimelineTab({ hack }: { hack: Hack }) {
   const [currentStep, setCurrentStep] = useState(0);
@@ -142,9 +143,7 @@ export function TimelineTab({ hack }: { hack: Hack }) {
         {showCode && (
           <div className="mt-3">
             <div className="text-[10px] text-muted-foreground uppercase tracking-widest mb-2">Pseudocode</div>
-            <pre className="bg-black/40 border border-border/50 rounded p-3 text-xs font-mono text-green-300 overflow-x-auto leading-relaxed whitespace-pre-wrap">
-              {step.pseudocode}
-            </pre>
+            <CodeBlock code={step.pseudocode} language="solidity" />
           </div>
         )}
 
